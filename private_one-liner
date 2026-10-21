@@ -1,0 +1,1 @@
+curl -H "Authorization: token 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" https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/Software_u_Setup.sh -o setup.sh && chmod +x setup.sh && sudo ./setup.sh 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
