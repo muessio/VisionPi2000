@@ -10,7 +10,6 @@ sudo apt upgrade -y
 
 # 2. Grafische Minimal-Oberfläche und Abhängigkeiten installieren
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
-# HIER NEU: 'unclutter' wieder hinzugefügt zum Verstecken der Maus
 sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils unclutter -y
 
 # 3. GitHub-Repository klonen und Dateien am richtigen Ort ablegen
@@ -47,11 +46,16 @@ cd /home/visionpi2000/VisionPi2000
 python3 visionpi.py &
 EOF
 
-# 7. Dateiberechtigungen für den Benutzer sicherstellen
+# 7. Sounds generieren (generate_sounds.py ausführen)
+echo "Generiere Sounds..."
+cd /home/visionpi2000/VisionPi2000
+python3 generate_sounds.py
+
+# 8. Dateiberechtigungen für den Benutzer sicherstellen
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/VisionPi2000
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/.config
 
-# 8. Sound einmalig auf 100% einstellen
+# 9. Sound einmalig auf 100% einstellen
 amixer sset Master 100%
 
 echo "========================================================================="
