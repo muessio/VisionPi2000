@@ -16,7 +16,10 @@ sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils
 echo "Lade Dateien von GitHub herunter..."
 mkdir -p /home/visionpi2000/VisionPi2000
 git clone https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
-cp -r /tmp/VisionPiRepo/VisionPi2000/* /home/visionpi2000/VisionPi2000/
+
+# KORREKTUR: Den kopierten Inhalt direkt aus dem Repo-Root nehmen!
+cp -r /tmp/VisionPiRepo/* /home/visionpi2000/VisionPi2000/
+
 rm -rf /tmp/VisionPiRepo
 
 # 4. Berechtigungen für den Benutzer 'visionpi2000' setzen (Audio & Arduino/USB)
