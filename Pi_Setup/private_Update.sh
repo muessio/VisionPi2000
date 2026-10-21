@@ -11,7 +11,13 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-# WICHTIG: Vorherige Dateileichen im tmp-Ordner zwingend löschen, sonst streikt git clone!
+# Vorher prüfen, ob git überhaupt installiert ist (falls nicht, installieren)
+if ! command -v git &> /dev/null; then
+    echo "Git ist nicht installiert. Installiere Git..."
+    sudo apt update && sudo apt install git -y
+fi
+
+# WICHTIG: Vorherige Dateileichen im tmp-Ordner zwingend löschen!
 rm -rf /tmp/VisionPiRepoUpdate
 
 echo "Lade neueste Dateien von GitHub herunter..."
@@ -19,12 +25,18 @@ echo "Lade neueste Dateien von GitHub herunter..."
 # Temporär das komplette Repository in den tmp-Ordner laden
 git clone https://${1}@github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
 
-echo "Aktualisiere den VisionPi2000 Ordner..."
+# SICHERHEITS-CHECK: Wurde wirklich etwas heruntergeladen?
+if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
+    echo "FEHLER: Download fehlgeschlagen! Das Update wird abgebrochen, um deine Dateien zu schützen."
+    exit 1
+fi
+
+echo "Download erfolgreich. Aktualisiere den VisionPi2000 Ordner..."
 
 # 1. Alten Inhalt auf dem Pi komplett löschen
 rm -rf /home/visionpi2000/VisionPi2000/*
 
-# 2. Den frisch heruntergeladenen Inhalt aus dem richtigen Unterordner kopieren
+# 2. Den frisch heruntergeladenen Inhalt kopieren
 cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* /home/visionpi2000/VisionPi2000/
 
 # 3. Danach direkt wieder aufräumen
