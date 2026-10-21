@@ -56,11 +56,16 @@ cd /home/visionpi2000/VisionPi2000
 python3 visionpi.py &
 EOF
 
-# 7. Dateiberechtigungen für den Benutzer sicherstellen
+# 7. Sounds generieren (generate_sounds.py ausführen)
+echo "Generiere Sounds..."
+cd /home/visionpi2000/VisionPi2000
+python3 generate_sounds.py
+
+# 8. Dateiberechtigungen für den Benutzer sicherstellen (greift auch für neu generierte Sounds)
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/VisionPi2000
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/.config
 
-# 8. Sound einmalig auf 100% einstellen
+# 9. Sound einmalig auf 100% einstellen
 amixer sset Master 100%
 
 echo "========================================================================="
