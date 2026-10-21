@@ -21,13 +21,13 @@ except ImportError: game_aroundclock = None
 
 # =====================================================================
 # ================= LAYOUT EINSTELLUNGEN ==============================
-BOX_WIDTH = 240         
+BOX_WIDTH = 260         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
-MENU_START_Y = 210    
+MENU_START_Y = 240    
 FONT_SIZE_MENU = 16     
 FONT_SIZE_TITLE = 20    
-HEADER_START_Y = 10    
+HEADER_START_Y = 5    
 # =====================================================================
 
 ARDUINO_PORT = '/dev/ttyACM0' 
