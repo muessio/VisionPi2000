@@ -11,6 +11,9 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
+# WICHTIG: Vorherige Dateileichen im tmp-Ordner zwingend löschen, sonst streikt git clone!
+rm -rf /tmp/VisionPiRepoUpdate
+
 echo "Lade neueste Dateien von GitHub herunter..."
 
 # Temporär das komplette Repository in den tmp-Ordner laden
@@ -18,13 +21,13 @@ git clone https://${1}@github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpda
 
 echo "Aktualisiere den VisionPi2000 Ordner..."
 
-# 1. Alten Inhalt auf dem Pi komplett löschen (verhindert Dateileichen)
+# 1. Alten Inhalt auf dem Pi komplett löschen
 rm -rf /home/visionpi2000/VisionPi2000/*
 
-# 2. KORREKTUR: Den frisch heruntergeladenen Inhalt direkt aus dem Repo-Root kopieren
-cp -r /tmp/VisionPiRepoUpdate/* /home/visionpi2000/VisionPi2000/
+# 2. Den frisch heruntergeladenen Inhalt aus dem richtigen Unterordner kopieren
+cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* /home/visionpi2000/VisionPi2000/
 
-# 3. Aufräumen (Temporären Download-Ordner löschen)
+# 3. Danach direkt wieder aufräumen
 rm -rf /tmp/VisionPiRepoUpdate
 
 # Sounds neu generieren
