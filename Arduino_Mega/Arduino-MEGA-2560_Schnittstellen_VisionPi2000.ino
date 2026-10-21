@@ -53,6 +53,16 @@ bool piezoTriggered = false;
 const int piezoThreshold = 150;      
 const int piezoMatrixWaitTime = 100; 
 
+// NEU: Entprell-Zeiten und Speicher für Taster/Sensoren
+const int btnDebounceDelay = 200; // 200ms Sperrzeit für mechanische Taster
+const int irDebounceDelay = 500;  // 500ms Sperrzeit für IR-Sensor
+unsigned long lastPressRed = 0;
+unsigned long lastPressBlue = 0;
+unsigned long lastPressGrey = 0;
+unsigned long lastPressStart = 0;
+unsigned long lastPressPlayer = 0;
+unsigned long lastPressIR = 0;
+
 bool stateRed, stateBlue, stateGrey, stateStart, statePlayer, stateIR = true;
 bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer, lastIR = true;
 
@@ -202,29 +212,59 @@ void loop() {
   }
 
   // ---------------------------------------------------------
-  // 4. ARCADE-TASTEN & IR-SENSOR
+  // 4. ARCADE-TASTEN & IR-SENSOR (Blockierungsfrei entprellt)
   // ---------------------------------------------------------
   stateRed = digitalRead(btnRed);
-  if (stateRed == LOW && lastRed == HIGH) { Serial.println("BTN:RED"); delay(50); }
+  if (stateRed == LOW && lastRed == HIGH) { 
+    if (currentMillis - lastPressRed > btnDebounceDelay) {
+      Serial.println("BTN:RED"); 
+      lastPressRed = currentMillis;
+    }
+  }
   lastRed = stateRed;
 
   stateBlue = digitalRead(btnBlue);
-  if (stateBlue == LOW && lastBlue == HIGH) { Serial.println("BTN:BLUE"); delay(50); }
+  if (stateBlue == LOW && lastBlue == HIGH) { 
+    if (currentMillis - lastPressBlue > btnDebounceDelay) {
+      Serial.println("BTN:BLUE"); 
+      lastPressBlue = currentMillis;
+    }
+  }
   lastBlue = stateBlue;
 
   stateGrey = digitalRead(btnGrey);
-  if (stateGrey == LOW && lastGrey == HIGH) { Serial.println("BTN:GREY"); delay(50); }
+  if (stateGrey == LOW && lastGrey == HIGH) { 
+    if (currentMillis - lastPressGrey > btnDebounceDelay) {
+      Serial.println("BTN:GREY"); 
+      lastPressGrey = currentMillis;
+    }
+  }
   lastGrey = stateGrey;
 
   stateStart = digitalRead(btnStart);
-  if (stateStart == LOW && lastStart == HIGH) { Serial.println("BTN:START"); delay(50); }
+  if (stateStart == LOW && lastStart == HIGH) { 
+    if (currentMillis - lastPressStart > btnDebounceDelay) {
+      Serial.println("BTN:START"); 
+      lastPressStart = currentMillis;
+    }
+  }
   lastStart = stateStart;
 
   statePlayer = digitalRead(btnPlayer);
-  if (statePlayer == LOW && lastPlayer == HIGH) { Serial.println("BTN:PLAYER"); delay(50); }
+  if (statePlayer == LOW && lastPlayer == HIGH) { 
+    if (currentMillis - lastPressPlayer > btnDebounceDelay) {
+      Serial.println("BTN:PLAYER"); 
+      lastPressPlayer = currentMillis;
+    }
+  }
   lastPlayer = statePlayer;
 
   stateIR = digitalRead(irSensorPin);
-  if (stateIR == LOW && lastIR == HIGH) { Serial.println("IR:DETECT"); delay(500); }
+  if (stateIR == LOW && lastIR == HIGH) { 
+    if (currentMillis - lastPressIR > irDebounceDelay) {
+      Serial.println("IR:DETECT"); 
+      lastPressIR = currentMillis;
+    }
+  }
   lastIR = stateIR;
 }
