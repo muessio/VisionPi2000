@@ -53,7 +53,7 @@ bool piezoTriggered = false;
 const int piezoThreshold = 150;      
 const int piezoMatrixWaitTime = 100; 
 
-// NEU: Entprell-Zeiten und Speicher für Taster/Sensoren
+// Entprell-Zeiten und Speicher für Taster/Sensoren
 const int btnDebounceDelay = 200; // 200ms Sperrzeit für mechanische Taster
 const int irDebounceDelay = 500;  // 500ms Sperrzeit für IR-Sensor
 unsigned long lastPressRed = 0;
@@ -267,4 +267,23 @@ void loop() {
     }
   }
   lastIR = stateIR;
+
+  // ---------------------------------------------------------
+  // 5. COMBO-ABFRAGE (Rot, Blau und Grau für 3 Sekunden halten)
+  // ---------------------------------------------------------
+  static unsigned long comboStartTime = 0;
+  static bool comboActive = false;
+
+  // Prüfen, ob alle drei Taster (Red, Blue, Grey) gleichzeitig auf LOW (gedrückt) sind
+  if (stateRed == LOW && stateBlue == LOW && stateGrey == LOW) {
+    if (comboStartTime == 0) {
+      comboStartTime = currentMillis; // Timer starten
+    } else if (currentMillis - comboStartTime >= 3000 && !comboActive) {
+      Serial.println("BTN:COMBO");    // Nach 3 Sekunden Befehl an den Pi senden
+      comboActive = true;             // Verhindert mehrfaches Senden bis losgelassen wird
+    }
+  } else {
+    comboStartTime = 0;
+    comboActive = false;
+  }
 }
