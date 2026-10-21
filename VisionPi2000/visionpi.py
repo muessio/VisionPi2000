@@ -151,15 +151,18 @@ def main():
 
         keys = pygame.key.get_pressed()
         is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
-        is_combo_serial = raw_data == "BTN:COMBO"
-
-        trigger_info = False
         
-        if is_combo_serial: trigger_info = True
+        trigger_info = False
+        if raw_data == "BTN:COMBO":
+            trigger_info = True
+            raw_data = None
         elif is_combo_keys:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
-            elif pygame.time.get_ticks() - combo_press_start >= 3000: trigger_info = True
-        else: combo_press_start = 0
+            elif pygame.time.get_ticks() - combo_press_start >= 2000:
+                trigger_info = True
+                combo_press_start = 0
+        else:
+            combo_press_start = 0
 
         if trigger_info:
             showing_info = True
@@ -169,7 +172,6 @@ def main():
                 
             while showing_info:
                 screen.fill(BG_COLOR)
-                
                 screen.blit(title_font.render("SYSTEM-INFORMATIONEN (Revisionsindex)", True, HIGHLIGHT), (120, 80))
                 screen.blit(font.render(f"Vision Pi 2000 (Hauptmenü): v{VERSION}", True, WHITE), (150, 150))
                 y_pos = 200
@@ -188,7 +190,7 @@ def main():
                     s_in = ser.readline().decode('utf-8','ignore').strip()
                     if s_in == "BTN:PLAYER": showing_info = False
             
-            combo_press_start = 0
+            trigger_info = False
             raw_data = None 
 
         if raw_data:
@@ -198,10 +200,13 @@ def main():
                 elif raw_data == "BTN:BLUE": sel_option = (sel_option + 1) % len(c_opts)
                 elif raw_data == "BTN:GREY": 
                     sel_mode = (sel_mode + 1) % len(modes)
-                    while players == 8 and "Berry" in modes[sel_mode]:
-                        sel_mode = (sel_mode + 1) % len(modes)
+                    # Wenn 8 Spieler eingestellt sind, Berry-Modi komplett überspringen
+                    if players == 8:
+                        while "Berry" in modes[sel_mode]:
+                            sel_mode = (sel_mode + 1) % len(modes)
                 elif raw_data == "BTN:PLAYER": 
                     players = players + 1 if players < 8 else 1
+                    # Wenn wir auf 8 Spieler schalten und ein Berry-Modus aktiv war, automatisch auf Normales Spiel zurücksetzen
                     if players == 8 and "Berry" in modes[sel_mode]:
                         sel_mode = 0
                     send_to_display(ser, 0, 2, 15)
