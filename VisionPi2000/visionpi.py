@@ -22,12 +22,12 @@ except ImportError: game_aroundclock = None
 # =====================================================================
 # ================= LAYOUT EINSTELLUNGEN ==============================
 BOX_WIDTH = 240         
-BOX_HEIGHT = 380        
+BOX_HEIGHT = 420        
 BOX_SPACING = 30        
-MENU_START_Y = 180      
+MENU_START_Y = 210    
 FONT_SIZE_MENU = 16     
 FONT_SIZE_TITLE = 20    
-HEADER_START_Y = 35     
+HEADER_START_Y = 10    
 # =====================================================================
 
 ARDUINO_PORT = '/dev/ttyACM0' 
@@ -226,8 +226,9 @@ def main():
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, BLUE_COL, "OPTION", c_opts, sel_option)
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, GREY_COL, "MODUS", modes, sel_mode)
 
-        screen.blit(big_font.render(f"Spieler: {players}", True, WHITE), ((SCREEN_WIDTH - big_font.render(f"Spieler: {players}", True, WHITE).get_width()) // 2, sy + ch + 30))
-        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), ((SCREEN_WIDTH - font.render("Tasten Rot...", True, (150, 150, 150)).get_width()) // 2, SCREEN_HEIGHT - 50))
+        # ANGEPASST: Linksbündig zur roten Box (sx) und weniger Abstand untereinander
+        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, WHITE), (sx, sy + ch + 30))
+        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + 75))
 
         pygame.display.flip()
         clock.tick(30)
@@ -235,3 +236,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
+        
