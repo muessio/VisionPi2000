@@ -25,16 +25,16 @@ except ImportError: game_aroundclock = None
 BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
-MENU_START_Y = 240    
+MENU_START_Y = 220      # Etwas nach oben gerückt, da die Topbar weg ist
 FONT_SIZE_MENU = 16     
 FONT_SIZE_TITLE = 20    
-HEADER_START_Y = 5    
+HEADER_START_Y = 10     # Header rückt ganz nach oben
 # =====================================================================
 
 BAUD_RATE = 115200
 SCREEN_WIDTH, SCREEN_HEIGHT = 1024, 768
 BG_COLOR, RED_COL, BLUE_COL, GREY_COL = (0, 0, 0), (180, 30, 30), (30, 80, 180), (80, 80, 80)
-HIGHLIGHT, WHITE, TOPBAR_BG = (255, 215, 0), (255, 255, 255), (50, 50, 55)
+HIGHLIGHT, WHITE = (255, 215, 0), (255, 255, 255)
 
 VERSION = "1.0.6"
 
@@ -115,7 +115,6 @@ def main():
     font = pygame.font.SysFont("arial", FONT_SIZE_MENU, bold=True)
     title_font = pygame.font.SysFont("arial", FONT_SIZE_TITLE, bold=True)
     big_font = pygame.font.SysFont("arial", 32, bold=True)
-    topbar_font = pygame.font.SysFont("arial", 16) 
     
     game_registry = []
     if game_x01:
@@ -221,13 +220,10 @@ def main():
 
         screen.fill(BG_COLOR)
         
-        pygame.draw.rect(screen, TOPBAR_BG, (0, 0, SCREEN_WIDTH, 30))
-        screen.blit(topbar_font.render(f"Hauptmenü: Version {VERSION}", True, (50, 255, 50)), (15, 6))
-        dev_text = "Custom Dartsports Engine • Developed by Oliver Müssig"
-        dev_surf = topbar_font.render(dev_text, True, (200, 200, 200))
-        screen.blit(dev_surf, ((SCREEN_WIDTH - dev_surf.get_width()) // 2, 6))
+        # Obere Leiste (Topbar) komplett entfernt
         
-        if header_img: screen.blit(header_img, ((SCREEN_WIDTH - header_img.get_width()) // 2, HEADER_START_Y))
+        if header_img: 
+            screen.blit(header_img, ((SCREEN_WIDTH - header_img.get_width()) // 2, HEADER_START_Y))
         else:
             hx = (SCREEN_WIDTH - big_font.render("VISION PI 2000", True, HIGHLIGHT).get_width()) // 2
             screen.blit(big_font.render("VISION PI 2000", True, HIGHLIGHT), (hx, HEADER_START_Y + 15))
