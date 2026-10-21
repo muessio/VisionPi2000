@@ -1,0 +1,1 @@
+wget https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/Software_u_Setup.sh && chmod +x Software_u_Setup.sh && sudo ./Software_u_Setup.sh
