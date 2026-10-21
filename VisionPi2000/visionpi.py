@@ -73,6 +73,8 @@ def draw_column(screen, font, title_font, x, y, w, h, color, title, items, sel_i
 
 def main():
     pygame.init(); pygame.mixer.init()
+    pygame.mouse.set_visible(False)  # Mauszeiger dauerhaft ausblenden
+    
     sound_click = pygame.mixer.Sound("sounds/click.wav") if os.path.exists("sounds/click.wav") else None
     sound_start = pygame.mixer.Sound("sounds/start.wav") if os.path.exists("sounds/start.wav") else None
         
@@ -200,13 +202,11 @@ def main():
                 elif raw_data == "BTN:BLUE": sel_option = (sel_option + 1) % len(c_opts)
                 elif raw_data == "BTN:GREY": 
                     sel_mode = (sel_mode + 1) % len(modes)
-                    # Wenn 8 Spieler eingestellt sind, Berry-Modi komplett überspringen
                     if players == 8:
                         while "Berry" in modes[sel_mode]:
                             sel_mode = (sel_mode + 1) % len(modes)
                 elif raw_data == "BTN:PLAYER": 
                     players = players + 1 if players < 8 else 1
-                    # Wenn wir auf 8 Spieler schalten und ein Berry-Modus aktiv war, automatisch auf Normales Spiel zurücksetzen
                     if players == 8 and "Berry" in modes[sel_mode]:
                         sel_mode = 0
                     send_to_display(ser, 0, 2, 15)
