@@ -24,6 +24,9 @@ def get_bot_hit(bot_marks, p1_marks, diff):
     return str(random.randint(1, 14))
 
 def run_game(screen, ser, players, game_name, option, mode):
+    is_berry_game = "Bullseye-Berry" in mode
+    total_players = players + 1 if is_berry_game else players
+
     PLAYER_MAP = [(0, 2), (1, 2), (0, 5), (1, 5), (2, 2), (3, 2), (2, 5), (3, 5)]
 
     def update_score_display(player_idx, score):
@@ -38,8 +41,9 @@ def run_game(screen, ser, players, game_name, option, mode):
                 ser.write(f"DISP:{c}:{d}:15\n".encode('utf-8'))
 
     bg_img = None
-    if os.path.exists("background.png"):
-        try: bg_img = pygame.transform.scale(pygame.image.load("background.png").convert(), (screen.get_width(), screen.get_height()))
+    bg_path = os.path.join(os.getcwd(), "background.png")
+    if os.path.exists(bg_path):
+        try: bg_img = pygame.transform.scale(pygame.image.load(bg_path).convert(), (screen.get_width(), screen.get_height()))
         except: pass
 
     berry_images = {
@@ -47,7 +51,8 @@ def run_game(screen, ser, players, game_name, option, mode):
         "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png",
         "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"
     }
-    avatar_img = pygame.image.load(berry_images[mode]).convert_alpha() if mode in berry_images and os.path.exists(berry_images[mode]) else None
+    avatar_path = berry_images.get(mode, "")
+    avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
 
     sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
     sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
@@ -56,22 +61,22 @@ def run_game(screen, ser, players, game_name, option, mode):
     title_font, big_font, giant_font = pygame.font.SysFont("arial", 28, bold=True), pygame.font.SysFont("arial", 38, bold=True), pygame.font.SysFont("arial", 90, bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
-    player_scores, player_marks = [0] * players, [{t: 0 for t in TARGETS} for _ in range(players)]
+    player_scores, player_marks = [0] * total_players, [{t: 0 for t in TARGETS} for _ in range(total_players)]
     darts_thrown, active_player = 0, 1
-    for i in range(players): update_score_display(i, 0)
+    for i in range(total_players): update_score_display(i, 0)
 
     running, clock, current_state, bot_timer, combo_press_start = True, pygame.time.Clock(), "GAME", 0, 0
 
     def check_win():
-        for i in range(players):
-            if all(player_marks[i][t] >= 3 for t in TARGETS) and all(player_scores[i] >= player_scores[j] for j in range(players)): return True
+        for i in range(total_players):
+            if all(player_marks[i][t] >= 3 for t in TARGETS) and all(player_scores[i] >= player_scores[j] for j in range(total_players)): return True
         return False
 
     while running:
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
         for e in pygame.event.get():
             if e.type == pygame.KEYDOWN:
-                if e.key in [pygame.K_SPACE, pygame.K_ESCAPE]: raw_data = "BTN:START"
+                if e.key in [pygame.K_SPACE, pygame.K_ESCAPE]: pass
                 elif e.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif e.key == pygame.K_r: raw_data = "BTN:RED"
                 elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
@@ -85,7 +90,7 @@ def run_game(screen, ser, players, game_name, option, mode):
         if is_combo_serial: trigger_abort = True
         elif is_combo_keys:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
-            elif pygame.time.get_ticks() - combo_press_start >= 3000: trigger_abort = True
+            elif pygame.time.get_ticks() - combo_press_start >= 2000: trigger_abort = True
         else: combo_press_start = 0
 
         if trigger_abort:
@@ -118,12 +123,12 @@ def run_game(screen, ser, players, game_name, option, mode):
                 
             raw_data = None 
 
-        is_berrys_turn = (active_player == 2 and "Bullseye-Berry" in mode)
+        is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and current_state == "GAME" and raw_data is None:
             if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
             elif pygame.time.get_ticks() > bot_timer:
                 diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
-                raw_data = f"HIT:{get_bot_hit(player_marks[1], player_marks[0], diff)}"
+                raw_data = f"HIT:{get_bot_hit(player_marks[total_players-1], player_marks[0], diff)}"
                 bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
@@ -131,7 +136,7 @@ def run_game(screen, ser, players, game_name, option, mode):
             if current_state == "GAME":
                 if raw_data == "BTN:PLAYER":
                     darts_thrown = 0
-                    active_player = (active_player % players) + 1
+                    active_player = (active_player % total_players) + 1
                 elif raw_data.startswith("HIT:"):
                     hit_seg = raw_data.split(":")[1]
                     if hit_seg != "-":
@@ -144,12 +149,12 @@ def run_game(screen, ser, players, game_name, option, mode):
                         p_idx = active_player - 1
                         for _ in range(marks):
                             if player_marks[p_idx][val] < 3: player_marks[p_idx][val] += 1
-                            elif not all(player_marks[i][val] >= 3 for i in range(players)):
+                            elif not all(player_marks[i][val] >= 3 for i in range(total_players)):
                                 player_scores[p_idx] += val
                                 update_score_display(p_idx, player_scores[p_idx])
                     darts_thrown += 1
                     if check_win(): current_state = "WIN"
-                    elif darts_thrown >= 3: darts_thrown, active_player = 0, (active_player % players) + 1
+                    elif darts_thrown >= 3: darts_thrown, active_player = 0, (active_player % total_players) + 1
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
 
         if bg_img: screen.blit(bg_img, (0, 0))
@@ -162,11 +167,11 @@ def run_game(screen, ser, players, game_name, option, mode):
             
             for i, target in enumerate(TARGETS):
                 screen.blit(big_font.render("BULL" if target == 25 else str(target), True, HIGHLIGHT), (200, 220 + i*50))
-                for p in range(players):
+                for p in range(total_players):
                     marks = player_marks[p][target]
                     m_str = "-" if marks == 0 else ("/" if marks == 1 else ("X" if marks == 2 else "(X)"))
                     screen.blit(big_font.render(m_str, True, (50, 255, 50) if marks == 3 else WHITE), (350 + p*100, 220 + i*50))
-                    if i == 0: screen.blit(title_font.render(f"P{p+1}", True, (150,150,150)), (350 + p*100, 180))
+                    if i == 0: screen.blit(title_font.render(f"P{p+1}" if not (is_berry_game and p == total_players-1) else "Berry", True, (150,150,150)), (350 + p*100, 180))
 
             if is_berrys_turn and avatar_img:
                 anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
