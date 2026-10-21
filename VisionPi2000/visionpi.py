@@ -163,36 +163,54 @@ def main():
         is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
         is_combo_serial = raw_data == "BTN:COMBO"
 
-        if is_combo_keys or is_combo_serial:
+        trigger_info = False
+        
+        # Prüfen ob Tastatur-Combo 3 Sekunden gehalten wurde ODER der Arduino den COMBO Befehl sendet
+        if is_combo_serial:
+            trigger_info = True
+        elif is_combo_keys:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
-            elif pygame.time.get_ticks() - combo_press_start >= 2000:
-                showing_info = True
-                while showing_info:
-                    screen.fill(BG_COLOR)
-                    screen.blit(title_font.render("SYSTEM-INFORMATIONEN (Revisionsindex)", True, HIGHLIGHT), (120, 80))
-                    
-                    screen.blit(font.render(f"Vision Pi 2000 (Hauptmenü): v{VERSION}", True, WHITE), (150, 150))
-                    y_pos = 200
-                    for mod_item in game_registry:
-                        m_name = mod_item["name"]
-                        m_ver = getattr(mod_item["module"], "VERSION", "1.0.0") if mod_item["module"] else "1.0.0"
-                        screen.blit(font.render(f"- {m_name}: v{m_ver}", True, WHITE), (170, y_pos))
-                        y_pos += 40
-                    
-                    screen.blit(font.render("Drücke [ START ] (oder roter Button) zum Schließen", True, HIGHLIGHT), (150, SCREEN_HEIGHT - 80))
-                    pygame.display.flip()
-                    
-                    for ev in pygame.event.get():
-                        if ev.type == pygame.KEYDOWN:
-                            if ev.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE]: showing_info = False
-                    if ser and ser.in_waiting > 0:
-                        s_in = ser.readline().decode('utf-8','ignore').strip()
-                        if s_in in ["BTN:START", "BTN:RED"]: showing_info = False
-                combo_press_start = 0
+            elif pygame.time.get_ticks() - combo_press_start >= 3000:
+                trigger_info = True
         else:
             combo_press_start = 0
 
-        if raw_data and not (is_combo_keys or is_combo_serial):
+        if trigger_info:
+            showing_info = True
+            # Eingabepuffer leeren, damit alte Tastendrücke nicht stören
+            if ser:
+                try: ser.reset_input_buffer()
+                except: pass
+                
+            while showing_info:
+                screen.fill(BG_COLOR)
+                screen.blit(title_font.render("SYSTEM-INFORMATIONEN (Revisionsindex)", True, HIGHLIGHT), (120, 80))
+                
+                screen.blit(font.render(f"Vision Pi 2000 (Hauptmenü): v{VERSION}", True, WHITE), (150, 150))
+                y_pos = 200
+                for mod_item in game_registry:
+                    m_name = mod_item["name"]
+                    m_ver = getattr(mod_item["module"], "VERSION", "1.0.0") if mod_item["module"] else "1.0.0"
+                    screen.blit(font.render(f"- {m_name}: v{m_ver}", True, WHITE), (170, y_pos))
+                    y_pos += 40
+                
+                # ANGEPASST: Neuer Hinweistext zum Verlassen
+                screen.blit(font.render("Taste Spielerwechsel drücken, um das Menü zu verlassen.", True, HIGHLIGHT), (150, SCREEN_HEIGHT - 80))
+                pygame.display.flip()
+                
+                for ev in pygame.event.get():
+                    if ev.type == pygame.KEYDOWN:
+                        if ev.key in [pygame.K_p, pygame.K_ESCAPE]: showing_info = False
+                
+                if ser and ser.in_waiting > 0:
+                    s_in = ser.readline().decode('utf-8','ignore').strip()
+                    # ANGEPASST: Reagiert nur noch auf BTN:PLAYER
+                    if s_in == "BTN:PLAYER": showing_info = False
+            
+            combo_press_start = 0
+            raw_data = None # Verhindert, dass der Combo-Druck im normalen Menü noch was auslöst
+
+        if raw_data:
             if raw_data in ["BTN:RED", "BTN:BLUE", "BTN:GREY", "BTN:PLAYER"]:
                 if sound_click: sound_click.play()
                 if raw_data == "BTN:RED": sel_game, sel_option = (sel_game + 1) % len(g_list), 0
@@ -215,7 +233,6 @@ def main():
         screen.fill(BG_COLOR)
         pygame.draw.rect(screen, TOPBAR_BG, (0, 0, SCREEN_WIDTH, 30))
         
-        # NEU: Angepasster Status-Text
         screen.blit(topbar_font.render(f"Hauptmenü: Version {VERSION}", True, (50, 255, 50)), (15, 6))
         
         dev_text = "Custom Dartsports Engine • Developed by Oliver Müssig"
@@ -235,7 +252,6 @@ def main():
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, BLUE_COL, "OPTION", c_opts, sel_option)
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, GREY_COL, "MODUS", modes, sel_mode)
 
-        # ANGEPASST: Linksbündig zur roten Box (sx) und weniger Abstand untereinander
         screen.blit(big_font.render(f"Spieleranzahl: {players}", True, WHITE), (sx, sy + ch + 30))
         screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + 75))
 
@@ -245,3 +261,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
+    
