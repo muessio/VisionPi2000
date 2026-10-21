@@ -39,6 +39,11 @@ def run_game(screen, ser, players, game_name, option, mode):
             for d in range(8):
                 ser.write(f"DISP:{c}:{d}:15\n".encode('utf-8'))
 
+    bg_img = None
+    if os.path.exists("background.png"):
+        try: bg_img = pygame.transform.scale(pygame.image.load("background.png").convert(), (screen.get_width(), screen.get_height()))
+        except: pass
+
     berry_images = {
         "Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png",
         "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png",
@@ -76,16 +81,11 @@ def run_game(screen, ser, players, game_name, option, mode):
         is_combo_serial = raw_data == "BTN:COMBO"
 
         trigger_abort = False
-        
-        # Combo-Check für Abbruch (3 Sekunden halten)
-        if is_combo_serial:
-            trigger_abort = True
+        if is_combo_serial: trigger_abort = True
         elif is_combo_keys:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
-            elif pygame.time.get_ticks() - combo_press_start >= 3000:
-                trigger_abort = True
-        else: 
-            combo_press_start = 0
+            elif pygame.time.get_ticks() - combo_press_start >= 3000: trigger_abort = True
+        else: combo_press_start = 0
 
         if trigger_abort:
             confirming = True
@@ -94,7 +94,9 @@ def run_game(screen, ser, players, game_name, option, mode):
                 except: pass
                 
             while confirming:
-                screen.fill((20, 20, 25))
+                if bg_img: screen.blit(bg_img, (0, 0))
+                else: screen.fill((0, 0, 0))
+                
                 screen.blit(big_font.render("SPIEL ABBRECHEN?", True, RED_COL), (330, 180))
                 screen.blit(title_font.render("Spiel abbrechen mit Taste Spielerwechsel", True, WHITE), (240, 280))
                 screen.blit(title_font.render("Weiterspielen mit Taste Start", True, HIGHLIGHT), (310, 340))
@@ -103,17 +105,17 @@ def run_game(screen, ser, players, game_name, option, mode):
                 cancel_action = None
                 for ev in pygame.event.get():
                     if ev.type == pygame.KEYDOWN:
-                        if ev.key == pygame.K_p: cancel_action = "YES" # Spielerwechsel zum Abbrechen
+                        if ev.key == pygame.K_p: cancel_action = "YES" 
                         elif ev.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE]: cancel_action = "NO"
                 if ser and ser.in_waiting > 0:
                     s_in = ser.readline().decode('utf-8','ignore').strip()
-                    if s_in == "BTN:PLAYER": cancel_action = "YES" # Spielerwechsel zum Abbrechen
-                    elif s_in == "BTN:START": cancel_action = "NO" # Start zum Weiterspielen
+                    if s_in == "BTN:PLAYER": cancel_action = "YES" 
+                    elif s_in == "BTN:START": cancel_action = "NO" 
                     
                 if cancel_action == "YES": return 
                 elif cancel_action == "NO": confirming = False; combo_press_start = 0
                 
-            raw_data = None # Verhindert, dass der Druck noch etwas anderes auslöst
+            raw_data = None 
 
         is_berrys_turn = (active_player == 2 and "Bullseye-Berry" in mode)
         if is_berrys_turn and current_state == "GAME" and raw_data is None:
@@ -126,12 +128,9 @@ def run_game(screen, ser, players, game_name, option, mode):
 
         if raw_data:
             if current_state == "GAME":
-                # Manueller Spielerwechsel (überspringt den Rest des Zuges)
                 if raw_data == "BTN:PLAYER":
                     darts_thrown = 0
                     active_player = (active_player % players) + 1
-                    
-                elif raw_data == "BTN:START": running = False 
                 elif raw_data.startswith("HIT:"):
                     hit_segment = raw_data.split(":")[1] if raw_data != "HIT:WIN_CHEAT" else "WIN_CHEAT"
                     
@@ -161,9 +160,11 @@ def run_game(screen, ser, players, game_name, option, mode):
                         darts_thrown, active_player = 0, (active_player % players) + 1
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
 
-        screen.fill((20, 20, 25))
+        if bg_img: screen.blit(bg_img, (0, 0))
+        else: screen.fill((0, 0, 0))
+
         if current_state == "GAME":
-            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option} (v{VERSION})", True, HIGHLIGHT), (40, 60))
+            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}", True, HIGHLIGHT), (40, 60))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name}", True, RED_COL if is_berrys_turn else WHITE), (350, 120))
             screen.blit(giant_font.render(str(player_scores[active_player-1]), True, WHITE), (350, 280))
@@ -174,4 +175,3 @@ def run_game(screen, ser, players, game_name, option, mode):
             screen.blit(giant_font.render("GEWONNEN!", True, (50, 255, 50)), (200, 250))
             
         pygame.display.flip(); clock.tick(30)
-        
