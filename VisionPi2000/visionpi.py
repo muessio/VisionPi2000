@@ -21,22 +21,22 @@ try: import game_aroundclock
 except ImportError: game_aroundclock = None
 
 # =====================================================================
-# ================= LAYOUT EINSTELLUNGEN ==============================
+# ================= VERSION & LAYOUT EINSTELLUNGEN ====================
+VERSION = "1.1.0"       # <-- Hier kannst du die Version ganz einfach anpassen!
+
 BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
-MENU_START_Y = 240      # Etwas nach oben gerückt, da die Topbar weg ist
+MENU_START_Y = 240      
 FONT_SIZE_MENU = 16     
 FONT_SIZE_TITLE = 20    
-HEADER_START_Y = 2     # Header rückt ganz nach oben
+HEADER_START_Y = 2     
 # =====================================================================
 
 BAUD_RATE = 115200
 SCREEN_WIDTH, SCREEN_HEIGHT = 1024, 768
 BG_COLOR, RED_COL, BLUE_COL, GREY_COL = (0, 0, 0), (180, 30, 30), (30, 80, 180), (80, 80, 80)
 HIGHLIGHT, WHITE = (255, 215, 0), (255, 255, 255)
-
-VERSION = "1.0.6"
 
 def init_serial():
     ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
@@ -173,16 +173,20 @@ def main():
                 
             while showing_info:
                 screen.fill(BG_COLOR)
-                screen.blit(title_font.render("SYSTEM-INFORMATIONEN (Revisionsindex)", True, HIGHLIGHT), (120, 80))
-                screen.blit(font.render(f"Vision Pi 2000 (Hauptmenü): v{VERSION}", True, WHITE), (150, 150))
-                y_pos = 200
+                screen.blit(title_font.render("SYSTEM-INFORMATIONEN (Revisionsindex)", True, HIGHLIGHT), (120, 60))
+                
+                screen.blit(font.render("Gründer & Hauptentwickler – VisionPi2000 (Open Source)", True, (100, 220, 100)), (150, 105))
+                screen.blit(font.render("Oliver Müssig", True, WHITE), (150, 130))
+                
+                screen.blit(font.render(f"Vision Pi 2000 (Hauptmenü): v{VERSION}", True, WHITE), (150, 175))
+                y_pos = 215
                 for mod_item in game_registry:
                     m_name = mod_item["name"]
                     m_ver = getattr(mod_item["module"], "VERSION", "1.0.0") if mod_item["module"] else "1.0.0"
                     screen.blit(font.render(f"- {m_name}: v{m_ver}", True, WHITE), (170, y_pos))
-                    y_pos += 40
+                    y_pos += 30
                 
-                screen.blit(font.render("Taste Spielerwechsel drücken, um das Menü zu verlassen.", True, HIGHLIGHT), (150, SCREEN_HEIGHT - 80))
+                screen.blit(font.render("Taste Spielerwechsel drücken, um das Menü zu verlassen.", True, HIGHLIGHT), (150, SCREEN_HEIGHT - 60))
                 pygame.display.flip()
                 
                 for ev in pygame.event.get():
@@ -220,8 +224,6 @@ def main():
 
         screen.fill(BG_COLOR)
         
-        # Obere Leiste (Topbar) komplett entfernt
-        
         if header_img: 
             screen.blit(header_img, ((SCREEN_WIDTH - header_img.get_width()) // 2, HEADER_START_Y))
         else:
@@ -244,3 +246,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
+    
