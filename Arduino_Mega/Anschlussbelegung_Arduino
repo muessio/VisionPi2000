@@ -1,0 +1,79 @@
+VERKABELUNGSPLAN:
+DIY DARTAUTOMAT V5 (INKL. TASTER, IR, LICHT & LÖWEN-DISPLAY)
+============================================================================
+
+HINWEIS:
+Alle Pull-Up-Widerstände für Matrix und Taster werden per Software 
+(INPUT_PULLUP) aktiviert. Für die Lichtsteuerung (230V) bitte zwingend 
+geprüfte und isolierte Relais/SSR-Module mit Optokoppler verwenden!
+
+----------------------------------------------------------------------------
+1. PIEZO-SENSOR MODUL (3 PINS / FEHLWURFERKENNUNG)
+----------------------------------------------------------------------------
+Modul Pin [+] ----------------------------------------> an Arduino Pin 5V
+Modul Pin [-] ----------------------------------------> an Arduino Pin GND
+Modul Pin [S] ----------------------------------------> an Arduino Pin A0
+
+----------------------------------------------------------------------------
+2. LÖWEN-MATRIX: DIE 4 ZEILEN (MULTIPLEX / ROWS)
+----------------------------------------------------------------------------
+Matrix Pin 1  ---------------------------------------> an Arduino Pin D22
+Matrix Pin 2  ---------------------------------------> an Arduino Pin D24
+Matrix Pin 19 ---------------------------------------> an Arduino Pin D26
+Matrix Pin 20 ---------------------------------------> an Arduino Pin D28
+
+----------------------------------------------------------------------------
+3. LÖWEN-MATRIX: DIE 16 SPALTEN (EINGANGS-SIGNALE / COLUMNS)
+----------------------------------------------------------------------------
+Matrix Pin 3 bis 18 fortlaufend an die Arduino Pins D30 bis D45 schrauben.
+(Pin 3 -> D30, Pin 4 -> D31, ..., Pin 18 -> D45).
+
+----------------------------------------------------------------------------
+4. DIE 5 BEDIEN-TASTER (ARCADE BUTTONS)
+----------------------------------------------------------------------------
+(Jeweils Schließer-Kontakt "NO" und Masse "COM" anschließen)
+
+TASTER ROT (Spielauswahl)   NO -> Pin D46  | COM -> GND
+TASTER BLAU (Optionen)      NO -> Pin D47  | COM -> GND
+TASTER GRAU (Spielmodus)    NO -> Pin D48  | COM -> GND
+TASTER START (Bestätigen)   NO -> Pin D49  | COM -> GND
+TASTER SPIELER (Wechsel)    NO -> Pin D50  | COM -> GND
+
+----------------------------------------------------------------------------
+5. INFRAROT-SENSOR (IR-MODUL FÜR SPIELERWECHSEL/PFEILE ZIEHEN)
+----------------------------------------------------------------------------
+IR-Modul Pin [VCC] ------------------------------------> an Arduino Pin 5V
+IR-Modul Pin [GND] ------------------------------------> an Arduino Pin GND
+IR-Modul Pin [OUT] ------------------------------------> an Arduino Pin D2
+
+----------------------------------------------------------------------------
+6. LICHTSTEUERUNG (TRIAC / SOLID STATE RELAIS MODUL)
+----------------------------------------------------------------------------
+Relais-Modul Pin [DC+] / [VCC] ------------------------> an Arduino Pin 5V
+Relais-Modul Pin [DC-] / [GND] ------------------------> an Arduino Pin GND
+Relais-Modul Pin [CH1] / [IN] (Signal) ----------------> an Arduino Pin D3
+
+----------------------------------------------------------------------------
+7. LÖWEN 8-PLAYER DISPLAY (ÜBER 20-POLIGEN STECKER ST1)
+----------------------------------------------------------------------------
+WICHTIG: Das Display nutzt eine hybride SPI-Architektur. Es gibt 5 
+parallele Datenstränge (D0-D4) mit je 2 kaskadierten MAX7219-Chips.
+Haupt-Stromversorgung (+5V) zwingend über den dicken separaten Stecker!
+
+SIGNAL-MASSE (GND) & ABSCHIRMUNG:
+ST1 Pin 2, 4, 6, 8, 10, 12, 14, 16, 18, 20 (Alle geraden Pins)
+-> Am Adapter ALLE diese Pins verbinden und GEMEINSAM auf Arduino GND legen.
+
+TAKT & STEUERUNG (GEMEINSAM FÜR ALLE CHIPS):
+ST1 Pin 19 [DisCLK - Clock] -------> an Arduino Pin D4
+ST1 Pin 17 [JDisLD - Load] --------> an Arduino Pin D5
+
+DIE 5 PARALLELEN DATENSTRÄNGE:
+ST1 Pin 15 [D0 - Datenstrang 1] ---> an Arduino Pin D6
+ST1 Pin 11 [D1 - Datenstrang 2] ---> an Arduino Pin D7
+ST1 Pin 7  [D2 - Datenstrang 3] ---> an Arduino Pin D8
+ST1 Pin 3  [D3 - Datenstrang 4] ---> an Arduino Pin D9
+ST1 Pin 1  [D4 - Datenstrang 5] ---> an Arduino Pin D10
+
+NC (NOT CONNECTED):
+ST1 Pin 5, 9 und 13 bleiben komplett frei!
