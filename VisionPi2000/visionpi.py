@@ -28,7 +28,7 @@ BOX_SPACING = 30
 MENU_START_Y = 220      # Etwas nach oben gerückt, da die Topbar weg ist
 FONT_SIZE_MENU = 16     
 FONT_SIZE_TITLE = 20    
-HEADER_START_Y = 10     # Header rückt ganz nach oben
+HEADER_START_Y = 01     # Header rückt ganz nach oben
 # =====================================================================
 
 BAUD_RATE = 115200
