@@ -2,6 +2,7 @@ import pygame
 import serial
 import sys
 import os
+import glob
 
 # Zwingt die Grafikkarte, beim Skalieren keine Weichzeichner zu nutzen (Pixel bleiben scharf!)
 os.environ['SDL_RENDER_SCALE_QUALITY'] = '0'
@@ -21,7 +22,7 @@ except ImportError: game_aroundclock = None
 
 # =====================================================================
 # ================= LAYOUT EINSTELLUNGEN ==============================
-BOX_WIDTH = 260         
+BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
 MENU_START_Y = 240    
@@ -30,7 +31,6 @@ FONT_SIZE_TITLE = 20
 HEADER_START_Y = 5    
 # =====================================================================
 
-ARDUINO_PORT = '/dev/ttyACM0' 
 BAUD_RATE = 115200
 SCREEN_WIDTH, SCREEN_HEIGHT = 1024, 768
 BG_COLOR, RED_COL, BLUE_COL, GREY_COL = (20, 20, 25), (180, 30, 30), (30, 80, 180), (80, 80, 80)
@@ -39,10 +39,19 @@ HIGHLIGHT, WHITE, TOPBAR_BG = (255, 215, 0), (255, 255, 255), (50, 50, 55)
 VERSION = "1.0.6"
 
 def init_serial():
-    try:
-        ser = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=0.01)
-        return ser
-    except: return None
+    # Sucht alle verfügbaren USB- und ACM-Anschlüsse
+    ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
+    
+    for port in ports:
+        try:
+            ser = serial.Serial(port, BAUD_RATE, timeout=0.01)
+            # Sobald die Verbindung klappt, wird dieser Port genutzt
+            return ser
+        except:
+            continue
+            
+    # Wenn kein Port funktioniert oder gefunden wird
+    return None
 
 def send_to_display(ser, chip, digit, value):
     if ser:
@@ -236,4 +245,3 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-        
