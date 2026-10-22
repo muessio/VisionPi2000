@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -56,16 +56,30 @@ class ScreenSaver:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.timeout = 10 * 60 * 1000 
+        self.timeout = 10 * 60 * 1000  # 10 Minuten
         self.last_activity = pygame.time.get_ticks()
         self.active = False
+        
         self.avatars = []
-        for file in ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]:
+        berry_files = [
+            "Bullseye-Berry_Original.png",
+            "Bullseye-Berry_Cyber.png",
+            "Bullseye-Berry_Ninja.png",
+            "Bullseye-Berry_Champ.png"
+        ]
+        
+        for file in berry_files:
             if os.path.exists(file):
                 try:
-                    img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
-                    self.avatars.append({"img": img, "x": random.randint(50, width - 150), "y": random.randint(50, height - 150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
-                except: pass
+                    img = pygame.image.load(file).convert_alpha()
+                    img = pygame.transform.smoothscale(img, (100, 100))
+                    x = random.randint(50, width - 150)
+                    y = random.randint(50, height - 150)
+                    vx = random.choice([-2, 2])
+                    vy = random.choice([-2, 2])
+                    self.avatars.append({"img": img, "x": x, "y": y, "vx": vx, "vy": vy})
+                except:
+                    pass
 
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
@@ -75,20 +89,23 @@ class ScreenSaver:
         return False
 
     def check(self):
-        if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout:
-            self.active = True
+        if not self.active:
+            if pygame.time.get_ticks() - self.last_activity > self.timeout:
+                self.active = True
         return self.active
 
     def update_and_draw(self, screen, font):
         if not self.active: return
         screen.fill((0, 0, 0))
         for av in self.avatars:
-            av["x"] += av["vx"]; av["y"] += av["vy"]
+            av["x"] += av["vx"]
+            av["y"] += av["vy"]
             if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
             if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
             screen.blit(av["img"], (av["x"], av["y"]))
         hint_surf = font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
-        screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
+        hint_rect = hint_surf.get_rect(center=(self.width // 2, self.height - 40))
+        screen.blit(hint_surf, hint_rect)
 
 def run_game(screen, ser, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
@@ -143,20 +160,26 @@ def run_game(screen, ser, players, game_name, option, mode):
     title_font = pygame.font.SysFont("arial", 28, bold=True)
     big_font = pygame.font.SysFont("arial", 38, bold=True)
     giant_font = pygame.font.SysFont("arial", 180, bold=True)
-    WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
+    
+    HIGHLIGHT, WHITE, RED_COL = (255, 215, 0), (255, 255, 255), (180, 30, 30)
 
-    try: start_score = int(game_name)
-    except: start_score = 501
+    try:
+        start_score = int(game_name)
+    except:
+        start_score = 501
 
     player_scores = [start_score] * total_players
+    
     has_double_in = option in ["Double In", "Double In/Out", "Double In / Master Out"]
     has_double_out = option in ["Double Out", "Double In/Out"]
     has_master_out = option in ["Master Out", "Double In / Master Out"]
 
     player_in_checked = [not has_double_in for _ in range(total_players)]
+    
     darts_thrown, active_player = 0, 1
     
-    for i in range(total_players): update_score_display(i, player_scores[i])
+    for i in range(total_players):
+        update_score_display(i, player_scores[i])
 
     running, clock, current_state = True, pygame.time.Clock(), "GAME"
     champ_display_until, bot_timer, combo_press_start = 0, 0, 0
@@ -165,8 +188,10 @@ def run_game(screen, ser, players, game_name, option, mode):
         raw_data = None
         if ser:
             try:
-                if ser.in_waiting > 0: raw_data = ser.readline().decode('utf-8','ignore').strip()
-            except: pass
+                if ser.in_waiting > 0:
+                    raw_data = ser.readline().decode('utf-8','ignore').strip()
+            except:
+                pass
             
         for event in pygame.event.get():
             if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
@@ -174,7 +199,8 @@ def run_game(screen, ser, players, game_name, option, mode):
                     raw_data = None
                     continue
             if event.type == pygame.KEYDOWN:
-                if event.key in [pygame.K_SPACE, pygame.K_ESCAPE]: pass
+                if event.key in [pygame.K_SPACE, pygame.K_ESCAPE]: 
+                    pass
                 elif event.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif event.key == pygame.K_1: raw_data = "HIT:t20"
                 elif event.key == pygame.K_2: raw_data = "HIT:19"
@@ -224,7 +250,8 @@ def run_game(screen, ser, players, game_name, option, mode):
                         s_in = ser.readline().decode('utf-8','ignore').strip()
                         if s_in == "BTN:PLAYER": cancel_action = "YES" 
                         elif s_in == "BTN:START": cancel_action = "NO" 
-                    except: pass
+                    except:
+                        pass
                     
                 if cancel_action == "YES": return 
                 elif cancel_action == "NO": confirming = False; combo_press_start = 0
@@ -232,7 +259,9 @@ def run_game(screen, ser, players, game_name, option, mode):
             raw_data = None 
 
         is_berrys_turn = (is_berry_game and active_player == total_players)
-        if is_berrys_turn and raw_data == "BTN:PLAYER": raw_data = None
+        
+        if is_berrys_turn and raw_data == "BTN:PLAYER":
+            raw_data = None
 
         if is_berrys_turn and current_state == "GAME" and raw_data is None:
             if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800) 
@@ -249,6 +278,7 @@ def run_game(screen, ser, players, game_name, option, mode):
                     update_score_display(active_player-1, player_scores[active_player-1])
                 elif raw_data.startswith("HIT:"):
                     hit_segment = raw_data.split(":")[1] if raw_data != "HIT:WIN_CHEAT" else "WIN_CHEAT"
+                    
                     if hit_segment != "-":
                         if hit_segment.startswith("t") and sound_triple: sound_triple.play()
                         elif (hit_segment.startswith("d") or hit_segment == "db") and sound_double: sound_double.play()
@@ -262,25 +292,35 @@ def run_game(screen, ser, players, game_name, option, mode):
                     points = player_scores[p_idx] if hit_segment == "WIN_CHEAT" else parse_hit(hit_segment)
                     is_double = check_double(hit_segment)
                     is_master = check_master(hit_segment)
+                    
                     bust = False
                     
                     if not player_in_checked[p_idx]:
-                        if hit_segment == "WIN_CHEAT" or is_double: player_in_checked[p_idx] = True
-                        else: points = 0  
+                        if hit_segment == "WIN_CHEAT":
+                            player_in_checked[p_idx] = True
+                        elif is_double:
+                            player_in_checked[p_idx] = True
+                        else:
+                            points = 0  
 
-                    if player_in_checked[p_idx]: new_score = player_scores[p_idx] - points
-                    else: new_score = player_scores[p_idx]
+                    if player_in_checked[p_idx]:
+                        new_score = player_scores[p_idx] - points
+                    else:
+                        new_score = player_scores[p_idx]
 
-                    if new_score < 0: bust = True
+                    if new_score < 0: 
+                        bust = True
                     elif option != "Open In/Out":
-                        if new_score == 1: bust = True
+                        if new_score == 1:
+                            bust = True
                         elif new_score == 0:
                             if has_master_out:
                                 if not is_master and hit_segment != "WIN_CHEAT": bust = True
                             elif has_double_out:
                                 if not is_double and hit_segment != "WIN_CHEAT": bust = True
 
-                    if bust: darts_thrown = 3 
+                    if bust: 
+                        darts_thrown = 3 
                     else:
                         player_scores[p_idx] = new_score
                         darts_thrown += 1
@@ -290,7 +330,8 @@ def run_game(screen, ser, players, game_name, option, mode):
                     if darts_thrown >= 3 and current_state == "GAME":
                         darts_thrown, active_player = 0, (active_player % total_players) + 1
                         update_score_display(active_player-1, player_scores[active_player-1])
-            elif current_state == "WIN" and raw_data == "BTN:START": running = False
+            elif current_state == "WIN":
+                if raw_data == "BTN:START": running = False
 
         if screensaver.check():
             screensaver.update_and_draw(screen, title_font)
@@ -313,14 +354,22 @@ def run_game(screen, ser, players, game_name, option, mode):
 
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
 
-            # --- NEU: Permanente Punkteanzeige aller Spieler unten ---
-            score_y = 680
-            spacing = screen.get_width() // (total_players + 1)
+            # --- NEU: Permanente Punkteanzeige aller Spieler in zwei Reihen ---
+            y_base = 660
             for i in range(total_players):
                 p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
                 c = HIGHLIGHT if i == (active_player - 1) else WHITE
                 surf = title_font.render(f"{p_n}: {player_scores[i]}", True, c)
-                screen.blit(surf, ((i + 1) * spacing - surf.get_width() // 2, score_y))
+                
+                row = i % 2         # 0 für ungerade Spieler (P1, P3...), 1 für gerade (P2, P4...)
+                col = i // 2
+                items_in_row = (total_players + 1) // 2 if row == 0 else total_players // 2
+                
+                spacing = screen.get_width() // (items_in_row + 1)
+                x_pos = (col + 1) * spacing
+                y_pos = y_base + (row * 40)
+                
+                screen.blit(surf, (x_pos - surf.get_width() // 2, y_pos))
             # ---------------------------------------------------------
 
             if is_berrys_turn and avatar_img:
