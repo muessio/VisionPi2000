@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.2"
+VERSION = "1.1.4"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 ROUNDS = ["15", "16", "Double", "17", "18", "Triple", "19", "20", "Bull"]
@@ -69,7 +69,6 @@ def run_game(screen, ser, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
-
     PLAYER_MAP = [(0, 2), (1, 2), (0, 5), (1, 5), (2, 2), (3, 2), (2, 5), (3, 5)]
 
     def update_score_display(player_idx, score):
@@ -80,8 +79,7 @@ def run_game(screen, ser, players, game_name, option, mode):
 
     if ser:
         for c in range(10):
-            for d in range(8):
-                ser.write(f"DISP:{c}:{d}:15\n".encode('utf-8'))
+            for d in range(8): ser.write(f"DISP:{c}:{d}:15\n".encode('utf-8'))
 
     bg_img = None
     bg_path = os.path.join(os.getcwd(), "background.png")
@@ -126,13 +124,11 @@ def run_game(screen, ser, players, game_name, option, mode):
                 elif e.key == pygame.K_g: raw_data = "BTN:GREY"
 
         if raw_data and screensaver.reset_timer():
-            raw_data = None
-            continue
+            raw_data = None; continue
 
         keys = pygame.key.get_pressed()
         is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
         is_combo_serial = raw_data == "BTN:COMBO"
-
         trigger_abort = False
         if is_combo_serial: trigger_abort = True
         elif is_combo_keys:
@@ -145,16 +141,13 @@ def run_game(screen, ser, players, game_name, option, mode):
             if ser:
                 try: ser.reset_input_buffer()
                 except: pass
-                
             while confirming:
                 if bg_img: screen.blit(bg_img, (0, 0))
                 else: screen.fill((0, 0, 0))
-                
                 screen.blit(big_font.render("SPIEL ABBRECHEN?", True, RED_COL), (330, 180))
                 screen.blit(title_font.render("Spiel abbrechen mit Taste Spielerwechsel", True, WHITE), (240, 280))
                 screen.blit(title_font.render("Weiterspielen mit Taste Start", True, HIGHLIGHT), (310, 340))
                 pygame.display.flip()
-                
                 cancel_action = None
                 for ev in pygame.event.get():
                     if ev.type == pygame.KEYDOWN:
@@ -164,10 +157,8 @@ def run_game(screen, ser, players, game_name, option, mode):
                     s_in = ser.readline().decode('utf-8','ignore').strip()
                     if s_in == "BTN:PLAYER": cancel_action = "YES" 
                     elif s_in == "BTN:START": cancel_action = "NO" 
-                    
                 if cancel_action == "YES": return 
                 elif cancel_action == "NO": confirming = False; combo_press_start = 0
-                
             raw_data = None 
 
         is_berrys_turn = (is_berry_game and active_player == total_players)
@@ -231,8 +222,25 @@ def run_game(screen, ser, players, game_name, option, mode):
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (200, 350))
             
-            # HIER DIE PFEIL-ANZEIGE FÜR SPLITSCORE
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
+
+            # --- NEU: Permanente Punkteanzeige in zwei Reihen ---
+            y_base = 660
+            for i in range(total_players):
+                p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
+                c = HIGHLIGHT if i == (active_player - 1) else WHITE
+                surf = title_font.render(f"{p_n}: {player_scores[i]}", True, c)
+                
+                row = i % 2
+                col = i // 2
+                items_in_row = (total_players + 1) // 2 if row == 0 else total_players // 2
+                
+                spacing = screen.get_width() // (items_in_row + 1)
+                x_pos = (col + 1) * spacing
+                y_pos = y_base + (row * 40)
+                
+                screen.blit(surf, (x_pos - surf.get_width() // 2, y_pos))
+            # ---------------------------------------------------------
 
             if is_berrys_turn and avatar_img:
                 anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
