@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -19,7 +19,6 @@ def check_double(hit_str):
     return hit_str.startswith("d") or hit_str == "db"
 
 def check_master(hit_str):
-    # Master Out: Double, Triple oder Bullseye (db / b) sind gültig zum Beenden
     return hit_str.startswith("d") or hit_str.startswith("t") or hit_str in ["b", "db"]
 
 def get_bot_hit(score, mode, option):
@@ -162,9 +161,17 @@ def run_game(screen, ser, players, game_name, option, mode):
     title_font, big_font, giant_font = pygame.font.SysFont("arial", 28, bold=True), pygame.font.SysFont("arial", 38, bold=True), pygame.font.SysFont("arial", 180, bold=True)
     HIGHLIGHT, WHITE, RED_COL = (255, 215, 0), (255, 255, 255), (180, 30, 30)
 
-    start_score = int(game_name)
+    try:
+        start_score = int(game_name)
+    except:
+        start_score = 501
+
     player_scores = [start_score] * total_players
-    player_in_checked = [not ("Double In" in option) for _ in range(total_players)]
+    
+    # Sichere Prüfung für Double In
+    has_double_in = option is not None and "Double In" in option
+    player_in_checked = [not has_double_in for _ in range(total_players)]
+    
     darts_thrown, active_player = 0, 1
     
     for i in range(total_players):
@@ -174,7 +181,13 @@ def run_game(screen, ser, players, game_name, option, mode):
     champ_display_until, bot_timer, combo_press_start = 0, 0, 0
 
     while running:
-        raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
+        raw_data = None
+        if ser:
+            try:
+                if ser.in_waiting > 0:
+                    raw_data = ser.readline().decode('utf-8','ignore').strip()
+            except:
+                pass
             
         for event in pygame.event.get():
             if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
@@ -199,7 +212,7 @@ def run_game(screen, ser, players, game_name, option, mode):
 
         keys = pygame.key.get_pressed()
         is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
-        is_combo_serial = raw_data == "BTN:COMBO"
+        is_combo_serial = (raw_data == "BTN:COMBO")
 
         trigger_abort = False
         if is_combo_serial: trigger_abort = True
@@ -229,9 +242,12 @@ def run_game(screen, ser, players, game_name, option, mode):
                         if ev.key in [pygame.K_p, pygame.K_ESCAPE]: cancel_action = "YES" 
                         elif ev.key in [pygame.K_SPACE, pygame.K_RETURN]: cancel_action = "NO"
                 if ser and ser.in_waiting > 0:
-                    s_in = ser.readline().decode('utf-8','ignore').strip()
-                    if s_in == "BTN:PLAYER": cancel_action = "YES" 
-                    elif s_in == "BTN:START": cancel_action = "NO" 
+                    try:
+                        s_in = ser.readline().decode('utf-8','ignore').strip()
+                        if s_in == "BTN:PLAYER": cancel_action = "YES" 
+                        elif s_in == "BTN:START": cancel_action = "NO" 
+                    except:
+                        pass
                     
                 if cancel_action == "YES": return 
                 elif cancel_action == "NO": confirming = False; combo_press_start = 0
@@ -282,20 +298,22 @@ def run_game(screen, ser, players, game_name, option, mode):
                         elif is_double:
                             player_in_checked[p_idx] = True
                         else:
-                            # Zählt nicht als Score, solange kein Double In erzielt wurde
-                            points = 0
+                            points = 0  # Zählt nicht, solange kein Double getroffen wurde
 
-                    new_score = player_scores[p_idx] - points
-                    
+                    if player_in_checked[p_idx]:
+                        new_score = player_scores[p_idx] - points
+                    else:
+                        new_score = player_scores[p_idx]
+
                     if new_score < 0: 
                         bust = True
-                    elif "Out" in option and option != "Open In/Out":
+                    elif option and "Out" in option and option != "Open In/Out":
                         if new_score == 1:
                             bust = True
                         elif new_score == 0:
-                            if "Master Out" in option:
+                            if option and "Master Out" in option:
                                 if not is_master and hit_segment != "WIN_CHEAT": bust = True
-                            elif "Double Out" in option:
+                            elif option and "Double Out" in option:
                                 if not is_double and hit_segment != "WIN_CHEAT": bust = True
 
                     if bust: 
@@ -327,8 +345,7 @@ def run_game(screen, ser, players, game_name, option, mode):
             screen.blit(big_font.render(f"AM ZUG: {p_name}", True, RED_COL if is_berrys_turn else WHITE), ((screen.get_width() - 300)//2, 120))
             screen.blit(giant_font.render(str(player_scores[active_player-1]), True, WHITE), ((screen.get_width() - 400)//2, 220))
             
-            # Hinweis anzeigen, falls Double In aktiv ist und der Spieler noch nicht reingekommen ist
-            if "Double In" in option and not player_in_checked[active_player-1]:
+            if has_double_in and not player_in_checked[active_player-1]:
                 in_hint = font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
                 screen.blit(in_hint, ((screen.get_width() - in_hint.get_width())//2, 430))
 
