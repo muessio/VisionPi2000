@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out"]
 
@@ -49,10 +49,66 @@ def get_bot_hit(score, mode, option):
         elif r < 0.90: return "20"
         else: return "t19"
 
+class ScreenSaver:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.timeout = 10 * 60 * 1000  # 10 Minuten
+        self.last_activity = pygame.time.get_ticks()
+        self.active = False
+        
+        self.avatars = []
+        berry_files = [
+            "Bullseye-Berry_Original.png",
+            "Bullseye-Berry_Cyber.png",
+            "Bullseye-Berry_Ninja.png",
+            "Bullseye-Berry_Champ.png"
+        ]
+        
+        for file in berry_files:
+            if os.path.exists(file):
+                try:
+                    img = pygame.image.load(file).convert_alpha()
+                    img = pygame.transform.smoothscale(img, (100, 100))
+                    x = random.randint(50, width - 150)
+                    y = random.randint(50, height - 150)
+                    vx = random.choice([-2, 2])
+                    vy = random.choice([-2, 2])
+                    self.avatars.append({"img": img, "x": x, "y": y, "vx": vx, "vy": vy})
+                except:
+                    pass
+        self.font = pygame.font.SysFont("arial", 20, bold=True)
+
+    def reset_timer(self):
+        self.last_activity = pygame.time.get_ticks()
+        if self.active:
+            self.active = False
+            return True
+        return False
+
+    def check(self):
+        if not self.active:
+            if pygame.time.get_ticks() - self.last_activity > self.timeout:
+                self.active = True
+        return self.active
+
+    def update_and_draw(self, screen):
+        if not self.active: return
+        screen.fill((0, 0, 0))
+        for av in self.avatars:
+            av["x"] += av["vx"]
+            av["y"] += av["vy"]
+            if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
+            if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
+            screen.blit(av["img"], (av["x"], av["y"]))
+        hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
+        hint_rect = hint_surf.get_rect(center=(self.width // 2, self.height - 40))
+        screen.blit(hint_surf, hint_rect)
+
 def run_game(screen, ser, players, game_name, option, mode):
-    # Wenn Berry-Modus aktiv, fügen wir Berry als zusätzlichen Spieler hinzu
     is_berry_game = "Bullseye-Berry" in mode
     total_players = players + 1 if is_berry_game else players
+    screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
     PLAYER_MAP = [(0, 2), (1, 2), (0, 5), (1, 5), (2, 2), (3, 2), (2, 5), (3, 5)]
 
@@ -75,7 +131,6 @@ def run_game(screen, ser, players, game_name, option, mode):
             for d in range(8):
                 send_to_display(c, d, 15)
 
-    # Absolutes Laden des Hintergrundbildes
     bg_img = None
     bg_path = os.path.join(os.getcwd(), "background.png")
     if os.path.exists(bg_path):
@@ -117,9 +172,12 @@ def run_game(screen, ser, players, game_name, option, mode):
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
             
         for event in pygame.event.get():
+            if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
+                if screensaver.reset_timer():
+                    raw_data = None
+                    continue
             if event.type == pygame.KEYDOWN:
                 if event.key in [pygame.K_SPACE, pygame.K_ESCAPE]: 
-                    # START-Taste im Spiel absichtlich ignoriert (kein Abbruch mehr)
                     pass
                 elif event.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif event.key == pygame.K_1: raw_data = "HIT:t20"
@@ -129,6 +187,11 @@ def run_game(screen, ser, players, game_name, option, mode):
                 elif event.key == pygame.K_r: raw_data = "BTN:RED"
                 elif event.key == pygame.K_b: raw_data = "BTN:BLUE"
                 elif event.key == pygame.K_g: raw_data = "BTN:GREY"
+
+        if raw_data:
+            if screensaver.reset_timer():
+                raw_data = None
+                continue
 
         keys = pygame.key.get_pressed()
         is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
@@ -159,8 +222,8 @@ def run_game(screen, ser, players, game_name, option, mode):
                 cancel_action = None
                 for ev in pygame.event.get():
                     if ev.type == pygame.KEYDOWN:
-                        if ev.key == pygame.K_p: cancel_action = "YES" 
-                        elif ev.key in [pygame.K_SPACE, pygame.K_RETURN, pygame.K_ESCAPE]: cancel_action = "NO"
+                        if ev.key in [pygame.K_p, pygame.K_ESCAPE]: cancel_action = "YES" 
+                        elif ev.key in [pygame.K_SPACE, pygame.K_RETURN]: cancel_action = "NO"
                 if ser and ser.in_waiting > 0:
                     s_in = ser.readline().decode('utf-8','ignore').strip()
                     if s_in == "BTN:PLAYER": cancel_action = "YES" 
@@ -171,8 +234,11 @@ def run_game(screen, ser, players, game_name, option, mode):
                 
             raw_data = None 
 
-        # Berry ist immer der letzte Spieler, wenn Berry aktiv ist
         is_berrys_turn = (is_berry_game and active_player == total_players)
+        
+        if is_berrys_turn and raw_data == "BTN:PLAYER":
+            raw_data = None
+
         if is_berrys_turn and current_state == "GAME" and raw_data is None:
             if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800) 
             elif pygame.time.get_ticks() > bot_timer:
@@ -220,6 +286,12 @@ def run_game(screen, ser, players, game_name, option, mode):
             elif current_state == "WIN":
                 if raw_data == "BTN:START": running = False
 
+        if screensaver.check():
+            screensaver.update_and_draw(screen)
+            pygame.display.flip()
+            clock.tick(30)
+            continue
+
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0, 0, 0))
 
@@ -243,3 +315,4 @@ def run_game(screen, ser, players, game_name, option, mode):
             screen.blit(big_font.render(f"{winner_name} beendet!", True, WHITE), (250, 350))
 
         pygame.display.flip(); clock.tick(30)
+        
