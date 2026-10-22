@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -225,7 +225,10 @@ def run_game(screen, ser, players, game_name, option, mode):
                 screen.blit(big_font.render("BULL" if target == 25 else str(target), True, HIGHLIGHT), (200, 220 + i*50))
                 for p in range(total_players):
                     marks = player_marks[p][target]
-                    m_str = "-" if marks == 0 else ("/" if marks == 1 else ("X" if marks == 2 else "(X)"))
+                    
+                    # Hier wurde die Anzeige auf Zahlen (z.B. "0/3") umgestellt:
+                    m_str = f"{marks}/3"
+                    
                     screen.blit(big_font.render(m_str, True, (50, 255, 50) if marks == 3 else WHITE), (350 + p*100, 220 + i*50))
                     if i == 0: screen.blit(title_font.render(f"P{p+1}" if not (is_berry_game and p == total_players-1) else "Berry", True, (150,150,150)), (350 + p*100, 180))
 
