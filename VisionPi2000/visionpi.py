@@ -3,6 +3,7 @@ import serial
 import sys
 import os
 import glob
+import random
 
 # Zwingt die Grafikkarte, beim Skalieren keine Weichzeichner zu nutzen (Pixel bleiben scharf!)
 os.environ['SDL_RENDER_SCALE_QUALITY'] = '0'
@@ -37,6 +38,62 @@ BAUD_RATE = 115200
 SCREEN_WIDTH, SCREEN_HEIGHT = 1024, 768
 BG_COLOR, RED_COL, BLUE_COL, GREY_COL = (0, 0, 0), (180, 30, 30), (30, 80, 180), (80, 80, 80)
 HIGHLIGHT, WHITE = (255, 215, 0), (255, 255, 255)
+
+class ScreenSaver:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.timeout = 10 * 60 * 1000  # 10 Minuten in Millisekunden
+        self.last_activity = pygame.time.get_ticks()
+        self.active = False
+        
+        self.avatars = []
+        berry_files = [
+            "Bullseye-Berry_Original.png",
+            "Bullseye-Berry_Cyber.png",
+            "Bullseye-Berry_Ninja.png",
+            "Bullseye-Berry_Champ.png"
+        ]
+        
+        for file in berry_files:
+            if os.path.exists(file):
+                try:
+                    img = pygame.image.load(file).convert_alpha()
+                    img = pygame.transform.smoothscale(img, (100, 100))
+                    x = random.randint(50, width - 150)
+                    y = random.randint(50, height - 150)
+                    vx = random.choice([-2, 2])
+                    vy = random.choice([-2, 2])
+                    self.avatars.append({"img": img, "x": x, "y": y, "vx": vx, "vy": vy})
+                except:
+                    pass
+        self.font = pygame.font.SysFont("arial", 20, bold=True)
+
+    def reset_timer(self):
+        self.last_activity = pygame.time.get_ticks()
+        if self.active:
+            self.active = False
+            return True
+        return False
+
+    def check(self):
+        if not self.active:
+            if pygame.time.get_ticks() - self.last_activity > self.timeout:
+                self.active = True
+        return self.active
+
+    def update_and_draw(self, screen):
+        if not self.active: return
+        screen.fill((0, 0, 0))
+        for av in self.avatars:
+            av["x"] += av["vx"]
+            av["y"] += av["vy"]
+            if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
+            if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
+            screen.blit(av["img"], (av["x"], av["y"]))
+        hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
+        hint_rect = hint_surf.get_rect(center=(self.width // 2, self.height - 40))
+        screen.blit(hint_surf, hint_rect)
 
 def init_serial():
     ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
@@ -82,6 +139,7 @@ def main():
     pygame.display.set_caption("VisionPi2000")
     
     ser = init_serial()
+    screensaver = ScreenSaver(SCREEN_WIDTH, SCREEN_HEIGHT)
 
     if os.path.exists("Start.jpg"):
         try:
@@ -142,13 +200,22 @@ def main():
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
             
         for e in pygame.event.get():
-            if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE): running = False
+            if e.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
+                if screensaver.reset_timer():
+                    raw_data = None
+                    continue
+            if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE): 
+                running = False
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_r: raw_data = "BTN:RED"
                 elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
                 elif e.key == pygame.K_g: raw_data = "BTN:GREY"
                 elif e.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
+
+        if raw_data and screensaver.reset_timer():
+            raw_data = None
+            continue
 
         keys = pygame.key.get_pressed()
         is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
@@ -166,6 +233,7 @@ def main():
             combo_press_start = 0
 
         if trigger_info:
+            screensaver.reset_timer()
             showing_info = True
             if ser:
                 try: ser.reset_input_buffer()
@@ -190,6 +258,8 @@ def main():
                 pygame.display.flip()
                 
                 for ev in pygame.event.get():
+                    if ev.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
+                        screensaver.reset_timer()
                     if ev.type == pygame.KEYDOWN and ev.key in [pygame.K_p, pygame.K_ESCAPE]: showing_info = False
                 if ser and ser.in_waiting > 0:
                     s_in = ser.readline().decode('utf-8','ignore').strip()
@@ -221,6 +291,13 @@ def main():
                 if mod: 
                     mod.run_game(screen, ser, players, g_list[sel_game], c_opts[sel_option], modes[sel_mode])
                     clear_all_displays(ser)
+                    screensaver.reset_timer()
+
+        if screensaver.check():
+            screensaver.update_and_draw(screen)
+            pygame.display.flip()
+            clock.tick(30)
+            continue
 
         screen.fill(BG_COLOR)
         
