@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.0"
+VERSION = "1.1.2"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 ROUNDS = ["15", "16", "Double", "17", "18", "Triple", "19", "20", "Bull"]
@@ -41,7 +41,6 @@ class ScreenSaver:
                     img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
                     self.avatars.append({"img": img, "x": random.randint(50, width - 150), "y": random.randint(50, height - 150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
                 except: pass
-        self.font = pygame.font.SysFont("arial", 20, bold=True)
 
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
@@ -55,7 +54,7 @@ class ScreenSaver:
             self.active = True
         return self.active
 
-    def update_and_draw(self, screen):
+    def update_and_draw(self, screen, font):
         if not self.active: return
         screen.fill((0, 0, 0))
         for av in self.avatars:
@@ -63,7 +62,7 @@ class ScreenSaver:
             if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
             if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
             screen.blit(av["img"], (av["x"], av["y"]))
-        hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
+        hint_surf = font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
         screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
 def run_game(screen, ser, players, game_name, option, mode):
@@ -102,7 +101,9 @@ def run_game(screen, ser, players, game_name, option, mode):
     sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
 
-    title_font, big_font, giant_font = pygame.font.SysFont("arial", 28, bold=True), pygame.font.SysFont("arial", 38, bold=True), pygame.font.SysFont("arial", 120, bold=True)
+    title_font = pygame.font.SysFont("arial", 28, bold=True)
+    big_font = pygame.font.SysFont("arial", 38, bold=True)
+    giant_font = pygame.font.SysFont("arial", 120, bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
     player_scores, darts_thrown, active_player, current_round_idx, hits_this_round = [40] * total_players, 0, 1, 0, 0
@@ -216,7 +217,7 @@ def run_game(screen, ser, players, game_name, option, mode):
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
 
         if screensaver.check():
-            screensaver.update_and_draw(screen)
+            screensaver.update_and_draw(screen, title_font)
             pygame.display.flip()
             clock.tick(30)
             continue
@@ -229,6 +230,10 @@ def run_game(screen, ser, players, game_name, option, mode):
             screen.blit(giant_font.render(f"ZIEL: {ROUNDS[current_round_idx]}", True, (50, 255, 50)), (250, 120))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (200, 350))
+            
+            # HIER DIE PFEIL-ANZEIGE FÜR SPLITSCORE
+            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
+
             if is_berrys_turn and avatar_img:
                 anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
                 screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (800, 500))
