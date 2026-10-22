@@ -3,9 +3,9 @@ import math
 import os
 import random
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 GAMES = ["301", "501", "701"]
-OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out"]
+OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
 def parse_hit(hit_str):
     if hit_str == "-": return 0
@@ -18,12 +18,16 @@ def parse_hit(hit_str):
 def check_double(hit_str):
     return hit_str.startswith("d") or hit_str == "db"
 
+def check_master(hit_str):
+    # Master Out: Double, Triple oder Bullseye (db / b) sind gültig zum Beenden
+    return hit_str.startswith("d") or hit_str.startswith("t") or hit_str in ["b", "db"]
+
 def get_bot_hit(score, mode, option):
     diff = 1 
     if "Mittel" in mode: diff = 2
     elif "Schwer" in mode: diff = 3
     
-    if option == "Double Out":
+    if "Out" in option and option != "Open In/Out":
         if score <= 40 and score % 2 == 0:
             target_double = score // 2
             hit_chance = {1: 0.10, 2: 0.35, 3: 0.80}[diff]
@@ -31,7 +35,7 @@ def get_bot_hit(score, mode, option):
             else: return str(target_double) if random.random() < 0.5 else "-"
         elif score <= 40 and score % 2 != 0: return "1"
 
-    if score <= 40 and option != "Double Out":
+    if score <= 40 and option == "Open In/Out":
         hit_chance = {1: 0.30, 2: 0.60, 3: 0.95}[diff]
         if random.random() < hit_chance: return str(score)
         else: return "-"
@@ -160,6 +164,7 @@ def run_game(screen, ser, players, game_name, option, mode):
 
     start_score = int(game_name)
     player_scores = [start_score] * total_players
+    player_in_checked = [not ("Double In" in option) for _ in range(total_players)]
     darts_thrown, active_player = 0, 1
     
     for i in range(total_players):
@@ -188,10 +193,9 @@ def run_game(screen, ser, players, game_name, option, mode):
                 elif event.key == pygame.K_b: raw_data = "BTN:BLUE"
                 elif event.key == pygame.K_g: raw_data = "BTN:GREY"
 
-        if raw_data:
-            if screensaver.reset_timer():
-                raw_data = None
-                continue
+        if raw_data and screensaver.reset_timer():
+            raw_data = None
+            continue
 
         keys = pygame.key.get_pressed()
         is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
@@ -264,20 +268,42 @@ def run_game(screen, ser, players, game_name, option, mode):
                         champ_display_until = pygame.time.get_ticks() + 2000
                         if sound_champ: sound_champ.play()
                     
-                    points = player_scores[active_player-1] if hit_segment == "WIN_CHEAT" else parse_hit(hit_segment)
+                    p_idx = active_player - 1
+                    points = player_scores[p_idx] if hit_segment == "WIN_CHEAT" else parse_hit(hit_segment)
                     is_double = check_double(hit_segment)
-                    new_score = player_scores[active_player-1] - points
+                    is_master = check_master(hit_segment)
+                    
                     bust = False
                     
-                    if new_score < 0: bust = True
-                    elif option == "Double Out":
-                        if new_score == 1 or (new_score == 0 and not is_double and hit_segment != "WIN_CHEAT"): bust = True
+                    # Double In Logik prüfen
+                    if not player_in_checked[p_idx]:
+                        if hit_segment == "WIN_CHEAT":
+                            player_in_checked[p_idx] = True
+                        elif is_double:
+                            player_in_checked[p_idx] = True
+                        else:
+                            # Zählt nicht als Score, solange kein Double In erzielt wurde
+                            points = 0
 
-                    if bust: darts_thrown = 3 
+                    new_score = player_scores[p_idx] - points
+                    
+                    if new_score < 0: 
+                        bust = True
+                    elif "Out" in option and option != "Open In/Out":
+                        if new_score == 1:
+                            bust = True
+                        elif new_score == 0:
+                            if "Master Out" in option:
+                                if not is_master and hit_segment != "WIN_CHEAT": bust = True
+                            elif "Double Out" in option:
+                                if not is_double and hit_segment != "WIN_CHEAT": bust = True
+
+                    if bust: 
+                        darts_thrown = 3 
                     else:
-                        player_scores[active_player-1] = new_score
+                        player_scores[p_idx] = new_score
                         darts_thrown += 1
-                        update_score_display(active_player-1, new_score)
+                        update_score_display(p_idx, new_score)
                         if new_score == 0: current_state = "WIN"
 
                     if darts_thrown >= 3 and current_state == "GAME":
@@ -300,6 +326,12 @@ def run_game(screen, ser, players, game_name, option, mode):
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name}", True, RED_COL if is_berrys_turn else WHITE), ((screen.get_width() - 300)//2, 120))
             screen.blit(giant_font.render(str(player_scores[active_player-1]), True, WHITE), ((screen.get_width() - 400)//2, 220))
+            
+            # Hinweis anzeigen, falls Double In aktiv ist und der Spieler noch nicht reingekommen ist
+            if "Double In" in option and not player_in_checked[active_player-1]:
+                in_hint = font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
+                screen.blit(in_hint, ((screen.get_width() - in_hint.get_width())//2, 430))
+
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
 
             if is_berrys_turn and avatar_img:
