@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.2.3"
+VERSION = "1.1.4"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -80,7 +80,6 @@ class ScreenSaver:
                     self.avatars.append({"img": img, "x": x, "y": y, "vx": vx, "vy": vy})
                 except:
                     pass
-        self.font = pygame.font.SysFont("arial", 20, bold=True)
 
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
@@ -95,7 +94,7 @@ class ScreenSaver:
                 self.active = True
         return self.active
 
-    def update_and_draw(self, screen):
+    def update_and_draw(self, screen, font):
         if not self.active: return
         screen.fill((0, 0, 0))
         for av in self.avatars:
@@ -104,7 +103,7 @@ class ScreenSaver:
             if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
             if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
             screen.blit(av["img"], (av["x"], av["y"]))
-        hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
+        hint_surf = font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
         hint_rect = hint_surf.get_rect(center=(self.width // 2, self.height - 40))
         screen.blit(hint_surf, hint_rect)
 
@@ -158,7 +157,10 @@ def run_game(screen, ser, players, game_name, option, mode):
     sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
 
-    title_font, big_font, giant_font = pygame.font.SysFont("arial", 28, bold=True), pygame.font.SysFont("arial", 38, bold=True), pygame.font.SysFont("arial", 180, bold=True)
+    title_font = pygame.font.SysFont("arial", 28, bold=True)
+    big_font = pygame.font.SysFont("arial", 38, bold=True)
+    giant_font = pygame.font.SysFont("arial", 180, bold=True)
+    
     HIGHLIGHT, WHITE, RED_COL = (255, 215, 0), (255, 255, 255), (180, 30, 30)
 
     try:
@@ -168,7 +170,6 @@ def run_game(screen, ser, players, game_name, option, mode):
 
     player_scores = [start_score] * total_players
     
-    # Exakte Ermittlung der Regeln ohne fehlerhafte Teil-String-Abfragen
     has_double_in = option in ["Double In", "Double In/Out", "Double In / Master Out"]
     has_double_out = option in ["Double Out", "Double In/Out"]
     has_master_out = option in ["Master Out", "Double In / Master Out"]
@@ -294,14 +295,13 @@ def run_game(screen, ser, players, game_name, option, mode):
                     
                     bust = False
                     
-                    # Double In Logik prüfen
                     if not player_in_checked[p_idx]:
                         if hit_segment == "WIN_CHEAT":
                             player_in_checked[p_idx] = True
                         elif is_double:
                             player_in_checked[p_idx] = True
                         else:
-                            points = 0  # Zählt nicht, solange kein Double getroffen wurde
+                            points = 0  
 
                     if player_in_checked[p_idx]:
                         new_score = player_scores[p_idx] - points
@@ -334,7 +334,7 @@ def run_game(screen, ser, players, game_name, option, mode):
                 if raw_data == "BTN:START": running = False
 
         if screensaver.check():
-            screensaver.update_and_draw(screen)
+            screensaver.update_and_draw(screen, title_font)
             pygame.display.flip()
             clock.tick(30)
             continue
@@ -349,7 +349,8 @@ def run_game(screen, ser, players, game_name, option, mode):
             screen.blit(giant_font.render(str(player_scores[active_player-1]), True, WHITE), ((screen.get_width() - 400)//2, 220))
             
             if has_double_in and not player_in_checked[active_player-1]:
-                in_hint = font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
+                # HIER WAR DER FEHLER: `font.render` wurde zu `title_font.render` korrigiert!
+                in_hint = title_font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
                 screen.blit(in_hint, ((screen.get_width() - in_hint.get_width())//2, 430))
 
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
