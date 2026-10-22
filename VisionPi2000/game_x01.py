@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.2"
+VERSION = "1.2.3"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -26,7 +26,7 @@ def get_bot_hit(score, mode, option):
     if "Mittel" in mode: diff = 2
     elif "Schwer" in mode: diff = 3
     
-    if "Out" in option and option != "Open In/Out":
+    if option != "Open In/Out":
         if score <= 40 and score % 2 == 0:
             target_double = score // 2
             hit_chance = {1: 0.10, 2: 0.35, 3: 0.80}[diff]
@@ -168,8 +168,11 @@ def run_game(screen, ser, players, game_name, option, mode):
 
     player_scores = [start_score] * total_players
     
-    # Sichere Prüfung für Double In
-    has_double_in = option is not None and "Double In" in option
+    # Exakte Ermittlung der Regeln ohne fehlerhafte Teil-String-Abfragen
+    has_double_in = option in ["Double In", "Double In/Out", "Double In / Master Out"]
+    has_double_out = option in ["Double Out", "Double In/Out"]
+    has_master_out = option in ["Master Out", "Double In / Master Out"]
+
     player_in_checked = [not has_double_in for _ in range(total_players)]
     
     darts_thrown, active_player = 0, 1
@@ -307,13 +310,13 @@ def run_game(screen, ser, players, game_name, option, mode):
 
                     if new_score < 0: 
                         bust = True
-                    elif option and "Out" in option and option != "Open In/Out":
+                    elif option != "Open In/Out":
                         if new_score == 1:
                             bust = True
                         elif new_score == 0:
-                            if option and "Master Out" in option:
+                            if has_master_out:
                                 if not is_master and hit_segment != "WIN_CHEAT": bust = True
-                            elif option and "Double Out" in option:
+                            elif has_double_out:
                                 if not is_double and hit_segment != "WIN_CHEAT": bust = True
 
                     if bust: 
