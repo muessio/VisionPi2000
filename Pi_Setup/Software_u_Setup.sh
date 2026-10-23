@@ -25,6 +25,10 @@ fi
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
 sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils unclutter -y
 
+# 2.5 Grafischen Startmodus und LightDM Dienst erzwingen (Kioskmodus-Fix)
+sudo systemctl set-default graphical.target
+sudo systemctl enable lightdm
+
 # 3. GitHub-Repository klonen und Dateien am richtigen Ort ablegen
 echo "Lade Dateien von GitHub herunter..."
 mkdir -p /home/visionpi2000/VisionPi2000
