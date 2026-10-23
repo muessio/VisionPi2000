@@ -1,6 +1,6 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (PARALLEL DISPLAY ARCHITECTURE)
-// Inkl. Matrix, Taster, passiver Piezo (High Sensitivity), IR, Relais und Hardware-Displaytest
+// Inkl. Matrix, Taster, passiver Piezo, IR, Relais und Hardware-Displaytest
 // =================================================================================
 
 // --- 1. PIN-DEFINITIONEN ---
@@ -53,7 +53,7 @@ const int debounceDelay = 300;
 unsigned long piezoHitTime = 0;
 bool piezoTriggered = false;
 
-// PIEZO-SCHWELLENWERT: Schwellenwert auf 15, um echtes Klopfen von Rauschen zu unterscheiden
+// PIEZO-SCHWELLENWERT
 const int piezoThreshold = 15; 
 const int piezoMatrixWaitTime = 100; 
 
@@ -115,11 +115,7 @@ void setup() {
   digitalWrite(clkPin, HIGH); digitalWrite(loadPin, HIGH);
 
   // Initialisierung der MAX7219 Chips
-  // =================================================================
-  // HARDWARE-DISPLAY-TEST AKTIVIERT (0x01)! 
-  // Alles muss beim Booten auf maximaler Helligkeit leuchten.
-  sendCommandToAll(0x0F, 0x01); 
-  // =================================================================
+  sendCommandToAll(0x0F, 0x01); // Display Test EIN
   sendCommandToAll(0x09, 0x00); 
   sendCommandToAll(0x0B, 0x07); 
   sendCommandToAll(0x0A, 0x08); 
@@ -194,19 +190,12 @@ void loop() {
     }
   }
 
-  // 3. PIEZO
+  // 3. PIEZO (Fehlwurf-Erkennung)
   int piezoValue = analogRead(piezoPin);
   
-  // =================================================================
-  // PIEZO OSZILLOSKOP-MODUS (Mit Rauschfilter)
-  // Zeigt den Wert im Seriellen Monitor an, wenn er über 10 liegt.
-  // =================================================================
-  if (piezoValue > 10) {
+  if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
     Serial.print("Piezo Wert: ");
     Serial.println(piezoValue);
-  }
-
-  if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
     if (!piezoTriggered) { 
       piezoTriggered = true; 
       piezoHitTime = currentMillis; 
