@@ -15,6 +15,19 @@ fi
 sudo apt update
 sudo apt upgrade -y
 
+# 1.5. USB-Stromlimit auf Maximum setzen (hilft bei stromhungriger Peripherie wie Arduino)
+CONFIG_FILE="/boot/firmware/config.txt"
+if [ -f "$CONFIG_FILE" ]; then
+    if ! grep -q "max_usb_current=1" "$CONFIG_FILE"; then
+        echo "Füge max_usb_current=1 zur $CONFIG_FILE hinzu..."
+        echo "max_usb_current=1" | sudo tee -a "$CONFIG_FILE"
+    else
+        echo "max_usb_current=1 ist bereits gesetzt."
+    fi
+else
+    echo "Warnung: $CONFIG_FILE nicht gefunden, überspringe USB-Strombegrenzung."
+fi
+
 # 2. Grafische Minimal-Oberfläche und Abhängigkeiten installieren
 # (git wird hier direkt mit installiert)
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
