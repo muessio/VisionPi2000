@@ -1,14 +1,15 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (PARALLEL DISPLAY ARCHITECTURE)
-// Inkl. Matrix, Taster, Piezo, IR, Relais und Custom MAX7219 Bit-Banging
+// Inkl. Matrix, Taster, passiver Piezo (High Sensitivity), IR, Relais und Hardware-Displaytest
 // =================================================================================
 
 // --- 1. PIN-DEFINITIONEN ---
 // Matrix
 const int rowPins[4]  = {22, 24, 26, 28}; 
-const int colPins[16] = {30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45};
+// Pin 41 durch 23 ersetzt, um den defekten Eingang am Arduino/Adapter zu umgehen
+const int colPins[16] = {30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 23, 42, 43, 44, 45};
 
-// Taster, Sensoren & Relais (Originale Original-Belegung)
+// Taster, Sensoren & Relais
 const int btnRed      = 46;
 const int btnBlue     = 47;
 const int btnGrey     = 48;
@@ -38,11 +39,12 @@ byte getChar(byte value) {
 }
 
 // --- 3. DART-MATRIX ARRAY ---
+// T12 in der ersten Zeile repariert
 const String dartBoard[4][16] = {
-  {"d12", "12", "d9", "9", "d14", "14", "d11", "11", "d8", "8", "-",  "12",  "t9", "t14", "t11", "t8"},
+  {"d12", "12", "d9", "9", "d14", "14", "d11", "11", "d8", "8", "-",  "t12", "t9", "t14", "t11", "t8"},
   {"d16", "16", "d7", "7", "d19", "19", "d3", "3", "d17", "17", "db", "t16", "t7", "t19", "t3", "t17"},
-  {"d2",  "2",  "d15", "15", "d10", "10", "d6", "6", "d13", "13", "b",  "t2", "t15", "t10", "t6", "t13"},
-  {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5",  "-",  "t4", "t18", "t1",  "t20", "t5"}
+  {"d2",  "2",  "d15", "15", "d10", "10", "d6", "6", "d13", "13", "b",  "t2",  "t15", "t10", "t6", "t13"},
+  {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5",  "-",  "t4",  "t18", "t1",  "t20", "t5"}
 };
 
 // --- 4. TIMING VARIABLEN ---
@@ -50,7 +52,9 @@ unsigned long lastHitTime = 0;
 const int debounceDelay = 300;       
 unsigned long piezoHitTime = 0;
 bool piezoTriggered = false;
-const int piezoThreshold = 150;      
+
+// PIEZO-SCHWELLENWERT: Extrem niedrig für passives Board ohne Operationsverstärker
+const int piezoThreshold = 2; 
 const int piezoMatrixWaitTime = 100; 
 
 // Entprell-Zeiten und Speicher für Taster/Sensoren
@@ -111,13 +115,16 @@ void setup() {
   digitalWrite(clkPin, HIGH); digitalWrite(loadPin, HIGH);
 
   // Initialisierung der MAX7219 Chips
-  sendCommandToAll(0x0F, 0x00); // Display Test off
-  sendCommandToAll(0x09, 0x00); // Decode mode off (wir machen das manuell mit getChar)
-  sendCommandToAll(0x0B, 0x07); // Scan limit (0-7) -> Alle 8 Digits an
-  sendCommandToAll(0x0A, 0x08); // Helligkeit (0-15)
-  sendCommandToAll(0x0C, 0x01); // Shutdown mode off (Display an)
+  // =================================================================
+  // HARDWARE-DISPLAY-TEST AKTIVIERT (0x01)! 
+  // Alles muss beim Booten auf maximaler Helligkeit leuchten.
+  sendCommandToAll(0x0F, 0x01); 
+  // =================================================================
+  sendCommandToAll(0x09, 0x00); 
+  sendCommandToAll(0x0B, 0x07); 
+  sendCommandToAll(0x0A, 0x08); 
+  sendCommandToAll(0x0C, 0x01); 
 
-  // Alle Displays beim Start leeren (auf Blank setzen)
   for(int i = 0; i < 8; i++) {
     byte blank[5] = {0,0,0,0,0};
     shiftOutParallel(i + 1, blank, i + 1, blank);
@@ -129,11 +136,10 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // 1. BEFEHLE VOM PI EMPFANGEN (Schneller, string-sicherer Parser)
+  // 1. BEFEHLE VOM PI EMPFANGEN
   if (Serial.available() > 0) {
-    // Liest bis zum Line-Feed, ist extrem schnell und verhindert Buffer-Staus
     String command = Serial.readStringUntil('\n');
-    command.trim(); // Entfernt alle unsichtbaren Zeichen (\r, Leerzeichen etc.)
+    command.trim(); 
     
     if (command.startsWith("DISP:") || command.startsWith("RAW:")) {
       bool isRaw = command.startsWith("RAW:");
@@ -190,12 +196,25 @@ void loop() {
 
   // 3. PIEZO
   int piezoValue = analogRead(piezoPin);
-  if (piezoValue > piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
-    if (!piezoTriggered) { piezoTriggered = true; piezoHitTime = currentMillis; }
+  
+  // =================================================================
+  // PIEZO OSZILLOSKOP-MODUS (Zeigt jeden kleinsten Ausschlag ab 1 an)
+  // =================================================================
+  if (piezoValue > 0) {
+    Serial.print("Piezo Wert: ");
+    Serial.println(piezoValue);
+  }
+
+  if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
+    if (!piezoTriggered) { 
+      piezoTriggered = true; 
+      piezoHitTime = currentMillis; 
+    }
   }
   if (piezoTriggered && (currentMillis - piezoHitTime > piezoMatrixWaitTime)) {
     Serial.println("MISS:1");
-    piezoTriggered = false; lastHitTime = currentMillis; 
+    piezoTriggered = false; 
+    lastHitTime = currentMillis; 
   }
 
   // 4. ARCADE-TASTEN & IR
