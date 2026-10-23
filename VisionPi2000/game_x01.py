@@ -2,8 +2,9 @@ import pygame
 import math
 import os
 import random
+import time
 
-VERSION = "1.1.6"
+VERSION = "1.2.7"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -116,7 +117,10 @@ def run_game(screen, ser, players, game_name, option, mode):
 
     def send_to_display(chip, digit, value):
         if ser:
-            try: ser.write(f"DISP:{chip}:{digit}:{value}\n".encode('utf-8'))
+            try: 
+                ser.write(f"DISP:{chip}:{digit}:{value}\n".encode('utf-8'))
+                ser.flush()
+                time.sleep(0.005)
             except: pass
 
     def update_score_display(player_idx, score):
@@ -354,14 +358,13 @@ def run_game(screen, ser, players, game_name, option, mode):
 
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
 
-            # --- NEU: Permanente Punkteanzeige aller Spieler in zwei Reihen ---
             y_base = 660
             for i in range(total_players):
                 p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
                 c = HIGHLIGHT if i == (active_player - 1) else WHITE
                 surf = title_font.render(f"{p_n}: {player_scores[i]}", True, c)
                 
-                row = i % 2         # 0 für ungerade Spieler (P1, P3...), 1 für gerade (P2, P4...)
+                row = i % 2         
                 col = i // 2
                 items_in_row = (total_players + 1) // 2 if row == 0 else total_players // 2
                 
@@ -370,7 +373,6 @@ def run_game(screen, ser, players, game_name, option, mode):
                 y_pos = y_base + (row * 40)
                 
                 screen.blit(surf, (x_pos - surf.get_width() // 2, y_pos))
-            # ---------------------------------------------------------
 
             if is_berrys_turn and avatar_img:
                 anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
