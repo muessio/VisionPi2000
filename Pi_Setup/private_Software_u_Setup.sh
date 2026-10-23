@@ -11,9 +11,8 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
-# 1. System updaten
+# 1. Nur Paketlisten aktualisieren (KEIN volles apt upgrade, um WLAN nicht zu zerstören!)
 sudo apt update
-sudo apt upgrade -y
 
 # 1.5. USB-Stromlimit auf Maximum setzen (hilft bei stromhungriger Peripherie wie Arduino)
 CONFIG_FILE="/boot/firmware/config.txt"
@@ -29,7 +28,6 @@ else
 fi
 
 # 2. Grafische Minimal-Oberfläche und Abhängigkeiten installieren
-# (git wird hier direkt mit installiert)
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
 sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils unclutter -y
 
@@ -89,7 +87,7 @@ echo "Generiere Sounds..."
 cd /home/visionpi2000/VisionPi2000
 python3 generate_sounds.py
 
-# 8. Dateiberechtigungen für den Benutzer sicherstellen (greift auch für neu generierte Sounds)
+# 8. Dateiberechtigungen für den Benutzer sicherstellen
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/VisionPi2000
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/.config
 
