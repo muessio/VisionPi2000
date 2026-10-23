@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.7"
+VERSION = "1.1.7"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
