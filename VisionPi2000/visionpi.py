@@ -193,6 +193,8 @@ def main():
         for g in game_shanghai.GAMES: game_registry.append({"name": g, "options": game_shanghai.OPTIONS, "module": game_shanghai})
     if game_aroundclock:
         for g in game_aroundclock.GAMES: game_registry.append({"name": g, "options": game_aroundclock.OPTIONS, "module": game_aroundclock})
+    if game_service:
+        for g in game_service.GAMES: game_registry.append({"name": g, "options": game_service.OPTIONS, "module": game_service})
 
     modes = ["Normales Spiel", "Bullseye-Berry (Leicht)", "Bullseye-Berry (Mittel)", "Bullseye-Berry (Schwer)", "Team-Modus"]
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
