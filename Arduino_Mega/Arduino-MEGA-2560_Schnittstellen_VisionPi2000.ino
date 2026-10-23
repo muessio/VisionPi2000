@@ -53,8 +53,8 @@ const int debounceDelay = 300;
 unsigned long piezoHitTime = 0;
 bool piezoTriggered = false;
 
-// PIEZO-SCHWELLENWERT: Extrem niedrig für passives Board ohne Operationsverstärker
-const int piezoThreshold = 2; 
+// PIEZO-SCHWELLENWERT: Schwellenwert auf 15, um echtes Klopfen von Rauschen zu unterscheiden
+const int piezoThreshold = 15; 
 const int piezoMatrixWaitTime = 100; 
 
 // Entprell-Zeiten und Speicher für Taster/Sensoren
@@ -198,9 +198,10 @@ void loop() {
   int piezoValue = analogRead(piezoPin);
   
   // =================================================================
-  // PIEZO OSZILLOSKOP-MODUS (Zeigt jeden kleinsten Ausschlag ab 1 an)
+  // PIEZO OSZILLOSKOP-MODUS (Mit Rauschfilter)
+  // Zeigt den Wert im Seriellen Monitor an, wenn er über 10 liegt.
   // =================================================================
-  if (piezoValue > 0) {
+  if (piezoValue > 10) {
     Serial.print("Piezo Wert: ");
     Serial.println(piezoValue);
   }
