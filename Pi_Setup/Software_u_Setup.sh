@@ -4,9 +4,8 @@
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
-# 1. System updaten
+# 1. Nur Paketlisten aktualisieren (KEIN apt upgrade, um das WLAN nicht zu zerstören!)
 sudo apt update
-sudo apt upgrade -y
 
 # 1.5. USB-Stromlimit auf Maximum setzen (hilft bei stromhungriger Peripherie wie Arduino)
 CONFIG_FILE="/boot/firmware/config.txt"
