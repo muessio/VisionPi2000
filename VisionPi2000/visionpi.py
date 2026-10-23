@@ -21,6 +21,8 @@ try: import game_shanghai
 except ImportError: game_shanghai = None
 try: import game_aroundclock
 except ImportError: game_aroundclock = None
+try: import game_service
+except ImportError: game_service = None
 
 # =====================================================================
 # ================= VERSION & LAYOUT EINSTELLUNGEN ====================
