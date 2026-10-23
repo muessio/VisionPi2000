@@ -110,12 +110,14 @@ void setup() {
   for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
   digitalWrite(clkPin, HIGH); digitalWrite(loadPin, HIGH);
 
-  sendCommandToAll(0x0F, 0x00); 
-  sendCommandToAll(0x09, 0x00); 
-  sendCommandToAll(0x0B, 0x07); 
-  sendCommandToAll(0x0A, 0x08); 
-  sendCommandToAll(0x0C, 0x01); 
+  // Initialisierung der MAX7219 Chips
+  sendCommandToAll(0x0F, 0x00); // Display Test off
+  sendCommandToAll(0x09, 0x00); // Decode mode off (wir machen das manuell mit getChar)
+  sendCommandToAll(0x0B, 0x07); // Scan limit (0-7) -> Alle 8 Digits an
+  sendCommandToAll(0x0A, 0x08); // Helligkeit (0-15)
+  sendCommandToAll(0x0C, 0x01); // Shutdown mode off (Display an)
 
+  // Alle Displays beim Start leeren (auf Blank setzen)
   for(int i = 0; i < 8; i++) {
     byte blank[5] = {0,0,0,0,0};
     shiftOutParallel(i + 1, blank, i + 1, blank);
@@ -127,10 +129,11 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // 1. BEFEHLE VOM PI EMPFANGEN
+  // 1. BEFEHLE VOM PI EMPFANGEN (Schneller, string-sicherer Parser)
   if (Serial.available() > 0) {
+    // Liest bis zum Line-Feed, ist extrem schnell und verhindert Buffer-Staus
     String command = Serial.readStringUntil('\n');
-    command.trim();
+    command.trim(); // Entfernt alle unsichtbaren Zeichen (\r, Leerzeichen etc.)
     
     if (command.startsWith("DISP:") || command.startsWith("RAW:")) {
       bool isRaw = command.startsWith("RAW:");
