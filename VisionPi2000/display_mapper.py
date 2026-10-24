@@ -78,7 +78,7 @@ class LoewenDisplay:
             37: (7, "F", SEG_U8),
             38: (7, "G", SEG_U8),
             
-            # Strang D4: U9 (Cricket)
+            # U9 (Strang D4 - Cricket Matrix laut Schaltplan Blatt 3)[cite: 11]
             28: (8, "E", SEG_U9),
             29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9),
@@ -89,18 +89,19 @@ class LoewenDisplay:
             41: (8, "A", SEG_U9),
         }
 
-        # Exakte Zuordnung der Spieler 1 bis 8 auf die physischen Display-Blöcke (DISP 1 bis 24)
+        # Korrekte Block-Zuordnung für Spieler 1 bis 8
         self.PLAYER_DISP = {
-            0: (3, 2, 1),     # Spieler 1 -> Block 1 (DISP 3,2,1)
-            1: (6, 5, 4),     # Spieler 2 -> Block 2 (DISP 6,5,4)
-            2: (9, 8, 7),     # Spieler 3 -> Block 3 (DISP 9,8,7)
-            3: (12, 11, 10),  # Spieler 4 -> Block 4 (DISP 12,11,10)
-            4: (15, 14, 13),  # Spieler 5 -> Block 5 (DISP 15,14,13)
-            5: (18, 17, 16),  # Spieler 6 -> Block 6 (DISP 18,17,16)
-            6: (21, 20, 19),  # Spieler 7 -> Block 7 (DISP 21,20,19)
-            7: (24, 23, 22)   # Spieler 8 -> Block 8 (DISP 24,23,22)
+            0: (1, 2, 3),     
+            1: (4, 5, 6),     
+            2: (7, 8, 9),     
+            3: (10, 11, 12),  
+            4: (13, 14, 13),  
+            5: (16, 17, 18),  
+            6: (19, 20, 21),  
+            7: (22, 23, 24)   
         }
 
+        # Korrespondierende Cricket-DISP Zuordnung laut Blatt 3[cite: 11]
         self.CRICKET_DISP_MAP = {
             15: 28, 16: 29, 17: 33, 18: 34, 19: 35, 20: 39, 25: 40
         }
