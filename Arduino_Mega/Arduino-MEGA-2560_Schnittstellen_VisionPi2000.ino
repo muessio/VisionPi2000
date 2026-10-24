@@ -2,7 +2,6 @@
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (FINAL RAW-VERSION)
 // =================================================================================
 
-// --- 1. PIN-DEFINITIONEN ---
 const int rowPins[4]  = {22, 24, 26, 28}; 
 const int colPins[16] = {30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 23, 42, 43, 44, 45};
 const int btnRed      = 46;
@@ -14,10 +13,9 @@ const int irSensorPin = 2;
 const int lightRelayPin = 3;  
 const int piezoPin    = A0; 
 
-// --- 2. LÖWEN DISPLAY PINS (10x MAX7219 HYBRID SPI) ---
-const int clkPin   = 4;   // ST1 Pin 20 (Clock)
-const int loadPin  = 5;   // ST1 Pin 18 (Load / CS)
-const int dPins[5] = {6, 7, 8, 9, 10}; // D0=Pin16, D1=Pin11, D2=Pin7, D3=Pin3, D4=Pin1
+const int clkPin   = 4;   
+const int loadPin  = 5;   
+const int dPins[5] = {6, 7, 8, 9, 10}; 
 
 byte displayMem[5][2][8] = {0};
 
@@ -109,7 +107,6 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // --- 1. BEFEHLE VOM PI EMPFANGEN ---
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');
     command.trim(); 
@@ -142,7 +139,6 @@ void loop() {
     else if (command == "LIGHT:OFF") { digitalWrite(lightRelayPin, LOW); }
   }
 
-  // --- 2. MATRIX ABFRAGEN ---
   if (currentMillis - lastHitTime > debounceDelay) {
     for (int r = 0; r < 4; r++) {
       digitalWrite(rowPins[r], LOW); 
@@ -161,7 +157,6 @@ void loop() {
     }
   }
 
-  // --- 3. PIEZO ABFRAGEN ---
   int piezoValue = analogRead(piezoPin);
   if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
     if (!piezoTriggered) { 
@@ -175,7 +170,6 @@ void loop() {
     lastHitTime = currentMillis; 
   }
 
-  // --- 4. TASTER & SENSOREN ---
   stateRed = digitalRead(btnRed);
   if (stateRed == LOW && lastRed == HIGH) { 
     if (currentMillis - lastPressRed > btnDebounceDelay) { Serial.println("BTN:RED"); lastPressRed = currentMillis; }
@@ -212,7 +206,6 @@ void loop() {
   }
   lastIR = stateIR;
   
-  // --- 5. TASTEN-COMBO (Rot + Blau + Grau) ---
   static unsigned long comboTimer = 0;
   static bool comboTriggered = false;
   if ((digitalRead(btnRed) == LOW) && (digitalRead(btnBlue) == LOW) && (digitalRead(btnGrey) == LOW)) {
