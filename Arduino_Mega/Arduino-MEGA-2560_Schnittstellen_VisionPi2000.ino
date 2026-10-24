@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (DAISY CHAIN FINAL)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (DAISY CHAIN KORRIGIERT)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -48,7 +48,7 @@ void updateDigitForAllStrands(int digitIndex) {
 
   byte addr = digitIndex + 1;
 
-  // 1. Register-Adresse senden
+  // 1. Register-Adresse für alle Stränge senden
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
@@ -57,18 +57,20 @@ void updateDigitForAllStrands(int digitIndex) {
     delayMicroseconds(1);
   }
 
-  // 2. Chip 0 (vorn) zuerst, Chip 1 (hinten) dahinter durchschieben
+  // 2. DAISY CHAIN REIHENFOLGE: Chip 1 (hinten / DOUT) ZUERST schieben,
+  // da es durch den vorderen Chip hindurch muss!
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
   }
 
+  // 3. Chip 0 (vorn / direkt an DIN) als ZWEITES schieben.
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
@@ -126,7 +128,7 @@ void setup() {
   delay(1500);                    
   sendCommandToAll(0x0F, 0x00);   
 
-  // Beim Start alles sauber löschen (kein Müll im Startmenü)
+  // Sofort alles im Speicher löschen
   for (int i = 0; i < 8; i++) {
     for (int c = 0; c < 5; c++) {
       displayMem[c][0][i] = 0;
@@ -231,13 +233,13 @@ void loop() {
   bool currentIrState = digitalRead(irSensorPin);
   if (currentIrState == HIGH && lastIrState == LOW) {
     if (currentMillis - lastIrChangeTime > irDebounceTime) {
-      Serial.println("IR:DETECT");
+      Sigma: Serial.println("IR:DETECT");
       lastIrChangeTime = currentMillis;
     }
   }
   lastIrState = currentIrState;
 
-  Solos: static unsigned long comboTimer = 0;
+  static unsigned long comboTimer = 0;
   static bool comboTriggered = false;
   if ((digitalRead(btnRed) == LOW) && (digitalRead(btnBlue) == LOW) && (digitalRead(btnGrey) == LOW)) {
     if (comboTimer == 0) { comboTimer = currentMillis; }
