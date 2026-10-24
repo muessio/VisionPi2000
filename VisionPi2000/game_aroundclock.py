@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 GAMES = ["Around the Clock"]
 OPTIONS = ["Standard", "Mit Bull"]
 TARGETS = list(range(1, 21)) + [25]
@@ -143,26 +143,31 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None and darts_thrown < 3:
-            if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
-            elif pygame.time.get_ticks() > bot_timer:
-                diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
-                curr_t = active_targets[player_target_indices[active_player - 1]]
-                raw_data = f"HIT:{get_bot_hit(curr_t, diff)}"
-                bot_timer = 0
+        # === BOT LOGIK (INKL. AUTOMATISCHEM WEITERSCHALTEN NACH 3 PFEILEN) ===
+        if is_berrys_turn and current_state == "GAME" and raw_data is None:
+            if darts_thrown < 3:
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
+                elif pygame.time.get_ticks() > bot_timer:
+                    diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
+                    curr_t = active_targets[player_target_indices[active_player - 1]]
+                    raw_data = f"HIT:{get_bot_hit(curr_t, diff)}"
+                    bot_timer = 0
+            else:
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
+                elif pygame.time.get_ticks() > bot_timer:
+                    darts_thrown = 0
+                    active_player = (active_player % total_players) + 1
+                    bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
         if raw_data:
             if current_state == "GAME":
-                # === MANUELLER SPIELERWECHSEL ===
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
                     active_player = (active_player % total_players) + 1
                 
-                # === TREFFER NUR WERTEN WENN < 3 GEWORFEN ===
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
-                    if hit_seg == "WIN_CHEAT": hit_seg = "WIN_CHEAT"
                     
                     if hit_seg != "-" and hit_seg != "MISS":
                         if hit_seg.startswith("t") and sound_triple: sound_triple.play()
@@ -202,7 +207,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Fortschritt: {player_target_indices[p_idx]}/{len(active_targets)}", True, RED_COL if is_berrys_turn else WHITE), (150, 300))
             
-            if darts_thrown >= 3:
+            if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
             
