@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (DAISY CHAIN MASTER-VERSION)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (DAISY CHAIN FINAL)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -15,9 +15,8 @@ const int piezoPin    = A0;
 
 const int clkPin   = 4;   
 const int loadPin  = 5;   
-const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
+const int dPins[5] = {6, 7, 8, 9, 10}; 
 
-// [Strang 0..4][Chip 0 (vorn/DIN) oder Chip 1 (hinten/DOUT)][Digit 0..7]
 byte displayMem[5][2][8] = {0};
 
 const String dartBoard[4][16] = {
@@ -43,42 +42,33 @@ bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300;
 
-// DAISY CHAIN UPDATE: Sendet Register-Adresse und schiebt Chip 1 (hinten) vor Chip 0 (vorn) durch
 void updateDigitForAllStrands(int digitIndex) {
   digitalWrite(loadPin, LOW);
   delayMicroseconds(3);
 
   byte addr = digitIndex + 1;
 
-  // 1. Register-Adresse für alle Stränge raustakten
+  // 1. Register-Adresse senden
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) {
-      digitalWrite(dPins[c], (addr >> i) & 1);
-    }
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
   }
 
-  // 2. Daten für Chip 1 (Hinterer Chip in Kette, z.B. U1, U2, U5, U7) zuerst schieben,
-  // da sie durch den vorderen Chip (Chip 0, z.B. U3, U4, U6, U8) hindurchgetaktet werden müssen.
+  // 2. Chip 0 (vorn) zuerst, Chip 1 (hinten) dahinter durchschieben
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) {
-      digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1);
-    }
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
   }
 
-  // 3. Daten für Chip 0 (Vorderer Chip direkt am DIN, z.B. U3, U4, U6, U8) als zweites schieben.
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) {
-      digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1);
-    }
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
@@ -91,7 +81,6 @@ void updateDigitForAllStrands(int digitIndex) {
 void sendCommandToAll(byte addr, byte data) {
   digitalWrite(loadPin, LOW);
   delayMicroseconds(3);
-  // Da 2 Chips in Reihe hängen, müssen wir Adresse + Daten zweimal senden (für Chip 1 und Chip 0)
   for (int repeat = 0; repeat < 2; repeat++) {
     for (int i = 7; i >= 0; i--) {
       digitalWrite(clkPin, LOW);
@@ -137,7 +126,12 @@ void setup() {
   delay(1500);                    
   sendCommandToAll(0x0F, 0x00);   
 
-  for(int i = 0; i < 8; i++) {
+  // Beim Start alles sauber löschen (kein Müll im Startmenü)
+  for (int i = 0; i < 8; i++) {
+    for (int c = 0; c < 5; c++) {
+      displayMem[c][0][i] = 0;
+      displayMem[c][1][i] = 0;
+    }
     updateDigitForAllStrands(i);
   }
   Serial.println("SYSTEM:READY"); 
@@ -161,8 +155,8 @@ void loop() {
         int value = command.substring(thirdColon + 1).toInt();
         
         if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
-          int chain = chip / 2;      // Strang 0 bis 4
-          int chipIdx = chip % 2;    // 0 = Vorderer Chip, 1 = Hinterer Chip in Kette
+          int chain = chip / 2;      
+          int chipIdx = chip % 2;    
           displayMem[chain][chipIdx][digit] = (byte)value; 
           
           updateDigitForAllStrands(digit);
@@ -243,7 +237,7 @@ void loop() {
   }
   lastIrState = currentIrState;
 
-  static unsigned long comboTimer = 0;
+  Solos: static unsigned long comboTimer = 0;
   static bool comboTriggered = false;
   if ((digitalRead(btnRed) == LOW) && (digitalRead(btnBlue) == LOW) && (digitalRead(btnGrey) == LOW)) {
     if (comboTimer == 0) { comboTimer = currentMillis; }
