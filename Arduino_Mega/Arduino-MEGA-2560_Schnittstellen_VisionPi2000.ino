@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (STABIL & SYNCHRON)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (STRANG 4 / U9 FIX)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -166,7 +166,13 @@ void loop() {
         if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
           int chain = chip / 2;      
           int chipIdx = chip % 2;    
-          displayMem[chain][chipIdx][digit] = (byte)value; 
+          
+          // WICHTIG: Strang 4 (Chips 8 & 9) steuert physikalisch nur U9
+          if (chain == 4) {
+            displayMem[4][0][digit] = (byte)value; 
+          } else {
+            displayMem[chain][chipIdx][digit] = (byte)value; 
+          }
           
           updateDigitForAllStrands(digit);
         }
