@@ -7,7 +7,6 @@ class LoewenDisplay:
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
         self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
 
-        # Exakte 7-Segment Font-Tabelle
         self.FONT = {
             "0": ["A", "B", "C", "D", "E", "F"],
             "1": ["B", "C"],
@@ -23,18 +22,16 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
-        # Spalten-zu-Digit Mapping laut MAX7219 / Schaltplan
         self.COL_TO_DIGIT = {
-            "A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7
+            "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
         }
 
-        # Zeilen-zu-Bit Mapping laut Schaltplan Blätter 1-3
         self.ROW_TO_BIT = {
-            1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 7: 6, 8: 7
+            1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Exakte Segment-Reihenfolgen pro Chip aus den Schaltplänen Blatt 3[span_3](start_span)[span_3](end_span)
         SEG_U1 = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
+        SEG_U1_DISP3 = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
         SEG_U2 = { "C": 1, "B": 2, "G": 3, "D": 4, "A": 5, "F": 6, "E": 7, "DP": 8 }
         SEG_U3 = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
         SEG_U4 = { "B": 1, "DP": 2, "E": 3, "F": 4, "A": 5, "G": 6, "C": 7, "D": 8 }
@@ -43,39 +40,64 @@ class LoewenDisplay:
         SEG_U8 = { "F": 1, "C": 2, "DP": 3, "E": 4, "A": 5, "B": 6, "D": 7, "G": 8 }
         SEG_U9 = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "DP": 7, "B": 8 }
 
-        # DISP_TABLE: Verknüpft jede Display-Nummer (1 bis 41) direkt mit Chip, Spalte und Segment-Tabelle[span_4](start_span)[span_4](end_span)
         self.DISP_TABLE = {
-            # Strang D0 (U1 und U3)[span_5](start_span)[span_5](end_span)
-            1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1), 7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
-            10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3), 13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
+            1: (1, "H", SEG_U1),
+            2: (1, "D", SEG_U1),
+            3: (1, "B", SEG_U1_DISP3),
+            7: (1, "F", SEG_U1),
+            8: (1, "E", SEG_U1),
+            9: (1, "A", SEG_U1),
+            10: (0, "H", SEG_U3),
+            11: (0, "D", SEG_U3),
+            12: (0, "B", SEG_U3),
+            13: (0, "E", SEG_U3),
+            14: (0, "A", SEG_U3),
             
-            # Strang D1 (U2 und U4)[span_6](start_span)[span_6](end_span)
-            4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
-            16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
+            4: (3, "F", SEG_U2),
+            5: (3, "A", SEG_U2),
+            6: (3, "C", SEG_U2),
+            15: (3, "G", SEG_U2),
+            16: (2, "D", SEG_U4),
+            17: (2, "A", SEG_U4),
+            18: (2, "E", SEG_U4),
             
-            # Strang D2 (U5 und U6)[span_7](start_span)[span_7](end_span)
-            19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
-            22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
+            19: (5, "B", SEG_U5_U6),
+            20: (5, "F", SEG_U5_U6),
+            21: (5, "E", SEG_U5_U6),
+            22: (4, "B", SEG_U5_U6),
+            23: (4, "F", SEG_U5_U6),
+            24: (4, "E", SEG_U5_U6),
             
-            # Strang D3 (U7 und U8)[span_8](start_span)[span_8](end_span)
-            25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
-            31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8), 36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
+            25: (7, "H", SEG_U7),
+            26: (7, "B", SEG_U7),
+            27: (7, "E", SEG_U7),
+            30: (7, "A", SEG_U7),
+            31: (6, "D", SEG_U8),
+            32: (6, "B", SEG_U8),
+            36: (6, "E", SEG_U8),
+            37: (6, "F", SEG_U8),
+            38: (6, "G", SEG_U8),
             
-            # Strang D4 (U9 - Cricket Matrix)[span_9](start_span)[span_9](end_span)
-            28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9), 33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9),
-            35: (8, "B", SEG_U9), 39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
+            28: (8, "E", SEG_U9),
+            29: (8, "F", SEG_U9),
+            33: (8, "C", SEG_U9),
+            34: (8, "D", SEG_U9),
+            35: (8, "B", SEG_U9),
+            39: (8, "H", SEG_U9),
+            40: (8, "G", SEG_U9),
+            41: (8, "A", SEG_U9),
         }
 
-        # Exakte Zuordnung der Spieler 1 bis 8 auf die Display-Gruppen laut Bestückungsplan
+        # DIE ORIGINALE, KORREKTE ZUORDNUNG DER SPIELER AUF DIE PHYSISCHEN BLÖCKE[span_2](start_span)[span_2](end_span)
         self.PLAYER_DISP = {
-            0: (3, 2, 1),     # Spieler 1 -> Block 1
-            1: (6, 5, 4),     # Spieler 2 -> Block 2
-            2: (9, 8, 7),     # Spieler 3 -> Block 3
-            3: (12, 11, 10),  # Spieler 4 -> Block 4
-            4: (15, 14, 13),  # Spieler 5 -> Block 5
-            5: (18, 17, 16),  # Spieler 6 -> Block 6
-            6: (21, 20, 19),  # Spieler 7 -> Block 7
-            7: (24, 23, 22)   # Spieler 8 -> Block 8
+            0: (9, 8, 7),     # Spieler 1 -> Block 1 (DISP 9, 8, 7)[span_3](start_span)[span_3](end_span)
+            1: (6, 5, 4),     # Spieler 2 -> Block 2 (DISP 6, 5, 4)[span_4](start_span)[span_4](end_span)
+            2: (3, 2, 1),     # Spieler 3 -> Block 3 (DISP 3, 2, 1)[span_5](start_span)[span_5](end_span)
+            3: (12, 11, 10),  # Spieler 4 -> Block 4 (DISP 12, 11, 10)[span_6](start_span)[span_6](end_span)
+            4: (15, 14, 13),  # Spieler 5 -> Block 5 (DISP 15, 14, 13)[span_7](start_span)[span_7](end_span)
+            5: (18, 17, 16),  # Spieler 6 -> Block 6 (DISP 18, 17, 16)[span_8](start_span)[span_8](end_span)
+            6: (21, 20, 19),  # Spieler 7 -> Block 7 (DISP 21, 20, 19)[span_9](start_span)[span_9](end_span)
+            7: (24, 23, 22)   # Spieler 8 -> Block 8 (DISP 24, 23, 22)[span_10](start_span)[span_10](end_span)
         }
 
         self.CRICKET_DISP_MAP = {
@@ -106,7 +128,7 @@ class LoewenDisplay:
         for seg in active_segs:
             if seg in seg_order:
                 row_num = seg_order[seg]
-                bit_pos = self.ROW_TO_BIT.get(row_num, 0)
+                bit_pos = self.ROW_TO_BIT[row_num]
                 byte_val |= (1 << bit_pos)
 
         self.buffer[chip][digit_idx] = byte_val
@@ -128,7 +150,7 @@ class LoewenDisplay:
     def set_cricket_marks(self, player_idx, target, marks):
         if target not in self.CRICKET_DISP_MAP: 
             return
-        disp_num = self.CRICKET_DIS_MAP[target]
+        disp_num = self.CRICKET_DISP_MAP[target]
         char_to_show = str(marks) if marks > 0 else " "
         self.set_disp_char(disp_num, char_to_show)
 
@@ -141,7 +163,7 @@ class LoewenDisplay:
                     self.ser.write(f"RAW:{chip}:{digit}:0\n".encode('ascii'))
                     self.ser.flush()
                     self.last_sent[chip][digit] = 0
-                    time.sleep(0.003)
+                    time.sleep(0.005)
                 except: pass
 
     def update(self):
@@ -154,6 +176,6 @@ class LoewenDisplay:
                         self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
                         self.ser.flush()
                         self.last_sent[chip][digit] = val
-                        time.sleep(0.004)
+                        time.sleep(0.006)
                     except: pass
                         
