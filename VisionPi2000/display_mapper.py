@@ -85,17 +85,27 @@ class LoewenDisplay:
             41: (8, "A", SEG_U9),
         }
 
-        # SPIELER ZU DISP ZUORDNUNG (Kompakt: [Hunderter, Zehner, Einer])
-        # DISP1 bis 3 = Spieler 1, DISP4 bis 6 = Spieler 2, usw.
         self.PLAYER_DISP = {
-            0: (3, 2, 1),     # Spieler 1: DISP 3, 2, 1
-            1: (6, 5, 4),     # Spieler 2: DISP 6, 5, 4
-            2: (9, 8, 7),     # Spieler 3: DISP 9, 8, 7
-            3: (12, 11, 10),  # Spieler 4: DISP 12, 11, 10
-            4: (15, 14, 13),  # Spieler 5: DISP 15, 14, 13
-            5: (18, 17, 16),  # Spieler 6: DISP 18, 17, 16
-            6: (21, 20, 19),  # Spieler 7: DISP 21, 20, 19
-            7: (24, 23, 22)   # Spieler 8: DISP 24, 23, 22
+            0: (9, 8, 7),     # Spieler 1 -> Block 1
+            1: (6, 5, 4),     # Spieler 2 -> Block 2
+            2: (3, 2, 1),     # Spieler 3 -> Block 3
+            3: (12, 11, 10),  # Spieler 4 -> Block 4
+            4: (15, 14, 13),  # Spieler 5 -> Block 5
+            5: (18, 17, 16),  # Spieler 6 -> Block 6
+            6: (21, 20, 19),  # Spieler 7 -> Block 7
+            7: (24, 23, 22)   # Spieler 8 -> Block 8
+        }
+
+        # Zuordnung der Cricket-Ziele (15 bis 25/Bull) zu den Display-Feldern auf Chip U9 / U8
+        # Laut Schaltplan steuert U9/U8 die zentralen Matrix-Anzeigen für Cricket
+        self.CRICKET_DISP_MAP = {
+            15: 28,
+            16: 29,
+            17: 33,
+            18: 34,
+            19: 35,
+            20: 39,
+            25: 40  # Bull
         }
 
     def set_light(self, state):
@@ -139,6 +149,17 @@ class LoewenDisplay:
         self.set_disp_char(d_hund, score_str[0])
         self.set_disp_char(d_ten,  score_str[1])
         self.set_disp_char(d_unit, score_str[2])
+
+    def set_cricket_marks(self, player_idx, target, marks):
+        """Zeigt die Cricket-Marken (0 bis 3) für ein Ziel auf der Mittelanzeige an"""
+        if target not in self.CRICKET_DISP_MAP: 
+            return
+        disp_num = self.CRICKET_DISP_MAP[target]
+        
+        # Zeige je nach Anzahl der Marken (0='', 1='-', 2='=', 3='=') oder als Zahl an
+        char_map = {0: " ", 1: "-", 2: "=", 3: "8"} # Oder direkte Ziffern wie "1", "2", "3"
+        char_to_show = str(marks) if marks > 0 else " "
+        self.set_disp_char(disp_num, char_to_show)
 
     def clear_all(self):
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
