@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.6"
+VERSION = "1.2.0"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -36,16 +36,13 @@ class ScreenSaver:
                     img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
                     self.avatars.append({"img": img, "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
                 except: pass
-
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
         if self.active: self.active = False; return True
         return False
-
     def check(self):
         if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout: self.active = True
         return self.active
-
     def update_and_draw(self, screen, font):
         if not self.active: return
         screen.fill((0, 0, 0))
@@ -63,8 +60,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
     def update_score_display(player_idx, score):
-        if score < 0: score = 0
-        display.set_score(player_idx, score)
+        display.set_score(player_idx, max(0, score))
         display.update()
 
     display.clear_all()
@@ -105,6 +101,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if screensaver.reset_timer(): raw_data = None; continue
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_p: raw_data = "BTN:PLAYER"
+                elif e.key == pygame.K_i: raw_data = "IR:DETECT"
                 elif e.key == pygame.K_r: raw_data = "BTN:RED"
                 elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
                 elif e.key == pygame.K_g: raw_data = "BTN:GREY"
@@ -146,9 +143,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             raw_data = None 
 
         is_berrys_turn = (is_berry_game and active_player == total_players)
-        if is_berrys_turn and raw_data == "BTN:PLAYER": raw_data = None
+        if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None:
+        if is_berrys_turn and current_state == "GAME" and raw_data is None and darts_thrown < 3:
             if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
             elif pygame.time.get_ticks() > bot_timer:
                 diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
@@ -158,12 +155,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data:
             if current_state == "GAME":
-                if raw_data == "BTN:PLAYER":
+                if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
                     active_player = (active_player % total_players) + 1
                 
-                # --- PIEZO FIX ---
-                elif raw_data.startswith("HIT:") or raw_data == "MISS:1":
+                elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     if hit_seg != "-" and hit_seg != "MISS":
                         if hit_seg.startswith("t") and sound_triple: sound_triple.play()
@@ -182,7 +178,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                                 update_score_display(p_idx, player_scores[p_idx])
                     darts_thrown += 1
                     if check_win(): current_state = "WIN"
-                    elif darts_thrown >= 3: darts_thrown, active_player = 0, (active_player % total_players) + 1
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
 
         if screensaver.check():
@@ -206,6 +201,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     screen.blit(big_font.render(f"{marks}/3", True, (50, 255, 50) if marks == 3 else WHITE), (350 + p*100, 220 + i*50))
                     if i == 0: screen.blit(title_font.render(f"P{p+1}" if not (is_berry_game and p == total_players-1) else "Berry", True, (150,150,150)), (350 + p*100, 180))
 
+            if darts_thrown >= 3:
+                block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
+                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
 
             y_base = 660
