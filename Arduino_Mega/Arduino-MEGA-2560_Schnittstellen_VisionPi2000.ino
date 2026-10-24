@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (FINAL RAW-VERSION)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (FINAL FLANKEN-VERSION)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -34,10 +34,14 @@ const int piezoThreshold = 15;
 const int piezoMatrixWaitTime = 100; 
 
 const int btnDebounceDelay = 200; 
-const int irDebounceDelay = 500;  
-unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPressPlayer, lastPressIR = 0;
-bool stateRed, stateBlue, stateGrey, stateStart, statePlayer, stateIR = true;
-bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer, lastIR = true;
+unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPressPlayer = 0;
+bool stateRed, stateBlue, stateGrey, stateStart, statePlayer = true;
+bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
+
+// IR-Flankenerkennung Variablen
+bool lastIrState = HIGH;
+unsigned long lastIrChangeTime = 0;
+const unsigned long irDebounceTime = 300; // Sperrzeit, um Mehrfachauslösung zu verhindern
 
 void shift16Parallel(byte addr, byte data[5]) {
   for (int i = 7; i >= 0; i--) {
@@ -170,6 +174,7 @@ void loop() {
     lastHitTime = currentMillis; 
   }
 
+  // Taster abfragen
   stateRed = digitalRead(btnRed);
   if (stateRed == LOW && lastRed == HIGH) { 
     if (currentMillis - lastPressRed > btnDebounceDelay) { Serial.println("BTN:RED"); lastPressRed = currentMillis; }
@@ -200,12 +205,18 @@ void loop() {
   }
   lastPlayer = statePlayer;
 
-  stateIR = digitalRead(irSensorPin);
-  if (stateIR == LOW && lastIR == HIGH) { 
-    if (currentMillis - lastPressIR > irDebounceDelay) { Serial.println("IR:DETECT"); lastPressIR = currentMillis; }
+  // --- IR-SENSOR FLANKEN-ERKENNUNG (Löst aus, wenn man die Hand wegzieht / Strahl frei wird) ---
+  bool currentIrState = digitalRead(irSensorPin);
+  // Wenn der Sensor von LOW (unterbrochen) auf HIGH (frei) wechselt (oder umgekehrt je nach Modul - hier auf steigende Flanke nach Freigabe)
+  // Falls dein Modul invertiert arbeitet, tausche HIGH/LOW. Standardmäßig triggert das bei Freigabe nach dem Greifen:
+  if (currentIrState == HIGH && lastIrState == LOW) {
+    if (currentMillis - lastIrChangeTime > irDebounceTime) {
+      Serial.println("IR:TRIGGER");
+      lastIrChangeTime = currentMillis;
+    }
   }
-  lastIR = stateIR;
-  
+  lastIrState = currentIrState;
+
   static unsigned long comboTimer = 0;
   static bool comboTriggered = false;
   if ((digitalRead(btnRed) == LOW) && (digitalRead(btnBlue) == LOW) && (digitalRead(btnGrey) == LOW)) {
