@@ -2,7 +2,7 @@ import pygame
 import time
 import os
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 GAMES = ["Service Menu"]
 OPTIONS = ["Display & Lampen", "Matrix", "Sensoren"]
 
@@ -12,7 +12,6 @@ class ScreenSaver:
     def check(self): return False
     def update_and_draw(self, screen, font): pass
 
-# NEUE SIGNATUR MIT 'display'
 def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
     title_font = pygame.font.SysFont("arial", 28, bold=True)
@@ -87,7 +86,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         elif option == "Matrix":
             draw_centered(big_font.render("Drücke Segmente auf der Scheibe mit dem Finger.", True, WHITE), 150)
             draw_centered(title_font.render("So findest du tote Felder oder falsche Belegungen.", True, (150,150,150)), 200)
-            
             c = WHITE if last_hit == "Warte auf Eingabe..." else GREEN
             draw_centered(giant_font.render(last_hit, True, c), 350)
             draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), 600)
@@ -106,9 +104,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         pygame.display.flip()
         clock.tick(30)
 
-    # Cleanup beim Beenden
     if option == "Display & Lampen" and ser:
         try:
             display.set_light(False)
-            display.clear_all() # Stellt sicher, dass das Display im Menü wieder aus ist
+            display.clear_all() 
         except: pass
