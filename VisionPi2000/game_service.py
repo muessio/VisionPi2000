@@ -2,7 +2,7 @@ import pygame
 import time
 import os
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 GAMES = ["Service Menu"]
 OPTIONS = ["Display & Lampen", "Matrix", "Sensoren"]
 
@@ -12,7 +12,8 @@ class ScreenSaver:
     def check(self): return False
     def update_and_draw(self, screen, font): pass
 
-def run_game(screen, ser, players, game_name, option, mode):
+# NEUE SIGNATUR MIT 'display'
+def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
     title_font = pygame.font.SysFont("arial", 28, bold=True)
     big_font = pygame.font.SysFont("arial", 38, bold=True)
@@ -37,17 +38,15 @@ def run_game(screen, ser, players, game_name, option, mode):
     if option == "Display & Lampen":
         if ser:
             try:
-                ser.write(b"LIGHT:ON\n")
-                ser.flush()
-                # Schicke auf alle Displays die Zahl 8
+                display.set_light(True)
+                # Rohes Ansteuern ALLER Bits auf ALLER Chips (255 = alle 8 LEDs pro Spalte an)
                 for c in range(10):
                     for d in range(8):
-                        ser.write(f"DISP:{c}:{d}:8\n".encode('utf-8'))
+                        ser.write(f"RAW:{c}:{d}:255\n".encode('utf-8'))
                         ser.flush()
                         time.sleep(0.005)
             except: pass
 
-    # Hilfsfunktion zum automatischen Zentrieren des Textes
     def draw_centered(surf, y):
         screen.blit(surf, ((screen.get_width() - surf.get_width()) // 2, y))
 
@@ -81,7 +80,7 @@ def run_game(screen, ser, players, game_name, option, mode):
         draw_centered(title_font.render(f"SERVICE-MODUS: {option}", True, HIGHLIGHT), 40)
 
         if option == "Display & Lampen":
-            draw_centered(big_font.render("Alle Segmente zeigen '8'.", True, WHITE), 200)
+            draw_centered(big_font.render("Alle Segmente des Boards leuchten auf.", True, WHITE), 200)
             draw_centered(big_font.render("Beleuchtung (Relais) ist EINGESCHALTET.", True, WHITE), 280)
             draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), 500)
 
@@ -110,12 +109,6 @@ def run_game(screen, ser, players, game_name, option, mode):
     # Cleanup beim Beenden
     if option == "Display & Lampen" and ser:
         try:
-            ser.write(b"LIGHT:OFF\n")
-            ser.flush()
-            # Displays wieder leeren
-            for c in range(10):
-                for d in range(8):
-                    ser.write(f"DISP:{c}:{d}:15\n".encode('utf-8'))
-                    ser.flush()
-                    time.sleep(0.005)
+            display.set_light(False)
+            display.clear_all() # Stellt sicher, dass das Display im Menü wieder aus ist
         except: pass
