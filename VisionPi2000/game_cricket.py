@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -59,8 +59,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
-    def update_score_display(player_idx, score):
-        display.set_score(player_idx, max(0, score))
+    def update_displays(player_idx):
+        display.set_score(player_idx, max(0, player_scores[player_idx]))
+        for t in TARGETS:
+            marks = player_marks[player_idx][t]
+            display.set_cricket_marks(player_idx, t, marks)
         display.update()
 
     display.clear_all()
@@ -85,7 +88,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     player_scores, player_marks = [0] * total_players, [{t: 0 for t in TARGETS} for _ in range(total_players)]
     darts_thrown, active_player = 0, 1
-    for i in range(total_players): update_score_display(i, 0)
+    for i in range(total_players): update_displays(i)
 
     running, clock, current_state, bot_timer, combo_press_start = True, pygame.time.Clock(), "GAME", 0, 0
 
@@ -151,7 +154,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        # === BOT LOGIK (INKL. AUTOMATISCHEM WEITERSCHALTEN NACH 3 PFEILEN) ===
         if is_berrys_turn and current_state == "GAME" and raw_data is None:
             if darts_thrown < 3:
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
@@ -172,6 +174,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
                     active_player = (active_player % total_players) + 1
+                    update_displays(active_player-1)
                 
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
@@ -189,7 +192,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             if player_marks[p_idx][val] < 3: player_marks[p_idx][val] += 1
                             elif not all(player_marks[i][val] >= 3 for i in range(total_players)):
                                 player_scores[p_idx] += val
-                                update_score_display(p_idx, player_scores[p_idx])
+                        update_displays(p_idx)
                     darts_thrown += 1
                     if check_win(): current_state = "WIN"
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
