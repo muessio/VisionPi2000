@@ -2,20 +2,22 @@ import pygame
 import math
 import os
 import random
+import time
 
-VERSION = "1.1.6"
+VERSION = "1.2.0"
 GAMES = ["Around the Clock"]
 OPTIONS = ["Standard", "Mit Bull"]
 TARGETS = list(range(1, 21)) + [25]
 
 def parse_hit_clock(hit_str, current_target):
-    if hit_str in ["-", "WIN_CHEAT"]: return 0
+    if hit_str in ["-", "WIN_CHEAT", "MISS"]: return 0
     try: val = int(hit_str.replace("d", "").replace("t", "").replace("b", "25"))
     except: return 0
     return 1 if val == current_target else 0
 
 def get_bot_hit(current_target, diff):
-    if random.random() < {1: 0.40, 2: 0.70, 3: 0.95}[diff]: return str(current_target if current_target != 25 else "b")
+    if random.random() < {1: 0.40, 2: 0.70, 3: 0.95}[diff]:
+        return str(current_target if current_target != 25 else "b")
     return str(random.choice([1, 5, 20]))
 
 class ScreenSaver:
@@ -31,16 +33,13 @@ class ScreenSaver:
                     img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
                     self.avatars.append({"img": img, "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
                 except: pass
-
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
         if self.active: self.active = False; return True
         return False
-
     def check(self):
         if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout: self.active = True
         return self.active
-
     def update_and_draw(self, screen, font):
         if not self.active: return
         screen.fill((0, 0, 0))
@@ -58,8 +57,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
     def update_score_display(player_idx, score):
-        if score < 0: score = 0
-        display.set_score(player_idx, score)
+        display.set_score(player_idx, max(0, score))
         display.update()
 
     display.clear_all()
@@ -89,22 +87,27 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     running, clock, current_state, bot_timer, winner_name, combo_press_start = True, pygame.time.Clock(), "GAME", 0, "", 0
 
     while running:
-        raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
+        raw_data = None
+        if ser and ser.in_waiting > 0:
+            try: raw_data = ser.readline().decode('utf-8','ignore').strip()
+            except: pass
+            
         for e in pygame.event.get():
             if e.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
                 if screensaver.reset_timer(): raw_data = None; continue
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_p: raw_data = "BTN:PLAYER"
+                elif e.key == pygame.K_i: raw_data = "IR:DETECT"
                 elif e.key == pygame.K_r: raw_data = "BTN:RED"
                 elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
                 elif e.key == pygame.K_g: raw_data = "BTN:GREY"
+                elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
         keys = pygame.key.get_pressed()
-        is_combo_serial = raw_data == "BTN:COMBO"
         trigger_abort = False
-        if is_combo_serial: trigger_abort = True
+        if raw_data == "BTN:COMBO": trigger_abort = True
         elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
             elif pygame.time.get_ticks() - combo_press_start >= 2000: trigger_abort = True
@@ -128,17 +131,19 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         if ev.key in [pygame.K_p, pygame.K_ESCAPE]: cancel_action = "YES" 
                         elif ev.key in [pygame.K_SPACE, pygame.K_RETURN]: cancel_action = "NO"
                 if ser and ser.in_waiting > 0:
-                    s_in = ser.readline().decode('utf-8','ignore').strip()
-                    if s_in == "BTN:PLAYER": cancel_action = "YES" 
-                    elif s_in == "BTN:START": cancel_action = "NO" 
+                    try:
+                        s_in = ser.readline().decode('utf-8','ignore').strip()
+                        if s_in == "BTN:PLAYER": cancel_action = "YES" 
+                        elif s_in == "BTN:START": cancel_action = "NO" 
+                    except: pass
                 if cancel_action == "YES": return 
                 elif cancel_action == "NO": confirming = False; combo_press_start = 0
             raw_data = None 
 
         is_berrys_turn = (is_berry_game and active_player == total_players)
-        if is_berrys_turn and raw_data == "BTN:PLAYER": raw_data = None
+        if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None:
+        if is_berrys_turn and current_state == "GAME" and raw_data is None and darts_thrown < 3:
             if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
             elif pygame.time.get_ticks() > bot_timer:
                 diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
@@ -149,14 +154,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data:
             if current_state == "GAME":
-                if raw_data == "BTN:PLAYER":
+                # === MANUELLER SPIELERWECHSEL ===
+                if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
-                    active_player += 1
-                    if active_player > total_players: active_player = 1
+                    active_player = (active_player % total_players) + 1
                 
-                # --- PIEZO FIX ---
-                elif raw_data.startswith("HIT:") or raw_data == "MISS:1":
+                # === TREFFER NUR WERTEN WENN < 3 GEWORFEN ===
+                elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
+                    if hit_seg == "WIN_CHEAT": hit_seg = "WIN_CHEAT"
+                    
                     if hit_seg != "-" and hit_seg != "MISS":
                         if hit_seg.startswith("t") and sound_triple: sound_triple.play()
                         elif (hit_seg.startswith("d" ) or hit_seg == "db") and sound_double: sound_double.play()
@@ -166,16 +173,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
                     p_idx = active_player - 1
                     curr_target_val = active_targets[player_target_indices[p_idx]]
-                    if hit_seg != "MISS" and parse_hit_clock(hit_seg, curr_target_val) > 0:
+                    
+                    if parse_hit_clock(hit_seg, curr_target_val) > 0:
                         player_target_indices[p_idx] += 1
                         if player_target_indices[p_idx] >= len(active_targets):
                             current_state, winner_name = "WIN", (mode if is_berrys_turn else f"Spieler {active_player}")
-                        else: update_score_display(p_idx, active_targets[player_target_indices[p_idx]])
+                        else: 
+                            update_score_display(p_idx, active_targets[player_target_indices[p_idx]])
                     
                     darts_thrown += 1
-                    if darts_thrown >= 3 and current_state == "GAME":
-                        darts_thrown, active_player = 0, active_player + 1
-                        if active_player > total_players: active_player = 1
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
 
         if screensaver.check():
@@ -189,11 +195,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if current_state == "GAME":
             p_idx = active_player - 1
-            curr_target_val = active_targets[player_target_indices[p_idx]]
+            curr_target_val = active_targets[player_target_indices[p_idx]] if player_target_indices[p_idx] < len(active_targets) else 0
+            
             screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}", True, HIGHLIGHT), (40, 60))
             screen.blit(giant_font.render(f"ZIEL: {'BULL' if curr_target_val == 25 else curr_target_val}", True, (50, 255, 50)), (150, 120))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Fortschritt: {player_target_indices[p_idx]}/{len(active_targets)}", True, RED_COL if is_berrys_turn else WHITE), (150, 300))
+            
+            if darts_thrown >= 3:
+                block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
+                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
+            
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
 
             y_base = 660
