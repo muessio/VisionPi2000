@@ -30,7 +30,7 @@ class LoewenDisplay:
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Segment-Reihenfolgen
+        # Segment-Reihenfolgen laut Schaltplan Blatt 3
         SEG_U1 = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
         SEG_U1_DISP3 = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
         SEG_U2 = { "C": 1, "B": 2, "G": 3, "D": 4, "A": 5, "F": 6, "E": 7, "DP": 8 }
@@ -41,54 +41,54 @@ class LoewenDisplay:
         SEG_U8 = { "F": 1, "C": 2, "DP": 3, "E": 4, "A": 5, "B": 6, "D": 7, "G": 8 }
         SEG_U9 = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "DP": 7, "B": 8 }
 
-        # Korrigierte Chip-Zuordnung durch Daisy Chain (Chip 0 und Chip 1 getauscht je Strang)
+        # Exakte Chip-Zuordnung für die kaskadierten Paare (Daisy Chain)
         self.DISP_TABLE = {
-            # Strang D0 (U3 ist jetzt Chip 0, U1 ist Chip 1)
+            # Strang D0 (U1 = Chip 1 / hinten, U3 = Chip 0 / vorn)
             1: (1, "H", SEG_U1),
             2: (1, "D", SEG_U1),
             3: (1, "B", SEG_U1_DISP3),
             7: (1, "F", SEG_U1),
             8: (1, "E", SEG_U1),
             9: (1, "A", SEG_U1),
-            # U3 (jetzt Chip 0)
+            # U3
             10: (0, "H", SEG_U3),
             11: (0, "D", SEG_U3),
             12: (0, "B", SEG_U3),
             13: (0, "E", SEG_U3),
             14: (0, "A", SEG_U3),
             
-            # Strang D1 (U4 ist jetzt Chip 2, U2 ist Chip 3)
+            # Strang D1 (U2 = Chip 3 / hinten, U4 = Chip 2 / vorn)
             4: (3, "F", SEG_U2),
             5: (3, "A", SEG_U2),
             6: (3, "C", SEG_U2),
             15: (3, "G", SEG_U2),
-            # U4 (jetzt Chip 2)
+            # U4
             16: (2, "D", SEG_U4),
             17: (2, "A", SEG_U4),
             18: (2, "E", SEG_U4),
             
-            # Strang D2 (U6 ist Chip 4, U5 ist Chip 5)
+            # Strang D2 (U5 = Chip 5 / hinten, U6 = Chip 4 / vorn)
             19: (5, "B", SEG_U5_U6),
             20: (5, "F", SEG_U5_U6),
             21: (5, "E", SEG_U5_U6),
-            # U6 (Chip 4)
+            # U6
             22: (4, "B", SEG_U5_U6),
             23: (4, "F", SEG_U5_U6),
             24: (4, "E", SEG_U5_U6),
             
-            # Strang D3 (U8 ist Chip 6, U7 ist Chip 7)
+            # Strang D3 (U7 = Chip 7 / hinten, U8 = Chip 6 / vorn)
             25: (7, "H", SEG_U7),
             26: (7, "B", SEG_U7),
             27: (7, "E", SEG_U7),
             30: (7, "A", SEG_U7),
-            # U8 (Chip 6)
+            # U8
             31: (6, "D", SEG_U8),
             32: (6, "B", SEG_U8),
             36: (6, "E", SEG_U8),
             37: (6, "F", SEG_U8),
             38: (6, "G", SEG_U8),
             
-            # Strang D4 (U9)
+            # Strang D4 (U9 - Einzelchip)
             28: (8, "E", SEG_U9),
             29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9),
@@ -99,6 +99,7 @@ class LoewenDisplay:
             41: (8, "A", SEG_U9),
         }
 
+        # Zuordnung der Spieler auf die Gehäuse-Blöcke (1 bis 8)
         self.PLAYER_DISP = {
             0: (9, 8, 7),     # Spieler 1 -> Block 1
             1: (6, 5, 4),     # Spieler 2 -> Block 2
@@ -157,7 +158,7 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_cricket_marks(self, player_idx, target, marks):
-        if target not in self.CRICKET_DISP_MAP: 
+        if target not in self.CRICKET_DIS_MAP: 
             return
         disp_num = self.CRICKET_DISP_MAP[target]
         char_to_show = str(marks) if marks > 0 else " "
