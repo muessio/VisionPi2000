@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (KOMPLETT MIT KORREKTER 32-BIT KETTE)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (FINALER FIX FÜR STRANG 4 / U9)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -17,7 +17,6 @@ const int clkPin   = 4;
 const int loadPin  = 5;   
 const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
-// [Strang 0..4][Chip 0 (vorn/Einstieg) oder Chip 1 (hinten)][Digit 0..7]
 byte displayMem[5][2][8] = {0};
 
 const String dartBoard[4][16] = {
@@ -43,11 +42,9 @@ bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300;
 
-// --- HIER IST DIE sendCommandToAll FUNKTION ---
 void sendCommandToAll(byte addr, byte data) {
   digitalWrite(loadPin, LOW);
   delayMicroseconds(3);
-  // Da 2 Chips in Reihe hängen, müssen wir die 16-Bit-Pakete für beide Chips senden
   for (int repeat = 0; repeat < 2; repeat++) {
     for (int i = 7; i >= 0; i--) {
       digitalWrite(clkPin, LOW);
@@ -67,40 +64,47 @@ void sendCommandToAll(byte addr, byte data) {
   digitalWrite(loadPin, HIGH);
 }
 
-// --- HIER IST DIE 32-BIT UPDATE-FUNKTION FÜR DIE KETTE ---
 void updateDigitForAllStrands(int digitIndex) {
   digitalWrite(loadPin, LOW);
   delayMicroseconds(3);
 
   byte addr = digitIndex + 1;
 
-  // 1. Paket für den HINTEREN Chip (Chip 1 / DOUT)
+  // --- SCHRITT 1: Adresse senden ---
+  // Stränge 0-3 (2 Chips) bekommen die Adresse zweimal. Strang 4 (U9, 1 Chip) bekommt sie einmal im 2. Slot.
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
+    for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
+    digitalWrite(dPins[4], LOW); // Strang 4 wartet im 1. Slot
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
   }
 
-  // 2. Paket für den VORDEREN Chip (Chip 0 / DIN)
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
+    for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
+    digitalWrite(dPins[4], (addr >> i) & 1); // Strang 4 bekommt hier seine Adresse
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
   }
+
+  // --- SCHRITT 2: Daten für Chip 1 (Hinterer Chip in Kette für 0-3) ---
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
+    for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
+    digitalWrite(dPins[4], LOW);
+    delayMicroseconds(1);
+    digitalWrite(clkPin, HIGH);
+    delayMicroseconds(1);
+  }
+
+  // --- SCHRITT 3: Daten für Chip 0 (Vorderer Chip für 0-3 bzw. U9 für Strang 4) ---
+  for (int i = 7; i >= 0; i--) {
+    digitalWrite(clkPin, LOW);
+    for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
+    digitalWrite(dPins[4], (displayMem[4][0][digitIndex] >> i) & 1); // U9 Daten
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
