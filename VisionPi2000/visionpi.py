@@ -6,7 +6,7 @@ import glob
 import random
 import time
 
-from display_mapper import LoewenDisplay  # <--- NEU: Der Display Übersetzer
+from display_mapper import LoewenDisplay
 
 os.environ['SDL_RENDER_SCALE_QUALITY'] = '0'
 
@@ -25,7 +25,7 @@ except ImportError: game_aroundclock = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.1.2"       
+VERSION = "1.1.3"       
 BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
@@ -41,32 +41,18 @@ HIGHLIGHT, WHITE = (255, 215, 0), (255, 255, 255)
 
 class ScreenSaver:
     def __init__(self, width, height):
-        self.width = width
-        self.height = height
+        self.width, self.height = width, height
         self.timeout = 10 * 60 * 1000 
         self.last_activity = pygame.time.get_ticks()
         self.active = False
-        
         self.avatars = []
-        berry_files = [
-            "Bullseye-Berry_Original.png",
-            "Bullseye-Berry_Cyber.png",
-            "Bullseye-Berry_Ninja.png",
-            "Bullseye-Berry_Champ.png"
-        ]
-        
+        berry_files = ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]
         for file in berry_files:
             if os.path.exists(file):
                 try:
-                    img = pygame.image.load(file).convert_alpha()
-                    img = pygame.transform.smoothscale(img, (100, 100))
-                    x = random.randint(50, width - 150)
-                    y = random.randint(50, height - 150)
-                    vx = random.choice([-2, 2])
-                    vy = random.choice([-2, 2])
-                    self.avatars.append({"img": img, "x": x, "y": y, "vx": vx, "vy": vy})
-                except:
-                    pass
+                    img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
+                    self.avatars.append({"img": img, "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
+                except: pass
         self.font = pygame.font.SysFont("arial", 20, bold=True)
 
     def reset_timer(self):
@@ -77,29 +63,28 @@ class ScreenSaver:
         return False
 
     def check(self):
-        if not self.active:
-            if pygame.time.get_ticks() - self.last_activity > self.timeout:
-                self.active = True
+        if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout: self.active = True
         return self.active
 
     def update_and_draw(self, screen):
         if not self.active: return
         screen.fill((0, 0, 0))
         for av in self.avatars:
-            av["x"] += av["vx"]
-            av["y"] += av["vy"]
+            av["x"] += av["vx"]; av["y"] += av["vy"]
             if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
             if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
             screen.blit(av["img"], (av["x"], av["y"]))
         hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
-        hint_rect = hint_surf.get_rect(center=(self.width // 2, self.height - 40))
-        screen.blit(hint_surf, hint_rect)
+        screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
 def init_serial():
     ports = glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*')
     for port in ports:
         try:
             ser = serial.Serial(port, BAUD_RATE, timeout=0.01)
+            # WICHTIG: Der Arduino startet neu, wenn der Port geöffnet wird.
+            # Diese Pause gibt dem Bootloader Zeit, bevor wir LIGHT:ON senden!
+            time.sleep(2.5) 
             return ser
         except:
             continue
@@ -128,8 +113,8 @@ def main():
     pygame.display.set_caption("VisionPi2000")
     
     ser = init_serial()
-    display = LoewenDisplay(ser) # <--- NEU: Display Controller initialisieren
-    display.set_light(True)      # <--- NEU: Licht beim Booten an
+    display = LoewenDisplay(ser) 
+    display.set_light(True)     
     
     screensaver = ScreenSaver(SCREEN_WIDTH, SCREEN_HEIGHT)
 
@@ -186,7 +171,7 @@ def main():
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
     combo_press_start = 0
 
-    display.clear_all() # <--- NEU: Display sauber leeren
+    display.clear_all() 
 
     while running:
         g_list = [g["name"] for g in game_registry]
@@ -208,23 +193,19 @@ def main():
                 elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
         if raw_data and screensaver.reset_timer():
-            raw_data = None
-            continue
+            raw_data = None; continue
 
         keys = pygame.key.get_pressed()
         is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
         
         trigger_info = False
-        if raw_data == "BTN:COMBO":
-            trigger_info = True
-            raw_data = None
+        if raw_data == "BTN:COMBO": trigger_info = True; raw_data = None
         elif is_combo_keys:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
             elif pygame.time.get_ticks() - combo_press_start >= 2000:
                 trigger_info = True
                 combo_press_start = 0
-        else:
-            combo_press_start = 0
+        else: combo_press_start = 0
 
         if trigger_info:
             screensaver.reset_timer()
@@ -236,10 +217,8 @@ def main():
             while showing_info:
                 screen.fill(BG_COLOR)
                 screen.blit(title_font.render("SYSTEM-INFORMATIONEN (Revisionsindex)", True, HIGHLIGHT), (120, 60))
-                
                 screen.blit(font.render("Gründer & Hauptentwickler – VisionPi2000 (Open Source)", True, (100, 220, 100)), (150, 105))
                 screen.blit(font.render("Oliver Müssig", True, WHITE), (150, 130))
-                
                 screen.blit(font.render(f"Vision Pi 2000 (Hauptmenü): v{VERSION}", True, WHITE), (150, 175))
                 y_pos = 215
                 for mod_item in game_registry:
@@ -252,15 +231,13 @@ def main():
                 pygame.display.flip()
                 
                 for ev in pygame.event.get():
-                    if ev.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
-                        screensaver.reset_timer()
+                    if ev.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]: screensaver.reset_timer()
                     if ev.type == pygame.KEYDOWN and ev.key in [pygame.K_p, pygame.K_ESCAPE]: showing_info = False
                 if ser and ser.in_waiting > 0:
                     s_in = ser.readline().decode('utf-8','ignore').strip()
                     if s_in == "BTN:PLAYER": showing_info = False
             
-            trigger_info = False
-            raw_data = None 
+            trigger_info = False; raw_data = None 
 
         if raw_data:
             if raw_data in ["BTN:RED", "BTN:BLUE", "BTN:GREY", "BTN:PLAYER"]:
@@ -270,19 +247,16 @@ def main():
                 elif raw_data == "BTN:GREY": 
                     sel_mode = (sel_mode + 1) % len(modes)
                     if players == 8:
-                        while "Berry" in modes[sel_mode]:
-                            sel_mode = (sel_mode + 1) % len(modes)
+                        while "Berry" in modes[sel_mode]: sel_mode = (sel_mode + 1) % len(modes)
                 elif raw_data == "BTN:PLAYER": 
                     players = players + 1 if players < 8 else 1
-                    if players == 8 and "Berry" in modes[sel_mode]:
-                        sel_mode = 0
+                    if players == 8 and "Berry" in modes[sel_mode]: sel_mode = 0
             elif raw_data == "BTN:START":
                 if sound_start: sound_start.play()
                 mod = game_registry[sel_game]["module"]
                 if mod: 
-                    # <--- NEU: display Objekt wird mit an das Spiel übergeben!
                     mod.run_game(screen, ser, display, players, g_list[sel_game], c_opts[sel_option], modes[sel_mode])
-                    display.clear_all() # Zurück im Menü -> Alles dunkel
+                    display.clear_all() 
                     screensaver.reset_timer()
 
         if screensaver.check():
@@ -292,9 +266,7 @@ def main():
             continue
 
         screen.fill(BG_COLOR)
-        
-        if header_img: 
-            screen.blit(header_img, ((SCREEN_WIDTH - header_img.get_width()) // 2, HEADER_START_Y))
+        if header_img: screen.blit(header_img, ((SCREEN_WIDTH - header_img.get_width()) // 2, HEADER_START_Y))
         else:
             hx = (SCREEN_WIDTH - big_font.render("VISION PI 2000", True, HIGHLIGHT).get_width()) // 2
             screen.blit(big_font.render("VISION PI 2000", True, HIGHLIGHT), (hx, HEADER_START_Y + 15))
@@ -312,7 +284,7 @@ def main():
         pygame.display.flip()
         clock.tick(30)
 
-    display.set_light(False) # Licht aus beim Beenden
+    display.set_light(False) 
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
