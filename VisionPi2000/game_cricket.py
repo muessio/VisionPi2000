@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -61,22 +61,20 @@ class ScreenSaver:
         hint_surf = font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
         screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
-def run_game(screen, ser, players, game_name, option, mode):
+# NEUE SIGNATUR MIT 'display'
+def run_game(screen, ser, display, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
-    PLAYER_MAP = [(0, 2), (1, 2), (0, 5), (1, 5), (2, 2), (3, 2), (2, 5), (3, 5)]
 
+    # NEUES SCORE-UPDATING ÜBER DEN MAPPER
     def update_score_display(player_idx, score):
-        if ser and player_idx < len(PLAYER_MAP):
-            chip, start_digit = PLAYER_MAP[player_idx]
-            score_str = f"{max(0, score):03d}" 
-            ser.write(f"DISP:{chip}:{start_digit}:{score_str[0]}\nDISP:{chip}:{start_digit-1}:{score_str[1]}\nDISP:{chip}:{start_digit-2}:{score_str[2]}\n".encode('utf-8'))
+        if score < 0: score = 0
+        display.set_score(player_idx, score)
+        display.update()
 
-    if ser:
-        for c in range(10):
-            for d in range(8):
-                ser.write(f"DISP:{c}:{d}:15\n".encode('utf-8'))
+    # DISPLAY LEEREN
+    display.clear_all()
 
     bg_img = None
     bg_path = os.path.join(os.getcwd(), "background.png")
@@ -224,7 +222,7 @@ def run_game(screen, ser, players, game_name, option, mode):
 
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
 
-            # --- NEU: Permanente Punkteanzeige in zwei Reihen ---
+            # --- Permanente Punkteanzeige in zwei Reihen ---
             y_base = 660
             for i in range(total_players):
                 p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
@@ -240,7 +238,6 @@ def run_game(screen, ser, players, game_name, option, mode):
                 y_pos = y_base + (row * 40)
                 
                 screen.blit(surf, (x_pos - surf.get_width() // 2, y_pos))
-            # ---------------------------------------------------------
 
             if is_berrys_turn and avatar_img:
                 anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
@@ -249,4 +246,3 @@ def run_game(screen, ser, players, game_name, option, mode):
             screen.blit(giant_font.render("GEWONNEN!", True, (50, 255, 50)), (250, 250))
             
         pygame.display.flip(); clock.tick(30)
-        
