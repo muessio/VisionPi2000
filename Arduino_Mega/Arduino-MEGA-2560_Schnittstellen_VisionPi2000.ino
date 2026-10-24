@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (DAISY CHAIN KORRIGIERT)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (KOMPLETT MIT KORREKTER 32-BIT KETTE)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -15,8 +15,9 @@ const int piezoPin    = A0;
 
 const int clkPin   = 4;   
 const int loadPin  = 5;   
-const int dPins[5] = {6, 7, 8, 9, 10}; 
+const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
+// [Strang 0..4][Chip 0 (vorn/Einstieg) oder Chip 1 (hinten)][Digit 0..7]
 byte displayMem[5][2][8] = {0};
 
 const String dartBoard[4][16] = {
@@ -42,47 +43,11 @@ bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300;
 
-void updateDigitForAllStrands(int digitIndex) {
-  digitalWrite(loadPin, LOW);
-  delayMicroseconds(3);
-
-  byte addr = digitIndex + 1;
-
-  // 1. Register-Adresse für alle Stränge senden
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-
-  // 2. DAISY CHAIN REIHENFOLGE: Chip 1 (hinten / DOUT) ZUERST schieben,
-  // da es durch den vorderen Chip hindurch muss!
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-
-  // 3. Chip 0 (vorn / direkt an DIN) als ZWEITES schieben.
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-
-  digitalWrite(loadPin, HIGH);
-  delayMicroseconds(3);
-}
-
+// --- HIER IST DIE sendCommandToAll FUNKTION ---
 void sendCommandToAll(byte addr, byte data) {
   digitalWrite(loadPin, LOW);
   delayMicroseconds(3);
+  // Da 2 Chips in Reihe hängen, müssen wir die 16-Bit-Pakete für beide Chips senden
   for (int repeat = 0; repeat < 2; repeat++) {
     for (int i = 7; i >= 0; i--) {
       digitalWrite(clkPin, LOW);
@@ -100,6 +65,49 @@ void sendCommandToAll(byte addr, byte data) {
     }
   }
   digitalWrite(loadPin, HIGH);
+}
+
+// --- HIER IST DIE 32-BIT UPDATE-FUNKTION FÜR DIE KETTE ---
+void updateDigitForAllStrands(int digitIndex) {
+  digitalWrite(loadPin, LOW);
+  delayMicroseconds(3);
+
+  byte addr = digitIndex + 1;
+
+  // 1. Paket für den HINTEREN Chip (Chip 1 / DOUT)
+  for (int i = 7; i >= 0; i--) {
+    digitalWrite(clkPin, LOW);
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
+    delayMicroseconds(1);
+    digitalWrite(clkPin, HIGH);
+    delayMicroseconds(1);
+  }
+  for (int i = 7; i >= 0; i--) {
+    digitalWrite(clkPin, LOW);
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
+    delayMicroseconds(1);
+    digitalWrite(clkPin, HIGH);
+    delayMicroseconds(1);
+  }
+
+  // 2. Paket für den VORDEREN Chip (Chip 0 / DIN)
+  for (int i = 7; i >= 0; i--) {
+    digitalWrite(clkPin, LOW);
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
+    delayMicroseconds(1);
+    digitalWrite(clkPin, HIGH);
+    delayMicroseconds(1);
+  }
+  for (int i = 7; i >= 0; i--) {
+    digitalWrite(clkPin, LOW);
+    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
+    delayMicroseconds(1);
+    digitalWrite(clkPin, HIGH);
+    delayMicroseconds(1);
+  }
+
+  digitalWrite(loadPin, HIGH);
+  delayMicroseconds(3);
 }
 
 void setup() {
@@ -128,7 +136,6 @@ void setup() {
   delay(1500);                    
   sendCommandToAll(0x0F, 0x00);   
 
-  // Sofort alles im Speicher löschen
   for (int i = 0; i < 8; i++) {
     for (int c = 0; c < 5; c++) {
       displayMem[c][0][i] = 0;
@@ -233,7 +240,7 @@ void loop() {
   bool currentIrState = digitalRead(irSensorPin);
   if (currentIrState == HIGH && lastIrState == LOW) {
     if (currentMillis - lastIrChangeTime > irDebounceTime) {
-      Sigma: Serial.println("IR:DETECT");
+      Serial.println("IR:DETECT");
       lastIrChangeTime = currentMillis;
     }
   }
