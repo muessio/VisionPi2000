@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 ROUNDS = ["15", "16", "Double", "17", "18", "Triple", "19", "20", "Bull"]
@@ -29,8 +29,7 @@ def get_bot_hit(target, diff):
 
 class ScreenSaver:
     def __init__(self, width, height):
-        self.width = width
-        self.height = height
+        self.width, self.height = width, height
         self.timeout = 10 * 60 * 1000
         self.last_activity = pygame.time.get_ticks()
         self.active = False
@@ -39,19 +38,16 @@ class ScreenSaver:
             if os.path.exists(file):
                 try:
                     img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
-                    self.avatars.append({"img": img, "x": random.randint(50, width - 150), "y": random.randint(50, height - 150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
+                    self.avatars.append({"img": img, "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
                 except: pass
 
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
-        if self.active:
-            self.active = False
-            return True
+        if self.active: self.active = False; return True
         return False
 
     def check(self):
-        if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout:
-            self.active = True
+        if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout: self.active = True
         return self.active
 
     def update_and_draw(self, screen, font):
@@ -65,32 +61,24 @@ class ScreenSaver:
         hint_surf = font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
         screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
-# NEUE SIGNATUR MIT 'display'
 def run_game(screen, ser, display, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
-    # NEUES SCORE-UPDATING ÜBER DEN MAPPER
     def update_score_display(player_idx, score):
         if score < 0: score = 0
         display.set_score(player_idx, score)
         display.update()
 
-    # DISPLAY LEEREN
     display.clear_all()
 
     bg_img = None
-    bg_path = os.path.join(os.getcwd(), "background.png")
-    if os.path.exists(bg_path):
-        try: bg_img = pygame.transform.scale(pygame.image.load(bg_path).convert(), (screen.get_width(), screen.get_height()))
+    if os.path.exists("background.png"):
+        try: bg_img = pygame.transform.scale(pygame.image.load("background.png").convert(), (screen.get_width(), screen.get_height()))
         except: pass
 
-    berry_images = {
-        "Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png",
-        "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png",
-        "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"
-    }
+    berry_images = {"Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"}
     avatar_path = berry_images.get(mode, "")
     avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
 
@@ -112,25 +100,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
         for e in pygame.event.get():
             if e.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
-                if screensaver.reset_timer():
-                    raw_data = None
-                    continue
+                if screensaver.reset_timer(): raw_data = None; continue
             if e.type == pygame.KEYDOWN:
-                if e.key in [pygame.K_SPACE, pygame.K_ESCAPE]: pass
-                elif e.key == pygame.K_p: raw_data = "BTN:PLAYER"
+                if e.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif e.key == pygame.K_r: raw_data = "BTN:RED"
                 elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
                 elif e.key == pygame.K_g: raw_data = "BTN:GREY"
 
-        if raw_data and screensaver.reset_timer():
-            raw_data = None; continue
+        if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
         keys = pygame.key.get_pressed()
-        is_combo_keys = keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]
         is_combo_serial = raw_data == "BTN:COMBO"
         trigger_abort = False
         if is_combo_serial: trigger_abort = True
-        elif is_combo_keys:
+        elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
             elif pygame.time.get_ticks() - combo_press_start >= 2000: trigger_abort = True
         else: combo_press_start = 0
@@ -182,14 +165,18 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     if active_player > total_players:
                         active_player, current_round_idx = 1, current_round_idx + 1
                         if current_round_idx >= len(ROUNDS): current_state = "WIN"
-                elif raw_data.startswith("HIT:"):
-                    hit_seg = raw_data.split(":")[1]
-                    if hit_seg != "-":
+                
+                # --- PIEZO FIX ---
+                elif raw_data.startswith("HIT:") or raw_data == "MISS:1":
+                    hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
+                    if hit_seg != "-" and hit_seg != "MISS":
                         if hit_seg.startswith("t") and sound_triple: sound_triple.play()
                         elif (hit_seg.startswith("d") or hit_seg == "db") and sound_double: sound_double.play()
                         elif sound_single: sound_single.play()
+                    elif hit_seg == "MISS" and sound_single:
+                        sound_single.play()
 
-                    pts = check_hit_valid(hit_seg, ROUNDS[current_round_idx])
+                    pts = check_hit_valid(hit_seg, ROUNDS[current_round_idx]) if hit_seg != "MISS" else 0
                     hits_this_round += pts
                     player_scores[active_player-1] += pts
                     darts_thrown += 1
@@ -228,16 +215,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
                 c = HIGHLIGHT if i == (active_player - 1) else WHITE
                 surf = title_font.render(f"{p_n}: {player_scores[i]}", True, c)
-                
-                row = i % 2
-                col = i // 2
+                row, col = i % 2, i // 2
                 items_in_row = (total_players + 1) // 2 if row == 0 else total_players // 2
-                
                 spacing = screen.get_width() // (items_in_row + 1)
-                x_pos = (col + 1) * spacing
-                y_pos = y_base + (row * 40)
-                
-                screen.blit(surf, (x_pos - surf.get_width() // 2, y_pos))
+                screen.blit(surf, ((col + 1) * spacing - surf.get_width() // 2, y_base + (row * 40)))
 
             if is_berrys_turn and avatar_img:
                 anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
