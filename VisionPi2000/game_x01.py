@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -136,6 +136,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif event.key == pygame.K_r: raw_data = "BTN:RED"
                 elif event.key == pygame.K_b: raw_data = "BTN:BLUE"
                 elif event.key == pygame.K_g: raw_data = "BTN:GREY"
+                elif event.key == pygame.K_SPACE: raw_data = "BTN:START"
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
@@ -177,24 +178,33 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None and darts_thrown < 3:
-            if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800) 
-            elif pygame.time.get_ticks() > bot_timer:
-                raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option)}"
-                bot_timer = 0 
+        # === BOT LOGIK (INKL. AUTOMATISCHEM WEITERSCHALTEN NACH 3 PFEILEN) ===
+        if is_berrys_turn and current_state == "GAME" and raw_data is None:
+            if darts_thrown < 3:
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800) 
+                elif pygame.time.get_ticks() > bot_timer:
+                    raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option)}"
+                    bot_timer = 0 
+            else:
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
+                elif pygame.time.get_ticks() > bot_timer:
+                    darts_thrown = 0
+                    active_player = (active_player % total_players) + 1
+                    update_score_display(active_player-1, player_scores[active_player-1])
+                    bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
         if raw_data:
             if current_state == "GAME":
-                # === MANUELLER SPIELERWECHSEL (TASTE ODER SENSOR) ===
+                # === MANUELLER SPIELERWECHSEL (FÜR MENSCHLICHE SPIELER) ===
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
                     active_player = (active_player % total_players) + 1
+                    update_score_display(active_player-1, player_scores[active_player-1])
                 
-                # === TREFFER NUR WERTEN, WENN WENIGER ALS 3 GEWORFEN ===
+                # === TREFFER WERTEN ===
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
-                    if hit_segment == "WIN_CHEAT": hit_segment = "WIN_CHEAT"
                     
                     if hit_segment != "-" and hit_segment != "MISS":
                         if hit_segment.startswith("t") and sound_triple: sound_triple.play()
@@ -230,7 +240,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             elif has_double_out and not is_double and hit_segment != "WIN_CHEAT": bust = True
 
                     if bust: 
-                        darts_thrown = 3 # Überworfen -> Sofort blockieren
+                        darts_thrown = 3 
                     else:
                         player_scores[p_idx] = new_score
                         darts_thrown += 1
@@ -258,7 +268,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 in_hint = title_font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
                 screen.blit(in_hint, ((screen.get_width() - in_hint.get_width())//2, 430))
 
-            if darts_thrown >= 3:
+            if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
 
