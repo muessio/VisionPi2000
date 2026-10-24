@@ -56,24 +56,25 @@ Relais-Modul Pin [CH1] / [IN] (Signal) ----------------> an Arduino Pin D3
 ----------------------------------------------------------------------------
 7. LÖWEN 8-PLAYER DISPLAY (ÜBER 20-POLIGEN STECKER ST1)
 ----------------------------------------------------------------------------
-WICHTIG: Das Display nutzt eine hybride SPI-Architektur. Es gibt 5 
+WICHTIG: Das Display nutzt eine hybride SPI-Architektur. Es gibt 5
 parallele Datenstränge (D0-D4) mit je 2 kaskadierten MAX7219-Chips.
 Haupt-Stromversorgung (+5V) zwingend über den dicken separaten Stecker!
 
 SIGNAL-MASSE (GND) & ABSCHIRMUNG:
-ST1 Pin 2, 4, 6, 8, 10, 12, 14, 16, 18, 20 (Alle geraden Pins)
--> Am Adapter ALLE diese Pins verbinden und GEMEINSAM auf Arduino GND legen.
+ST1 Pin 2, 4, 6, 8, 13, 15, 17, 19
+-> Am Adapter diese Pins verbinden und GEMEINSAM auf Arduino GND legen.
 
 TAKT & STEUERUNG (GEMEINSAM FÜR ALLE CHIPS):
-ST1 Pin 19 [DisCLK - Clock] -------> an Arduino Pin D4
-ST1 Pin 17 [JDisLD - Load] --------> an Arduino Pin D5
+ST1 Pin 20 [DisCLK - Clock] -------> an Arduino Pin D4
+ST1 Pin 18 [JDisLD - Load] --------> an Arduino Pin D5
 
 DIE 5 PARALLELEN DATENSTRÄNGE:
-ST1 Pin 15 [D0 - Datenstrang 1] ---> an Arduino Pin D6
+ST1 Pin 16 [D0 - Datenstrang 1] ---> an Arduino Pin D6
 ST1 Pin 11 [D1 - Datenstrang 2] ---> an Arduino Pin D7
 ST1 Pin 7  [D2 - Datenstrang 3] ---> an Arduino Pin D8
 ST1 Pin 3  [D3 - Datenstrang 4] ---> an Arduino Pin D9
 ST1 Pin 1  [D4 - Datenstrang 5] ---> an Arduino Pin D10
 
 NC (NOT CONNECTED):
-ST1 Pin 5, 9 und 13 bleiben komplett frei!
+ST1 Pin 5, 9, 10, 12 und 14 bleiben komplett frei!
+Damit ist das Ding jetzt kugelsicher. Stecke die drei Arduino-Kabel (D4, D5, D6) jetzt auf die Pins 20, 18 und 16. Bleiben die 5 Volt beim statischen Dauer-HIGH-Test jetzt endlich stabil am Stecker anliegen?
