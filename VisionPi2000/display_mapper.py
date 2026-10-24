@@ -30,9 +30,8 @@ class LoewenDisplay:
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Segment-Reihenfolgen korrigiert nach echtem Leuchten auf dem Foto:
+        # Segment-Reihenfolgen
         SEG_U1 = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
-        # Korrektur für die '1' (B und C / oberer und unterer Balken auf U1 Spalte B):
         SEG_U1_DISP3 = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
         SEG_U2 = { "C": 1, "B": 2, "G": 3, "D": 4, "A": 5, "F": 6, "E": 7, "DP": 8 }
         SEG_U3 = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
@@ -45,7 +44,7 @@ class LoewenDisplay:
         self.DISP_TABLE = {
             1: (0, "H", SEG_U1),
             2: (0, "D", SEG_U1),
-            3: (0, "B", SEG_U1_DISP3), # DISP3 korrigiert
+            3: (0, "B", SEG_U1_DISP3),
             7: (0, "F", SEG_U1),
             8: (0, "E", SEG_U1),
             9: (0, "A", SEG_U1),
@@ -86,17 +85,17 @@ class LoewenDisplay:
             41: (8, "A", SEG_U9),
         }
 
-        # Ziffern-Reihenfolge gedreht (Einer -> Zehner -> Hunderter), 
-        # da DISP1 rechts und DISP3 links im Block liegt:
+        # SPIELER ZU DISP ZUORDNUNG (Kompakt: [Hunderter, Zehner, Einer])
+        # DISP1 bis 3 = Spieler 1, DISP4 bis 6 = Spieler 2, usw.
         self.PLAYER_DISP = {
-            0: (3, 2, 1),     # Spieler 1: DISP3 (H), DISP2 (Z), DISP1 (E)
-            1: (4, 5, 6),     # Spieler 2: DISP4 (H), DISP5 (Z), DISP6 (E)
-            2: (9, 8, 7),     # Spieler 3: DISP9, DISP8, DISP7
-            3: (12, 11, 10),  # Spieler 4: DISP12, DISP11, DISP10
-            4: (15, 14, 13),  # Spieler 5
-            5: (18, 17, 16),  # Spieler 6
-            6: (21, 20, 19),  # Spieler 7
-            7: (24, 23, 22)   # Spieler 8
+            0: (3, 2, 1),     # Spieler 1: DISP 3, 2, 1
+            1: (6, 5, 4),     # Spieler 2: DISP 6, 5, 4
+            2: (9, 8, 7),     # Spieler 3: DISP 9, 8, 7
+            3: (12, 11, 10),  # Spieler 4: DISP 12, 11, 10
+            4: (15, 14, 13),  # Spieler 5: DISP 15, 14, 13
+            5: (18, 17, 16),  # Spieler 6: DISP 18, 17, 16
+            6: (21, 20, 19),  # Spieler 7: DISP 21, 20, 19
+            7: (24, 23, 22)   # Spieler 8: DISP 24, 23, 22
         }
 
     def set_light(self, state):
