@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (FINALER FIX FÜR STRANG 4 / U9)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (STABIL & SYNCHRON)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -15,7 +15,7 @@ const int piezoPin    = A0;
 
 const int clkPin   = 4;   
 const int loadPin  = 5;   
-const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
+const int dPins[5] = {6, 7, 8, 9, 10}; 
 
 byte displayMem[5][2][8] = {0};
 
@@ -70,12 +70,10 @@ void updateDigitForAllStrands(int digitIndex) {
 
   byte addr = digitIndex + 1;
 
-  // --- SCHRITT 1: Adresse senden ---
-  // Stränge 0-3 (2 Chips) bekommen die Adresse zweimal. Strang 4 (U9, 1 Chip) bekommt sie einmal im 2. Slot.
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    digitalWrite(dPins[4], LOW); // Strang 4 wartet im 1. Slot
+    digitalWrite(dPins[4], LOW); 
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
@@ -84,13 +82,12 @@ void updateDigitForAllStrands(int digitIndex) {
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    digitalWrite(dPins[4], (addr >> i) & 1); // Strang 4 bekommt hier seine Adresse
+    digitalWrite(dPins[4], (addr >> i) & 1); 
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
   }
 
-  // --- SCHRITT 2: Daten für Chip 1 (Hinterer Chip in Kette für 0-3) ---
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
@@ -100,11 +97,10 @@ void updateDigitForAllStrands(int digitIndex) {
     delayMicroseconds(1);
   }
 
-  // --- SCHRITT 3: Daten für Chip 0 (Vorderer Chip für 0-3 bzw. U9 für Strang 4) ---
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
-    digitalWrite(dPins[4], (displayMem[4][0][digitIndex] >> i) & 1); // U9 Daten
+    digitalWrite(dPins[4], (displayMem[4][0][digitIndex] >> i) & 1); 
     delayMicroseconds(1);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
