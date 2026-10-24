@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.7"
+VERSION = "1.1.8"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -57,7 +57,7 @@ class ScreenSaver:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.timeout = 10 * 60 * 1000  # 10 Minuten
+        self.timeout = 10 * 60 * 1000  
         self.last_activity = pygame.time.get_ticks()
         self.active = False
         
@@ -108,34 +108,20 @@ class ScreenSaver:
         hint_rect = hint_surf.get_rect(center=(self.width // 2, self.height - 40))
         screen.blit(hint_surf, hint_rect)
 
-def run_game(screen, ser, players, game_name, option, mode):
+# <--- NEU: display Objekt wird hier entgegengenommen!
+def run_game(screen, ser, display, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
-    PLAYER_MAP = [(0, 2), (1, 2), (0, 5), (1, 5), (2, 2), (3, 2), (2, 5), (3, 5)]
-
-    def send_to_display(chip, digit, value):
-        if ser:
-            try: 
-                ser.write(f"DISP:{chip}:{digit}:{value}\n".encode('utf-8'))
-                ser.flush()
-                time.sleep(0.005)
-            except: pass
-
+    # <--- NEU: Score schreiben (übernimmt jetzt der Mapper)
     def update_score_display(player_idx, score):
-        if player_idx >= len(PLAYER_MAP): return
-        chip, start_digit = PLAYER_MAP[player_idx]
         if score < 0: score = 0
-        score_str = f"{score:03d}" 
-        send_to_display(chip, start_digit, int(score_str[0])) 
-        send_to_display(chip, start_digit-1, int(score_str[1])) 
-        send_to_display(chip, start_digit-2, int(score_str[2])) 
+        display.set_score(player_idx, score)
+        display.update()
 
-    if ser:
-        for c in range(10):
-            for d in range(8):
-                send_to_display(c, d, 15)
+    # <--- NEU: Display leer machen zum Start
+    display.clear_all()
 
     bg_img = None
     bg_path = os.path.join(os.getcwd(), "background.png")
@@ -387,4 +373,3 @@ def run_game(screen, ser, players, game_name, option, mode):
             screen.blit(big_font.render(f"{winner_name} beendet!", True, WHITE), (250, 350))
 
         pygame.display.flip(); clock.tick(30)
-        
