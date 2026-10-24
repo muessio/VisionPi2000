@@ -2,7 +2,7 @@ import pygame
 import time
 import os
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 GAMES = ["Service Menu"]
 OPTIONS = ["Display & Lampen", "Matrix", "Sensoren"]
 
@@ -43,7 +43,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     for d in range(8):
                         ser.write(f"RAW:{c}:{d}:255\n".encode('utf-8'))
                         ser.flush()
-                        time.sleep(0.005)
+                        time.sleep(0.002)
             except: pass
 
     def draw_centered(surf, y):
@@ -86,6 +86,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         elif option == "Matrix":
             draw_centered(big_font.render("Drücke Segmente auf der Scheibe mit dem Finger.", True, WHITE), 150)
             draw_centered(title_font.render("So findest du tote Felder oder falsche Belegungen.", True, (150,150,150)), 200)
+            
             c = WHITE if last_hit == "Warte auf Eingabe..." else GREEN
             draw_centered(giant_font.render(last_hit, True, c), 350)
             draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), 600)
@@ -104,8 +105,19 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         pygame.display.flip()
         clock.tick(30)
 
+    # Cleanup beim Beenden
     if option == "Display & Lampen" and ser:
         try:
             display.set_light(False)
+            
+            # HARTER RESET: Da wir den Mapper für den Hardware-Test umgangen haben, 
+            # schießen wir das Display manuell wieder komplett ab (0).
+            for c in range(10):
+                for d in range(8):
+                    ser.write(f"RAW:{c}:{d}:0\n".encode('utf-8'))
+                    ser.flush()
+                    time.sleep(0.002)
+                    
+            # Danach den Mapper mit der Realität synchronisieren
             display.clear_all() 
         except: pass
