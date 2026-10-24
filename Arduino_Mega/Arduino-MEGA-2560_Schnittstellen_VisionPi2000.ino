@@ -1,12 +1,10 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (PARALLEL DISPLAY ARCHITECTURE)
-// Inkl. Matrix, Taster, passiver Piezo, IR, Relais und Hardware-Displaytest
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (MAX7219 LÖWEN DISPLAY 908 433)
 // =================================================================================
 
 // --- 1. PIN-DEFINITIONEN ---
 // Matrix
 const int rowPins[4]  = {22, 24, 26, 28}; 
-// Pin 41 durch 23 ersetzt, um den defekten Eingang am Arduino/Adapter zu umgehen
 const int colPins[16] = {30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 23, 42, 43, 44, 45};
 
 // Taster, Sensoren & Relais
@@ -19,10 +17,10 @@ const int irSensorPin = 2;
 const int lightRelayPin = 3;  
 const int piezoPin    = A0; 
 
-// --- 2. LÖWEN DISPLAY PINS (PARALLEL SPI) ---
-const int clkPin  = 4;   // ST1 Pin 19
-const int loadPin = 5;   // ST1 Pin 17
-const int dPins[5] = {6, 7, 8, 9, 10}; // ST1 Pins: 15, 11, 7, 3, 1
+// --- 2. LÖWEN DISPLAY PINS (EXAKT NACH SCHALTPLAN J1) ---
+const int clkPin  = 4;   // ST1 Pin 19 (Clock)
+const int loadPin = 5;   // ST1 Pin 17 (Load / CS)
+const int dPins[5] = {6, 7, 8, 9, 10}; // D0=Pin6, D1=Pin7, D2=Pin8, D3=Pin9, D4=Pin10
 
 // Speicher für alle Chips (5 Stränge, je 2 Chips, 8 Digits)
 byte displayMem[5][2][8] = {0};
@@ -39,7 +37,6 @@ byte getChar(byte value) {
 }
 
 // --- 3. DART-MATRIX ARRAY ---
-// T12 in der ersten Zeile repariert
 const String dartBoard[4][16] = {
   {"d12", "12", "d9", "9", "d14", "14", "d11", "11", "d8", "8", "-",  "t12", "t9", "t14", "t11", "t8"},
   {"d16", "16", "d7", "7", "d19", "19", "d3", "3", "d17", "17", "db", "t16", "t7", "t19", "t3", "t17"},
@@ -53,7 +50,6 @@ const int debounceDelay = 300;
 unsigned long piezoHitTime = 0;
 bool piezoTriggered = false;
 
-// PIEZO-SCHWELLENWERT
 const int piezoThreshold = 15; 
 const int piezoMatrixWaitTime = 100; 
 
@@ -71,25 +67,31 @@ bool stateRed, stateBlue, stateGrey, stateStart, statePlayer, stateIR = true;
 bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer, lastIR = true;
 
 // =================================================================================
-// EIGENE SPI-FUNKTIONEN FÜR PARALLELE MAX7219 CHIPS
+// SPI-FUNKTIONEN MIT SICHERHEITS-DELAYS FÜR DIE KASKADIERTEN CHIPS
 // =================================================================================
 void shift16Parallel(byte addr, byte data[5]) {
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
+    delayMicroseconds(2); // Sanfter Takt für lange Leitungen
     digitalWrite(clkPin, HIGH);
+    delayMicroseconds(2);
   }
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (data[c] >> i) & 1); }
+    delayMicroseconds(2); // Sanfter Takt für lange Leitungen
     digitalWrite(clkPin, HIGH);
+    delayMicroseconds(2);
   }
 }
 
 void shiftOutParallel(byte addr1, byte data1[5], byte addr0, byte data0[5]) {
   digitalWrite(loadPin, LOW);
-  shift16Parallel(addr1, data1); 
-  shift16Parallel(addr0, data0); 
+  delayMicroseconds(2);
+  shift16Parallel(addr1, data1); // Chip 2 (über DOUT kaskadiert)
+  shift16Parallel(addr0, data0); // Chip 1 (direkt am Strang)
+  delayMicroseconds(2);
   digitalWrite(loadPin, HIGH);   
 }
 
@@ -114,15 +116,23 @@ void setup() {
   for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
   digitalWrite(clkPin, HIGH); digitalWrite(loadPin, HIGH);
 
-  // Initialisierung der MAX7219 Chips
-  sendCommandToAll(0x0F, 0x01); // Display Test EIN
-  sendCommandToAll(0x09, 0x00); 
-  sendCommandToAll(0x0B, 0x07); 
-  sendCommandToAll(0x0A, 0x08); 
-  sendCommandToAll(0x0C, 0x01); 
+  // Kurze Startverzögerung, damit sich die 5.2V Logik auf der Platine stabilisiert
+  delay(500);
 
+  // --- MAX7219 INITIALISIERUNG ---
+  sendCommandToAll(0x09, 0x00); // Decode-Mode aus (Rohdaten)
+  sendCommandToAll(0x0B, 0x07); // Scan-Limit: 8 Digits
+  sendCommandToAll(0x0A, 0x0F); // Helligkeit Maximum
+  sendCommandToAll(0x0C, 0x01); // Shutdown aus (Normalbetrieb AN)
+
+  // Hardware-Test: Alle Segmente für 2 Sekunden voll einschalten
+  sendCommandToAll(0x0F, 0x01); 
+  delay(2000);                    
+  sendCommandToAll(0x0F, 0x00);   // Test aus
+
+  // Alle Ziffern löschen
   for(int i = 0; i < 8; i++) {
-    byte blank[5] = {0,0,0,0,0};
+    byte blank[5] = {0, 0, 0, 0, 0};
     shiftOutParallel(i + 1, blank, i + 1, blank);
   }
 
@@ -190,7 +200,7 @@ void loop() {
     }
   }
 
-  // 3. PIEZO (Fehlwurf-Erkennung)
+  // 3. PIEZO
   int piezoValue = analogRead(piezoPin);
   
   if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
@@ -262,7 +272,7 @@ void loop() {
   }
   lastIR = stateIR;
 
-  // 5. COMBO-ABFRAGE (Rot + Blau + Grau für 2 Sek halten)
+  // 5. COMBO-ABFRAGE
   static unsigned long comboTimer = 0;
   static bool comboTriggered = false;
   
