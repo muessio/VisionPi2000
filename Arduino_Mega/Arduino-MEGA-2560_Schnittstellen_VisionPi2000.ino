@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (DAISY CHAIN / REIHEN-VERSION)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (DAISY CHAIN MASTER-VERSION)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -13,13 +13,11 @@ const int irSensorPin = 2;
 const int lightRelayPin = 3;  
 const int piezoPin    = A0; 
 
-const int clkPin   = 4;   // Gemeinsamer Clock
-const int loadPin  = 5;   // Gemeinsamer Load / CS
-// Die 5 parallelen Datenstränge D0 bis D4 (entspricht J1 Pins 16, 11, 7, 3, 1)
-const int dPins[5] = {6, 7, 8, 9, 10}; 
+const int clkPin   = 4;   
+const int loadPin  = 5;   
+const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
-// Puffer für 5 Stränge, jeweils 2 Chips in Reihe (Chip 0 = nah am DIN, Chip 1 = am DOUT)
-// 8 Digits pro Chip
+// [Strang 0..4][Chip 0 (vorn/DIN) oder Chip 1 (hinten/DOUT)][Digit 0..7]
 byte displayMem[5][2][8] = {0};
 
 const String dartBoard[4][16] = {
@@ -45,55 +43,14 @@ bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300;
 
-// SCHIEBE-FUNKTION FÜR ECHTE REIHENSCHALTUNG (DAISY CHAIN) PRO STRANG:
-// Da 2 Chips in Reihe hängen, müssen wir 16 Bit (Adresse + Daten) pro Strang raustakten.
-// chip1Data ist der hintere Chip (DOUT), chip0Data ist der vordere Chip (DIN).
-void shiftOutPair(byte address, byte chip1Data, byte chip0Data) {
-  digitalWrite(loadPin, LOW);
-  delayMicroseconds(2);
-
-  // Wir takten 16 Bits für alle 5 Datenstränge gleichzeitig parallel raus
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { 
-      digitalWrite(dPins[c], (address >> i) & 1); 
-    }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-
-  // Daten für Chip 1 (wird durchgereicht) + Chip 0 (bleibt hängen)
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { 
-      byte d = (((chip1Data >> i) & 1) << 1) | ((chip0Data >> i) & 1); // Kombiniert für den Strang (vereinfacht auf Pin-Ebene)
-      // Da dPins individuelle Pins sind, setzen wir jeden einzeln:
-    }
-    // Sauberer Bit-Banging Durchlauf für alle 5 Stränge:
-    // (Hinweis: Da dPins ein Array ist, setzen wir sie direkt)
-    digitalWrite(clkPin, LOW);
-    digitalWrite(dPins[0], (chip1Data >> i) & 1); // Hier vereinfacht auf Strang 0..4
-    // ... Wir nutzen die robuste Parallelschleife:
-  }
-  
-  // Korrekte Bit-Parallelausgabe für Daisy Chain:
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    digitalWrite(dPins[0], ((((0 < 2 ? displayMem[0][1][address-1] : 0) >> i) & 1))); // Beispielhaft optimiert unten im Block
-  }
-  // Um es absolut fehlerfrei und performant zu halten, nutzen wir die bewährte Methode:
-  
-  digitalWrite(loadPin, HIGH);
-}
-
-// SAUBERE, VOLLSTÄNDIGE UPDATE-FUNKTION FÜR ALLE CHIPS IN REIHE:
+// DAISY CHAIN UPDATE: Sendet Register-Adresse und schiebt Chip 1 (hinten) vor Chip 0 (vorn) durch
 void updateDigitForAllStrands(int digitIndex) {
   digitalWrite(loadPin, LOW);
-  delayMicroseconds(2);
+  delayMicroseconds(3);
 
-  // 1. Adresse für alle Chips senden (Register 1 bis 8)
   byte addr = digitIndex + 1;
+
+  // 1. Register-Adresse für alle Stränge raustakten
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) {
@@ -104,32 +61,11 @@ void updateDigitForAllStrands(int digitIndex) {
     delayMicroseconds(1);
   }
 
-  // 2. Daten für Chip 1 (DOUT) und Chip 0 (DIN) in Reihe raustakten
+  // 2. Daten für Chip 1 (Hinterer Chip in Kette, z.B. U1, U2, U5, U7) zuerst schieben,
+  // da sie durch den vorderen Chip (Chip 0, z.B. U3, U4, U6, U8) hindurchgetaktet werden müssen.
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) {
-      // Da 2 Chips in Reihe hängen, schieben wir zuerst das Bit des hinteren Chips (Index 1),
-      // dahinter das Bit des vorderen Chips (Index 0). Da wir pro Takt nur 1 Pin schalten können,
-      // senden wir das Paket für Chip 1 und danach Chip 0. 
-      // WICHTIG beim MAX7219 Daisy Chain: Der Master sendet ZUERST die Daten für den am weitesten entfernten Chip!
-    }
-    // Um Timing-Probleme zu vermeiden, takten wir chip1 und chip0 direkt nacheinander bitweise:
-  }
-
-  // Korrekte 16-Bit Schleife für Daisy Chain (2 Chips pro Strang):
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) {
-      // Sende Bit von Chip 1 (Hinterer Chip in Reihe)
-      // (Hier wird das Bit für Strang c, Chip 1 gesetzt)
       digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1);
     }
     delayMicroseconds(1);
@@ -137,10 +73,10 @@ void updateDigitForAllStrands(int digitIndex) {
     delayMicroseconds(1);
   }
 
+  // 3. Daten für Chip 0 (Vorderer Chip direkt am DIN, z.B. U3, U4, U6, U8) als zweites schieben.
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) {
-      // Sende Bit von Chip 0 (Vorderer Chip in Reihe)
       digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1);
     }
     delayMicroseconds(1);
@@ -149,40 +85,28 @@ void updateDigitForAllStrands(int digitIndex) {
   }
 
   digitalWrite(loadPin, HIGH);
-  delayMicroseconds(2);
+  delayMicroseconds(3);
 }
 
 void sendCommandToAll(byte addr, byte data) {
   digitalWrite(loadPin, LOW);
-  delayMicroseconds(2);
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (data >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-  // Zweiter Chip im Strang kriegt denselben Befehl ab
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (data >> i) & 1); }
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
+  delayMicroseconds(3);
+  // Da 2 Chips in Reihe hängen, müssen wir Adresse + Daten zweimal senden (für Chip 1 und Chip 0)
+  for (int repeat = 0; repeat < 2; repeat++) {
+    for (int i = 7; i >= 0; i--) {
+      digitalWrite(clkPin, LOW);
+      for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
+      delayMicroseconds(1);
+      digitalWrite(clkPin, HIGH);
+      delayMicroseconds(1);
+    }
+    for (int i = 7; i >= 0; i--) {
+      digitalWrite(clkPin, LOW);
+      for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (data >> i) & 1); }
+      delayMicroseconds(1);
+      digitalWrite(clkPin, HIGH);
+      delayMicroseconds(1);
+    }
   }
   digitalWrite(loadPin, HIGH);
 }
@@ -214,7 +138,6 @@ void setup() {
   sendCommandToAll(0x0F, 0x00);   
 
   for(int i = 0; i < 8; i++) {
-    byte blank[5] = {0, 0, 0, 0, 0};
     updateDigitForAllStrands(i);
   }
   Serial.println("SYSTEM:READY"); 
@@ -239,10 +162,9 @@ void loop() {
         
         if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
           int chain = chip / 2;      // Strang 0 bis 4
-          int chipIdx = chip % 2;    // 0 = Erster Chip, 1 = Zweiter Chip in Reihe
+          int chipIdx = chip % 2;    // 0 = Vorderer Chip, 1 = Hinterer Chip in Kette
           displayMem[chain][chipIdx][digit] = (byte)value; 
           
-          // Aktualisiere sofort exakt diese Spalte (Digit) für alle Stränge mit korrekter Reihenschaltung
           updateDigitForAllStrands(digit);
         }
       }
