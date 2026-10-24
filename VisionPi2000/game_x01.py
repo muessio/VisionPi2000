@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.9"
+VERSION = "1.2.0"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -53,16 +53,13 @@ class ScreenSaver:
                     img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
                     self.avatars.append({"img": img, "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
                 except: pass
-
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
         if self.active: self.active = False; return True
         return False
-
     def check(self):
         if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout: self.active = True
         return self.active
-
     def update_and_draw(self, screen, font):
         if not self.active: return
         screen.fill((0, 0, 0))
@@ -80,8 +77,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
     def update_score_display(player_idx, score):
-        if score < 0: score = 0
-        display.set_score(player_idx, score)
+        display.set_score(player_idx, max(0, score))
         display.update()
 
     display.clear_all()
@@ -94,7 +90,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     berry_images = {"Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"}
     avatar_path = berry_images.get(mode, "")
     avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
-
     champ_img = None
     if os.path.exists("Bullseye-Berry_Champ.png"):
         try: champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (350, 350))
@@ -112,7 +107,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     try: start_score = int(game_name)
     except: start_score = 501
-
     player_scores = [start_score] * total_players
     has_double_in = option in ["Double In", "Double In/Out", "Double In / Master Out"]
     has_double_out = option in ["Double Out", "Double In/Out"]
@@ -127,9 +121,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     while running:
         raw_data = None
-        if ser:
-            try:
-                if ser.in_waiting > 0: raw_data = ser.readline().decode('utf-8','ignore').strip()
+        if ser and ser.in_waiting > 0:
+            try: raw_data = ser.readline().decode('utf-8','ignore').strip()
             except: pass
             
         for event in pygame.event.get():
@@ -137,6 +130,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if screensaver.reset_timer(): raw_data = None; continue
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
+                elif event.key == pygame.K_i: raw_data = "IR:DETECT"
                 elif event.key == pygame.K_1: raw_data = "HIT:t20"
                 elif event.key == pygame.K_0: raw_data = "HIT:WIN_CHEAT" 
                 elif event.key == pygame.K_r: raw_data = "BTN:RED"
@@ -146,9 +140,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
         keys = pygame.key.get_pressed()
-        is_combo_serial = (raw_data == "BTN:COMBO")
         trigger_abort = False
-        if is_combo_serial: trigger_abort = True
+        if raw_data == "BTN:COMBO": trigger_abort = True
         elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
             elif pygame.time.get_ticks() - combo_press_start >= 2000: trigger_abort = True
@@ -182,9 +175,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             raw_data = None 
 
         is_berrys_turn = (is_berry_game and active_player == total_players)
-        if is_berrys_turn and raw_data == "BTN:PLAYER": raw_data = None
+        if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None:
+        if is_berrys_turn and current_state == "GAME" and raw_data is None and darts_thrown < 3:
             if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800) 
             elif pygame.time.get_ticks() > bot_timer:
                 raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option)}"
@@ -193,13 +186,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data:
             if current_state == "GAME":
-                if raw_data == "BTN:PLAYER":
+                # === MANUELLER SPIELERWECHSEL (TASTE ODER SENSOR) ===
+                if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
                     active_player = (active_player % total_players) + 1
-                    update_score_display(active_player-1, player_scores[active_player-1])
                 
-                # --- PIEZO FIX: Verarbeitet HIT und MISS gleichermaßen ---
-                elif raw_data.startswith("HIT:") or raw_data == "MISS:1":
+                # === TREFFER NUR WERTEN, WENN WENIGER ALS 3 GEWORFEN ===
+                elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     if hit_segment == "WIN_CHEAT": hit_segment = "WIN_CHEAT"
                     
@@ -236,16 +229,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             if has_master_out and not is_master and hit_segment != "WIN_CHEAT": bust = True
                             elif has_double_out and not is_double and hit_segment != "WIN_CHEAT": bust = True
 
-                    if bust: darts_thrown = 3 
+                    if bust: 
+                        darts_thrown = 3 # Überworfen -> Sofort blockieren
                     else:
                         player_scores[p_idx] = new_score
                         darts_thrown += 1
                         update_score_display(p_idx, new_score)
                         if new_score == 0: current_state = "WIN"
 
-                    if darts_thrown >= 3 and current_state == "GAME":
-                        darts_thrown, active_player = 0, (active_player % total_players) + 1
-                        update_score_display(active_player-1, player_scores[active_player-1])
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
 
         if screensaver.check():
@@ -266,6 +257,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if has_double_in and not player_in_checked[active_player-1]:
                 in_hint = title_font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
                 screen.blit(in_hint, ((screen.get_width() - in_hint.get_width())//2, 430))
+
+            if darts_thrown >= 3:
+                block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
+                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
 
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
 
