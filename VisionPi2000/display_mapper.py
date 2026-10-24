@@ -41,40 +41,54 @@ class LoewenDisplay:
         SEG_U8 = { "F": 1, "C": 2, "DP": 3, "E": 4, "A": 5, "B": 6, "D": 7, "G": 8 }
         SEG_U9 = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "DP": 7, "B": 8 }
 
+        # Korrigierte Chip-Zuordnung durch Daisy Chain (Chip 0 und Chip 1 getauscht je Strang)
         self.DISP_TABLE = {
-            1: (0, "H", SEG_U1),
-            2: (0, "D", SEG_U1),
-            3: (0, "B", SEG_U1_DISP3),
-            7: (0, "F", SEG_U1),
-            8: (0, "E", SEG_U1),
-            9: (0, "A", SEG_U1),
-            10: (1, "H", SEG_U3),
-            11: (1, "D", SEG_U3),
-            12: (1, "B", SEG_U3),
-            13: (1, "E", SEG_U3),
-            14: (1, "A", SEG_U3),
-            4: (2, "F", SEG_U2),
-            5: (2, "A", SEG_U2),
-            6: (2, "C", SEG_U2),
-            15: (2, "G", SEG_U2),
-            16: (3, "D", SEG_U4),
-            17: (3, "A", SEG_U4),
-            18: (3, "E", SEG_U4),
-            19: (4, "B", SEG_U5_U6),
-            20: (4, "F", SEG_U5_U6),
-            21: (4, "E", SEG_U5_U6),
-            22: (5, "B", SEG_U5_U6),
-            23: (5, "F", SEG_U5_U6),
-            24: (5, "E", SEG_U5_U6),
-            25: (6, "H", SEG_U7),
-            26: (6, "B", SEG_U7),
-            27: (6, "E", SEG_U7),
-            30: (6, "A", SEG_U7),
-            31: (7, "D", SEG_U8),
-            32: (7, "B", SEG_U8),
-            36: (7, "E", SEG_U8),
-            37: (7, "F", SEG_U8),
-            38: (7, "G", SEG_U8),
+            # Strang D0 (U3 ist jetzt Chip 0, U1 ist Chip 1)
+            1: (1, "H", SEG_U1),
+            2: (1, "D", SEG_U1),
+            3: (1, "B", SEG_U1_DISP3),
+            7: (1, "F", SEG_U1),
+            8: (1, "E", SEG_U1),
+            9: (1, "A", SEG_U1),
+            # U3 (jetzt Chip 0)
+            10: (0, "H", SEG_U3),
+            11: (0, "D", SEG_U3),
+            12: (0, "B", SEG_U3),
+            13: (0, "E", SEG_U3),
+            14: (0, "A", SEG_U3),
+            
+            # Strang D1 (U4 ist jetzt Chip 2, U2 ist Chip 3)
+            4: (3, "F", SEG_U2),
+            5: (3, "A", SEG_U2),
+            6: (3, "C", SEG_U2),
+            15: (3, "G", SEG_U2),
+            # U4 (jetzt Chip 2)
+            16: (2, "D", SEG_U4),
+            17: (2, "A", SEG_U4),
+            18: (2, "E", SEG_U4),
+            
+            # Strang D2 (U6 ist Chip 4, U5 ist Chip 5)
+            19: (5, "B", SEG_U5_U6),
+            20: (5, "F", SEG_U5_U6),
+            21: (5, "E", SEG_U5_U6),
+            # U6 (Chip 4)
+            22: (4, "B", SEG_U5_U6),
+            23: (4, "F", SEG_U5_U6),
+            24: (4, "E", SEG_U5_U6),
+            
+            # Strang D3 (U8 ist Chip 6, U7 ist Chip 7)
+            25: (7, "H", SEG_U7),
+            26: (7, "B", SEG_U7),
+            27: (7, "E", SEG_U7),
+            30: (7, "A", SEG_U7),
+            # U8 (Chip 6)
+            31: (6, "D", SEG_U8),
+            32: (6, "B", SEG_U8),
+            36: (6, "E", SEG_U8),
+            37: (6, "F", SEG_U8),
+            38: (6, "G", SEG_U8),
+            
+            # Strang D4 (U9)
             28: (8, "E", SEG_U9),
             29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9),
@@ -96,16 +110,8 @@ class LoewenDisplay:
             7: (24, 23, 22)   # Spieler 8 -> Block 8
         }
 
-        # Zuordnung der Cricket-Ziele (15 bis 25/Bull) zu den Display-Feldern auf Chip U9 / U8
-        # Laut Schaltplan steuert U9/U8 die zentralen Matrix-Anzeigen für Cricket
         self.CRICKET_DISP_MAP = {
-            15: 28,
-            16: 29,
-            17: 33,
-            18: 34,
-            19: 35,
-            20: 39,
-            25: 40  # Bull
+            15: 28, 16: 29, 17: 33, 18: 34, 19: 35, 20: 39, 25: 40
         }
 
     def set_light(self, state):
@@ -151,13 +157,9 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_cricket_marks(self, player_idx, target, marks):
-        """Zeigt die Cricket-Marken (0 bis 3) für ein Ziel auf der Mittelanzeige an"""
         if target not in self.CRICKET_DISP_MAP: 
             return
         disp_num = self.CRICKET_DISP_MAP[target]
-        
-        # Zeige je nach Anzahl der Marken (0='', 1='-', 2='=', 3='=') oder als Zahl an
-        char_map = {0: " ", 1: "-", 2: "=", 3: "8"} # Oder direkte Ziffern wie "1", "2", "3"
         char_to_show = str(marks) if marks > 0 else " "
         self.set_disp_char(disp_num, char_to_show)
 
