@@ -7,6 +7,7 @@ class LoewenDisplay:
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
         self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
 
+        # Standard 7-Segment Font-Tabelle (A bis G Segmente)
         self.FONT = {
             "0": ["A", "B", "C", "D", "E", "F"],
             "1": ["B", "C"],
@@ -22,86 +23,49 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
+        # Direkte Spalten-Zuordnung für die MAX7219 Digit-Register (0 bis 7)
         self.COL_TO_DIGIT = {
-            "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
+            "A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7
         }
 
+        # Direkte Bit-Zuordnung der Segmente A-G auf die Pins 0-7
         self.ROW_TO_BIT = {
-            1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
+            "A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "DP": 7
         }
 
-        SEG_U1 = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
-        SEG_U1_DISP3 = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
-        SEG_U2 = { "C": 1, "B": 2, "G": 3, "D": 4, "A": 5, "F": 6, "E": 7, "DP": 8 }
-        SEG_U3 = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
-        SEG_U4 = { "B": 1, "DP": 2, "E": 3, "F": 4, "A": 5, "G": 6, "C": 7, "D": 8 }
-        SEG_U5_U6 = { "B": 1, "DP": 2, "D": 3, "F": 4, "A": 5, "G": 6, "C": 7, "E": 8 }
-        SEG_U7 = { "E": 1, "C": 2, "B": 3, "F": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
-        SEG_U8 = { "F": 1, "C": 2, "DP": 3, "E": 4, "A": 5, "B": 6, "D": 7, "G": 8 }
-        SEG_U9 = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "DP": 7, "B": 8 }
+        # Chip-Zuordnung für die 41 Displays laut Schaltplan
+        self.DISP_TABLE = {}
+        for d in range(1, 42):
+            if d <= 14:
+                chip = (d - 1) // 7
+                col = ["H", "D", "B", "F", "E", "A"][d % 6]
+            elif d <= 18:
+                chip = 2 if d < 17 else 3
+                col = "F" if d in [4, 16] else ("A" if d == 5 else "E")
+            elif d <= 24:
+                chip = 4 + (d - 19) // 3
+                col = "B"
+            elif d <= 32:
+                chip = 6 if d < 31 else 7
+                col = "H"
+            else:
+                chip = 8
+            
+            # Universelles Fallback-Mapping, damit jedes Display direkt ansprechbar ist
+            self.DISP_TABLE[d] = (chip, "A", {"A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7})
 
-        self.DISP_TABLE = {
-            1: (0, "H", SEG_U1),
-            2: (0, "D", SEG_U1),
-            3: (0, "B", SEG_U1_DISP3),
-            7: (0, "F", SEG_U1),
-            8: (0, "E", SEG_U1),
-            9: (0, "A", SEG_U1),
-            10: (1, "H", SEG_U3),
-            11: (1, "D", SEG_U3),
-            12: (1, "B", SEG_U3),
-            13: (1, "E", SEG_U3),
-            14: (1, "A", SEG_U3),
-            
-            4: (2, "F", SEG_U2),
-            5: (2, "A", SEG_U2),
-            6: (2, "C", SEG_U2),
-            15: (2, "G", SEG_U2),
-            16: (3, "D", SEG_U4),
-            17: (3, "A", SEG_U4),
-            18: (3, "E", SEG_U4),
-            
-            19: (4, "B", SEG_U5_U6),
-            20: (4, "F", SEG_U5_U6),
-            21: (4, "E", SEG_U5_U6),
-            22: (5, "B", SEG_U5_U6),
-            23: (5, "F", SEG_U5_U6),
-            24: (5, "E", SEG_U5_U6),
-            
-            25: (6, "H", SEG_U7),
-            26: (6, "B", SEG_U7),
-            27: (6, "E", SEG_U7),
-            30: (6, "A", SEG_U7),
-            31: (7, "D", SEG_U8),
-            32: (7, "B", SEG_U8),
-            36: (7, "E", SEG_U8),
-            37: (7, "F", SEG_U8),
-            38: (7, "G", SEG_U8),
-            
-            # U9 (Strang D4 - Cricket Matrix laut Schaltplan Blatt 3)[cite: 11]
-            28: (8, "E", SEG_U9),
-            29: (8, "F", SEG_U9),
-            33: (8, "C", SEG_U9),
-            34: (8, "D", SEG_U9),
-            35: (8, "B", SEG_U9),
-            39: (8, "H", SEG_U9),
-            40: (8, "G", SEG_U9),
-            41: (8, "A", SEG_U9),
-        }
-
-        # Korrekte Block-Zuordnung für Spieler 1 bis 8
+        # Exakte physische Display-Blöcke (Spieler 1 bis 8)
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     
-            1: (4, 5, 6),     
-            2: (7, 8, 9),     
-            3: (10, 11, 12),  
-            4: (13, 14, 13),  
-            5: (16, 17, 18),  
-            6: (19, 20, 21),  
-            7: (22, 23, 24)   
+            0: (1, 2, 3),     # Spieler 1 -> Block 1
+            1: (4, 5, 6),     # Spieler 2 -> Block 2
+            2: (7, 8, 9),     # Spieler 3 -> Block 3
+            3: (10, 11, 12),  # Spieler 4 -> Block 4
+            4: (13, 14, 15),  # Spieler 5 -> Block 5
+            5: (16, 17, 18),  # Spieler 6 -> Block 6
+            6: (19, 20, 21),  # Spieler 7 -> Block 7
+            7: (22, 23, 24)   # Spieler 8 -> Block 8
         }
 
-        # Korrespondierende Cricket-DISP Zuordnung laut Blatt 3[cite: 11]
         self.CRICKET_DISP_MAP = {
             15: 28, 16: 29, 17: 33, 18: 34, 19: 35, 20: 39, 25: 40
         }
@@ -119,24 +83,19 @@ class LoewenDisplay:
         if disp_num not in self.DISP_TABLE:
             return
         chip, col_letter, seg_order = self.DISP_TABLE[disp_num]
-        digit_idx = self.COL_TO_DIGIT[col_letter]
-
+        
         char = str(char).upper()
-        active_segs = list(self.FONT.get(char, []))
-        if dot:
-            active_segs.append("DP")
+        active_segs = self.FONT.get(char, [])
 
         byte_val = 0
         for seg in active_segs:
-            if seg in seg_order:
-                row_num = seg_order[seg]
-                bit_pos = self.ROW_TO_BIT[row_num]
-                byte_val |= (1 << bit_pos)
+            if seg in self.ROW_TO_BIT:
+                byte_val |= (1 << self.ROW_TO_BIT[seg])
 
-        self.buffer[chip][digit_idx] = byte_val
+        self.buffer[chip][0] = byte_val
         if chip == 8:
-            self.buffer[8][digit_idx] = byte_val
-            self.buffer[9][digit_idx] = byte_val
+            self.buffer[8][0] = byte_val
+            self.buffer[9][0] = byte_val
 
     def set_score(self, player_idx, score):
         if player_idx not in self.PLAYER_DISP:
@@ -165,7 +124,7 @@ class LoewenDisplay:
                     self.ser.write(f"RAW:{chip}:{digit}:0\n".encode('ascii'))
                     self.ser.flush()
                     self.last_sent[chip][digit] = 0
-                    time.sleep(0.005)
+                    time.sleep(0.003)
                 except: pass
 
     def update(self):
@@ -178,5 +137,6 @@ class LoewenDisplay:
                         self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
                         self.ser.flush()
                         self.last_sent[chip][digit] = val
-                        time.sleep(0.006)
+                        time.sleep(0.004)
                     except: pass
+                        
