@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 ROUNDS = ["15", "16", "Double", "17", "18", "Triple", "19", "20", "Bull"]
@@ -150,17 +150,30 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None and darts_thrown < 3:
-            if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
-            elif pygame.time.get_ticks() > bot_timer:
-                diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
-                raw_data = f"HIT:{get_bot_hit(ROUNDS[current_round_idx], diff)}"
-                bot_timer = 0
+        # === BOT LOGIK (INKL. AUTOMATISCHEM WEITERSCHALTEN NACH 3 PFEILEN) ===
+        if is_berrys_turn and current_state == "GAME" and raw_data is None:
+            if darts_thrown < 3:
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
+                elif pygame.time.get_ticks() > bot_timer:
+                    diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
+                    raw_data = f"HIT:{get_bot_hit(ROUNDS[current_round_idx], diff)}"
+                    bot_timer = 0
+            else:
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
+                elif pygame.time.get_ticks() > bot_timer:
+                    if hits_this_round == 0:
+                        player_scores[active_player-1] //= 2
+                        update_score_display(active_player-1, player_scores[active_player-1])
+                    darts_thrown, hits_this_round = 0, 0
+                    active_player += 1
+                    if active_player > total_players:
+                        active_player, current_round_idx = 1, current_round_idx + 1
+                        if current_round_idx >= len(ROUNDS): current_state = "WIN"
+                    bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
         if raw_data:
             if current_state == "GAME":
-                # === MANUELLER SPIELERWECHSEL ===
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     if hits_this_round == 0:
                         player_scores[active_player-1] //= 2
@@ -171,7 +184,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         active_player, current_round_idx = 1, current_round_idx + 1
                         if current_round_idx >= len(ROUNDS): current_state = "WIN"
                 
-                # === TREFFER NUR WERTEN WENN < 3 GEWORFEN ===
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     
@@ -200,12 +212,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         if current_state == "GAME":
-            screen.blit(title_font.render(f"SPIEL: {game_name}  |  Runde {current_round_idx+1}/9", True, HIGHLIGHT), (40, 60))
-            screen.blit(giant_font.render(f"ZIEL: {ROUNDS[current_round_idx]}", True, (50, 255, 50)), (250, 120))
+            screen.blit(title_font.render(f"SPIEL: {game_name}  |  Runde {min(current_round_idx+1, 9)}/9", True, HIGHLIGHT), (40, 60))
+            screen.blit(giant_font.render(f"ZIEL: {ROUNDS[min(current_round_idx, 8)]}", True, (50, 255, 50)), (250, 120))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (200, 350))
             
-            if darts_thrown >= 3:
+            if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
             
