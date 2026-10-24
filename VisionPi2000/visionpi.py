@@ -82,8 +82,6 @@ def init_serial():
     for port in ports:
         try:
             ser = serial.Serial(port, BAUD_RATE, timeout=0.01)
-            # WICHTIG: Der Arduino startet neu, wenn der Port geöffnet wird.
-            # Diese Pause gibt dem Bootloader Zeit, bevor wir LIGHT:ON senden!
             time.sleep(2.5) 
             return ser
         except:
@@ -116,6 +114,10 @@ def main():
     display = LoewenDisplay(ser) 
     display.set_light(True)     
     
+    # WICHTIG: Display direkt beim Start komplett leeren, 
+    # damit im Hauptmenü (und während Start.jpg) alles dunkel bleibt!
+    display.clear_all()
+
     screensaver = ScreenSaver(SCREEN_WIDTH, SCREEN_HEIGHT)
 
     if os.path.exists("Start.jpg"):
