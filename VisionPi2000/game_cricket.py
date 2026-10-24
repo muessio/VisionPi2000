@@ -3,13 +3,13 @@ import math
 import os
 import random
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
 
 def parse_hit(hit_str):
-    if hit_str in ["-", "WIN_CHEAT"]: return (0, 0)
+    if hit_str in ["-", "WIN_CHEAT", "MISS"]: return (0, 0)
     if hit_str == "b": return (25, 1)   
     if hit_str == "db": return (25, 2)  
     mult = 3 if hit_str.startswith("t") else (2 if hit_str.startswith("d") else 1)
@@ -95,7 +95,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         return False
 
     while running:
-        raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
+        raw_data = None
+        if ser and ser.in_waiting > 0:
+            try: raw_data = ser.readline().decode('utf-8','ignore').strip()
+            except: pass
+            
         for e in pygame.event.get():
             if e.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
                 if screensaver.reset_timer(): raw_data = None; continue
@@ -105,13 +109,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif e.key == pygame.K_r: raw_data = "BTN:RED"
                 elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
                 elif e.key == pygame.K_g: raw_data = "BTN:GREY"
+                elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
         keys = pygame.key.get_pressed()
-        is_combo_serial = raw_data == "BTN:COMBO"
         trigger_abort = False
-        if is_combo_serial: trigger_abort = True
+        if raw_data == "BTN:COMBO": trigger_abort = True
         elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
             if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
             elif pygame.time.get_ticks() - combo_press_start >= 2000: trigger_abort = True
@@ -135,9 +139,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         if ev.key in [pygame.K_p, pygame.K_ESCAPE]: cancel_action = "YES" 
                         elif ev.key in [pygame.K_SPACE, pygame.K_RETURN]: cancel_action = "NO"
                 if ser and ser.in_waiting > 0:
-                    s_in = ser.readline().decode('utf-8','ignore').strip()
-                    if s_in == "BTN:PLAYER": cancel_action = "YES" 
-                    elif s_in == "BTN:START": cancel_action = "NO" 
+                    try:
+                        s_in = ser.readline().decode('utf-8','ignore').strip()
+                        if s_in == "BTN:PLAYER": cancel_action = "YES" 
+                        elif s_in == "BTN:START": cancel_action = "NO" 
+                    except: pass
                 if cancel_action == "YES": return 
                 elif cancel_action == "NO": confirming = False; combo_press_start = 0
             raw_data = None 
@@ -145,12 +151,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None and darts_thrown < 3:
-            if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
-            elif pygame.time.get_ticks() > bot_timer:
-                diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
-                raw_data = f"HIT:{get_bot_hit(player_marks[total_players-1], player_marks[0], diff)}"
-                bot_timer = 0
+        # === BOT LOGIK (INKL. AUTOMATISCHEM WEITERSCHALTEN NACH 3 PFEILEN) ===
+        if is_berrys_turn and current_state == "GAME" and raw_data is None:
+            if darts_thrown < 3:
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
+                elif pygame.time.get_ticks() > bot_timer:
+                    diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
+                    raw_data = f"HIT:{get_bot_hit(player_marks[total_players-1], player_marks[0], diff)}"
+                    bot_timer = 0
+            else:
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
+                elif pygame.time.get_ticks() > bot_timer:
+                    darts_thrown = 0
+                    active_player = (active_player % total_players) + 1
+                    bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
         if raw_data:
@@ -201,7 +215,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     screen.blit(big_font.render(f"{marks}/3", True, (50, 255, 50) if marks == 3 else WHITE), (350 + p*100, 220 + i*50))
                     if i == 0: screen.blit(title_font.render(f"P{p+1}" if not (is_berry_game and p == total_players-1) else "Berry", True, (150,150,150)), (350 + p*100, 180))
 
-            if darts_thrown >= 3:
+            if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
