@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (MAX7219 LÖWEN DISPLAY 908 433)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (KOMPLETT)
 // =================================================================================
 
 // --- 1. PIN-DEFINITIONEN ---
@@ -73,14 +73,14 @@ void shift16Parallel(byte addr, byte data[5]) {
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    delayMicroseconds(2); // Sanfter Takt für lange Leitungen
+    delayMicroseconds(2);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(2);
   }
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (data[c] >> i) & 1); }
-    delayMicroseconds(2); // Sanfter Takt für lange Leitungen
+    delayMicroseconds(2);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(2);
   }
@@ -116,7 +116,6 @@ void setup() {
   for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
   digitalWrite(clkPin, HIGH); digitalWrite(loadPin, HIGH);
 
-  // Kurze Startverzögerung, damit sich die 5.2V Logik auf der Platine stabilisiert
   delay(500);
 
   // --- MAX7219 INITIALISIERUNG ---
