@@ -41,7 +41,7 @@ bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
 // IR-Flankenerkennung Variablen
 bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
-const unsigned long irDebounceTime = 300; // Sperrzeit, um Mehrfachauslösung zu verhindern
+const unsigned long irDebounceTime = 300;
 
 void shift16Parallel(byte addr, byte data[5]) {
   for (int i = 7; i >= 0; i--) {
@@ -128,7 +128,7 @@ void loop() {
         if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
           int chain = chip / 2;      
           int chipIdx = chip % 2;    
-          displayMem[chain][chipIdx][digit] = (byte)value; 
+          displayMem[chain][chipIdx][digit] (byte)value; 
           
           byte d1[5], d0[5];
           for (int c = 0; c < 5; c++) {
@@ -174,7 +174,6 @@ void loop() {
     lastHitTime = currentMillis; 
   }
 
-  // Taster abfragen
   stateRed = digitalRead(btnRed);
   if (stateRed == LOW && lastRed == HIGH) { 
     if (currentMillis - lastPressRed > btnDebounceDelay) { Serial.println("BTN:RED"); lastPressRed = currentMillis; }
@@ -205,13 +204,11 @@ void loop() {
   }
   lastPlayer = statePlayer;
 
-  // --- IR-SENSOR FLANKEN-ERKENNUNG (Löst aus, wenn man die Hand wegzieht / Strahl frei wird) ---
+  // --- IR-SENSOR FLANKEN-ERKENNUNG (Sendet wieder IR:DETECT für Python & Testmenü) ---
   bool currentIrState = digitalRead(irSensorPin);
-  // Wenn der Sensor von LOW (unterbrochen) auf HIGH (frei) wechselt (oder umgekehrt je nach Modul - hier auf steigende Flanke nach Freigabe)
-  // Falls dein Modul invertiert arbeitet, tausche HIGH/LOW. Standardmäßig triggert das bei Freigabe nach dem Greifen:
   if (currentIrState == HIGH && lastIrState == LOW) {
     if (currentMillis - lastIrChangeTime > irDebounceTime) {
-      Serial.println("IR:TRIGGER");
+      Serial.println("IR:DETECT"); // Wieder auf IR:DETECT korrigiert
       lastIrChangeTime = currentMillis;
     }
   }
