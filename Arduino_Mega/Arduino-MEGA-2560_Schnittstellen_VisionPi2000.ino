@@ -128,7 +128,7 @@ void loop() {
         if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
           int chain = chip / 2;      
           int chipIdx = chip % 2;    
-          displayMem[chain][chipIdx][digit] (byte)value; 
+          displayMem[chain][chipIdx][digit] = (byte)value; // <--- Das '=' war hier der Übeltäter!
           
           byte d1[5], d0[5];
           for (int c = 0; c < 5; c++) {
@@ -204,11 +204,10 @@ void loop() {
   }
   lastPlayer = statePlayer;
 
-  // --- IR-SENSOR FLANKEN-ERKENNUNG (Sendet wieder IR:DETECT für Python & Testmenü) ---
   bool currentIrState = digitalRead(irSensorPin);
   if (currentIrState == HIGH && lastIrState == LOW) {
     if (currentMillis - lastIrChangeTime > irDebounceTime) {
-      Serial.println("IR:DETECT"); // Wieder auf IR:DETECT korrigiert
+      Serial.println("IR:DETECT");
       lastIrChangeTime = currentMillis;
     }
   }
