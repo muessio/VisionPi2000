@@ -4,9 +4,10 @@ import sys
 import os
 import glob
 import random
-import time # Bereits von dir korrekt eingefügt!
+import time
 
-# Zwingt die Grafikkarte, beim Skalieren keine Weichzeichner zu nutzen (Pixel bleiben scharf!)
+from display_mapper import LoewenDisplay  # <--- NEU: Der Display Übersetzer
+
 os.environ['SDL_RENDER_SCALE_QUALITY'] = '0'
 
 try: import game_x01
@@ -24,10 +25,7 @@ except ImportError: game_aroundclock = None
 try: import game_service
 except ImportError: game_service = None
 
-# =====================================================================
-# ================= VERSION & LAYOUT EINSTELLUNGEN ====================
-VERSION = "1.1.1"       # Versionsnummer für Update angepasst
-
+VERSION = "1.1.2"       
 BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
@@ -35,7 +33,6 @@ MENU_START_Y = 240
 FONT_SIZE_MENU = 16     
 FONT_SIZE_TITLE = 20    
 HEADER_START_Y = 2     
-# =====================================================================
 
 BAUD_RATE = 115200
 SCREEN_WIDTH, SCREEN_HEIGHT = 1024, 768
@@ -46,7 +43,7 @@ class ScreenSaver:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.timeout = 10 * 60 * 1000  # 10 Minuten in Millisekunden
+        self.timeout = 10 * 60 * 1000 
         self.last_activity = pygame.time.get_ticks()
         self.active = False
         
@@ -108,20 +105,6 @@ def init_serial():
             continue
     return None
 
-def send_to_display(ser, chip, digit, value):
-    if ser:
-        try: 
-            ser.write(f"DISP:{chip}:{digit}:{value}\n".encode('utf-8'))
-            ser.flush()         # <-- WICHTIG: Leert den Python-Puffer sofort
-            time.sleep(0.005)   # <-- WICHTIG: 5 Millisekunden Pause für den Arduino
-        except: pass
-
-def clear_all_displays(ser):
-    if ser:
-        for c in range(10):
-            for d in range(8):
-                send_to_display(ser, c, d, 15)
-
 def draw_column(screen, font, title_font, x, y, w, h, color, title, items, sel_idx):
     pygame.draw.rect(screen, color, (x, y, w, h), border_radius=12)
     t_surf = title_font.render(title, True, WHITE)
@@ -136,7 +119,7 @@ def draw_column(screen, font, title_font, x, y, w, h, color, title, items, sel_i
 
 def main():
     pygame.init(); pygame.mixer.init()
-    pygame.mouse.set_visible(False)  # Mauszeiger dauerhaft ausblenden
+    pygame.mouse.set_visible(False) 
     
     sound_click = pygame.mixer.Sound("sounds/click.wav") if os.path.exists("sounds/click.wav") else None
     sound_start = pygame.mixer.Sound("sounds/start.wav") if os.path.exists("sounds/start.wav") else None
@@ -145,6 +128,9 @@ def main():
     pygame.display.set_caption("VisionPi2000")
     
     ser = init_serial()
+    display = LoewenDisplay(ser) # <--- NEU: Display Controller initialisieren
+    display.set_light(True)      # <--- NEU: Licht beim Booten an
+    
     screensaver = ScreenSaver(SCREEN_WIDTH, SCREEN_HEIGHT)
 
     if os.path.exists("Start.jpg"):
@@ -200,7 +186,7 @@ def main():
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
     combo_press_start = 0
 
-    clear_all_displays(ser)
+    display.clear_all() # <--- NEU: Display sauber leeren
 
     while running:
         g_list = [g["name"] for g in game_registry]
@@ -290,15 +276,13 @@ def main():
                     players = players + 1 if players < 8 else 1
                     if players == 8 and "Berry" in modes[sel_mode]:
                         sel_mode = 0
-                    send_to_display(ser, 0, 2, 15)
-                    send_to_display(ser, 0, 1, 15)
-                    send_to_display(ser, 0, 0, players)
             elif raw_data == "BTN:START":
                 if sound_start: sound_start.play()
                 mod = game_registry[sel_game]["module"]
                 if mod: 
-                    mod.run_game(screen, ser, players, g_list[sel_game], c_opts[sel_option], modes[sel_mode])
-                    clear_all_displays(ser)
+                    # <--- NEU: display Objekt wird mit an das Spiel übergeben!
+                    mod.run_game(screen, ser, display, players, g_list[sel_game], c_opts[sel_option], modes[sel_mode])
+                    display.clear_all() # Zurück im Menü -> Alles dunkel
                     screensaver.reset_timer()
 
         if screensaver.check():
@@ -328,7 +312,7 @@ def main():
         pygame.display.flip()
         clock.tick(30)
 
+    display.set_light(False) # Licht aus beim Beenden
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-        
