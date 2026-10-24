@@ -22,83 +22,60 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
-        # Spalten A bis H -> MAX7219 DIG-Register (0 bis 7)
         self.COL_TO_DIGIT = {
             "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
         }
 
-        # Zeilen 1 bis 8 -> MAX7219 Bit-Position im Byte (0 bis 7)
         self.ROW_TO_BIT = {
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Standard-Reihenfolgen pro Chip-Typ (Zeile 1 bis 8):
-        # U1 Standard (DISP 1, 2, 7, 8, 9)
+        # Segment-Reihenfolgen korrigiert nach echtem Leuchten auf dem Foto:
         SEG_U1 = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
-        # U1 DISP3 Fix (Bei Spieler 1 rechts war B und D vertauscht -> "gedrehtes L" bei der 1)
-        SEG_U1_DISP3 = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "D": 6, "C": 7, "DP": 8 }
-
-        # U2 Standard (Spieler 2: DISP 4, 5, 6, 15)
-        # Fix für "091" statt "301": In U2 liegen C und B auf 1 & 2, A auf 5,
-        # aber F/E und G/D waren auf Zeilen 3, 4, 6, 7 vertauscht:
+        # Korrektur für die '1' (B und C / oberer und unterer Balken auf U1 Spalte B):
+        SEG_U1_DISP3 = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
         SEG_U2 = { "C": 1, "B": 2, "G": 3, "D": 4, "A": 5, "F": 6, "E": 7, "DP": 8 }
-
-        # U3 (Spieler 4 & 5: DISP 10..14)
         SEG_U3 = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
-        # U4 (Spieler 6: DISP 16..18)
         SEG_U4 = { "B": 1, "DP": 2, "E": 3, "F": 4, "A": 5, "G": 6, "C": 7, "D": 8 }
-        # U5 & U6 (Spieler 7 & 8: DISP 19..24)
         SEG_U5_U6 = { "B": 1, "DP": 2, "D": 3, "F": 4, "A": 5, "G": 6, "C": 7, "E": 8 }
-        # U7 (TEMP SCORE: DISP 25..27, 30)
         SEG_U7 = { "E": 1, "C": 2, "B": 3, "F": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
-        # U8 (DISP 31, 32, 36..38)
         SEG_U8 = { "F": 1, "C": 2, "DP": 3, "E": 4, "A": 5, "B": 6, "D": 7, "G": 8 }
-        # U9 (Cricket / Mitte: DISP 28, 29, 33..35, 39..41)
         SEG_U9 = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "DP": 7, "B": 8 }
 
         self.DISP_TABLE = {
-            # U1 (Chip 0)
             1: (0, "H", SEG_U1),
             2: (0, "D", SEG_U1),
-            3: (0, "B", SEG_U1_DISP3),
+            3: (0, "B", SEG_U1_DISP3), # DISP3 korrigiert
             7: (0, "F", SEG_U1),
             8: (0, "E", SEG_U1),
             9: (0, "A", SEG_U1),
-            # U3 (Chip 1)
             10: (1, "H", SEG_U3),
             11: (1, "D", SEG_U3),
             12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3),
             14: (1, "A", SEG_U3),
-            # U2 (Chip 2)
             4: (2, "F", SEG_U2),
             5: (2, "A", SEG_U2),
             6: (2, "C", SEG_U2),
             15: (2, "G", SEG_U2),
-            # U4 (Chip 3)
             16: (3, "D", SEG_U4),
             17: (3, "A", SEG_U4),
             18: (3, "E", SEG_U4),
-            # U5 (Chip 4)
             19: (4, "B", SEG_U5_U6),
             20: (4, "F", SEG_U5_U6),
             21: (4, "E", SEG_U5_U6),
-            # U6 (Chip 5)
             22: (5, "B", SEG_U5_U6),
             23: (5, "F", SEG_U5_U6),
             24: (5, "E", SEG_U5_U6),
-            # U7 (Chip 6)
             25: (6, "H", SEG_U7),
             26: (6, "B", SEG_U7),
             27: (6, "E", SEG_U7),
             30: (6, "A", SEG_U7),
-            # U8 (Chip 7)
             31: (7, "D", SEG_U8),
             32: (7, "B", SEG_U8),
             36: (7, "E", SEG_U8),
             37: (7, "F", SEG_U8),
             38: (7, "G", SEG_U8),
-            # U9 (Chip 8)
             28: (8, "E", SEG_U9),
             29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9),
@@ -109,16 +86,17 @@ class LoewenDisplay:
             41: (8, "A", SEG_U9),
         }
 
-        # Zuordnung (Hunderter, Zehner, Einer) für Spieler 1 bis 8
+        # Ziffern-Reihenfolge gedreht (Einer -> Zehner -> Hunderter), 
+        # da DISP1 rechts und DISP3 links im Block liegt:
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     # Spieler 1
-            1: (6, 5, 4),     # Spieler 2 (6=Hunderter, 5=Zehner, 4=Einer!)
-            2: (7, 8, 9),     # Spieler 3
-            3: (10, 11, 12),  # Spieler 4
-            4: (13, 14, 15),  # Spieler 5
-            5: (16, 17, 18),  # Spieler 6
-            6: (19, 20, 21),  # Spieler 7
-            7: (22, 23, 24)   # Spieler 8
+            0: (3, 2, 1),     # Spieler 1: DISP3 (H), DISP2 (Z), DISP1 (E)
+            1: (4, 5, 6),     # Spieler 2: DISP4 (H), DISP5 (Z), DISP6 (E)
+            2: (9, 8, 7),     # Spieler 3: DISP9, DISP8, DISP7
+            3: (12, 11, 10),  # Spieler 4: DISP12, DISP11, DISP10
+            4: (15, 14, 13),  # Spieler 5
+            5: (18, 17, 16),  # Spieler 6
+            6: (21, 20, 19),  # Spieler 7
+            7: (24, 23, 22)   # Spieler 8
         }
 
     def set_light(self, state):
