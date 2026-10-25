@@ -5,7 +5,7 @@ import os
 
 os.makedirs("sounds", exist_ok=True)
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 def save_wav(filename, audio_data, sample_rate=44100):
     with wave.open(filename, 'w') as f:
@@ -13,11 +13,12 @@ def save_wav(filename, audio_data, sample_rate=44100):
         f.setsampwidth(2)
         f.setframerate(sample_rate)
         for s in audio_data:
+            # Maximale Aussteuerung für richtig Druck (Sättigung)
             val = int(max(-1.0, min(1.0, s)) * 32767)
             f.writeframesraw(struct.pack('<h', val))
 
 def generate_arcade_sounds():
-    print(f"Generiere Sounds (VisionPi2000 Generator v{VERSION}) - Harter Miss-Ton...")
+    print(f"Generiere Sounds (VisionPi2000 Generator v{VERSION}) - Laut & Krass...")
     
     # 1. CLICK (Menü)
     click = []
@@ -44,32 +45,35 @@ def generate_arcade_sounds():
         switch_player.append(val)
     save_wav("sounds/switch_player.wav", switch_player)
 
-    # 4. BUST / ÜBERWORFEN
+    # 4. BUST / ÜBERWORFEN (Jetzt extrem krass, tief und brachial)
     bust = []
-    for i in range(int(44100 * 0.25)):
+    for i in range(int(44100 * 0.35)):  # Länger für epischen Fail-Effekt
         t = i / 44100.0
-        freq = 300 - t * 200
-        val = math.copysign(0.35, math.sin(2 * math.pi * freq * t)) * math.exp(-t * 8)
-        bust.append(val)
+        # Brutaler Frequenzabsturz von tiefem Bass in den Keller
+        freq = max(30, 220 - (t * 500))
+        # Aggressive Rechteckwelle + sub-harmonische Welle für maximalen Druck
+        v1 = math.copysign(1.0, math.sin(2 * math.pi * freq * t))
+        v2 = math.copysign(1.0, math.sin(2 * math.pi * (freq * 0.5) * t))
+        val = (v1 * 0.7 + v2 * 0.5)
+        # Langsamerer Hüllkurven-Abfall, damit der Sound richtig nachhallt und drückt
+        envelope = math.exp(-t * 4)
+        bust.append(val * envelope)
     save_wav("sounds/bust.wav", bust)
 
-    # 5. MISS / FEHLWURF (Richtig fies, dissonant und hart)
+    # 5. MISS / FEHLWURF (Jetzt deutlich lauter und präsenter)
     miss = []
-    for i in range(int(44100 * 0.25)):  # Etwas länger für mehr Wirkung
+    for i in range(int(44100 * 0.25)):
         t = i / 44100.0
-        # Zwei tiefe, dissonante Frequenzen stürzen stark ab (Tritonus-Intervall)
-        freq1 = max(50, 150 - (t * 400))
-        freq2 = max(40, 105 - (t * 300)) 
+        freq1 = max(60, 180 - (t * 450))
+        freq2 = max(50, 130 - (t * 350)) 
         
-        # Harte Rechteckwellen für den typischen "Buzzer"-Effekt
+        # Volle Rechteck-Power für den Buzzer-Effekt
         v1 = math.copysign(1.0, math.sin(2 * math.pi * freq1 * t))
         v2 = math.copysign(1.0, math.sin(2 * math.pi * freq2 * t))
         
-        # Mischen und Lautstärke regulieren
-        val = (v1 + v2) * 0.2
-        
-        # Hüllkurve: Fällt weniger schnell ab als vorher, um präsenter zu sein
-        envelope = math.exp(-t * 8)
+        # Höhere Amplitude (0.35 statt 0.2) für spürbar mehr Lautstärke
+        val = (v1 + v2) * 0.35
+        envelope = math.exp(-t * 6)
         miss.append(val * envelope)
     save_wav("sounds/miss.wav", miss)
 
@@ -108,7 +112,7 @@ def generate_arcade_sounds():
         hit_t.append(val)
     save_wav("sounds/hit_triple.wav", hit_t)
 
-    print("\nAlle Sounds erfolgreich generiert!")
+    print("\nAlle Sounds (laut & brachial) erfolgreich generiert!")
 
 if __name__ == "__main__":
     generate_arcade_sounds()
