@@ -2,7 +2,7 @@ import pygame
 import time
 import os
 
-VERSION = "1.0.6"
+VERSION = "1.0.7"
 GAMES = ["Service Menu"]
 OPTIONS = ["Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -26,6 +26,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     
     test_chip = 0
     test_digit = 0
+
+    bg_img = None
+    if os.path.exists("background.png"):
+        try:
+            raw_bg = pygame.image.load("background.png").convert()
+            bg_img = pygame.transform.scale(raw_bg, (screen.get_width(), screen.get_height()))
+            darker_overlay = pygame.Surface((screen.get_width(), screen.get_height()))
+            darker_overlay.set_alpha(120)
+            darker_overlay.fill((0, 0, 0))
+            bg_img.blit(darker_overlay, (0, 0))
+        except: pass
 
     sensor_timers = {"BTN:RED": 0, "BTN:BLUE": 0, "BTN:GREY": 0, "BTN:START": 0, "BTN:PLAYER": 0, "MISS:1": 0, "IR:DETECT": 0}
     sensor_names = {
@@ -87,7 +98,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             else:
                 if raw_data == "BTN:PLAYER" or raw_data == "BTN:COMBO": running = False
 
-        screen.fill((0, 0, 0))
+        if bg_img: screen.blit(bg_img, (0, 0))
+        else: screen.fill((0, 0, 0))
+        
         draw_centered(title_font.render(f"SERVICE-MODUS: {option}", True, HIGHLIGHT), 40)
 
         if option == "Display & Lampen":
