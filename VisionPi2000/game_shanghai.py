@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 GAMES = ["Shanghai"]
 OPTIONS = ["Standard"]
 ROUNDS = [1, 2, 3, 4, 5, 6, 7]
@@ -61,10 +61,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
-    def update_score_display(player_idx, score):
-        display.set_score(player_idx, max(0, score))
-        display.update()
-
     display.clear_all()
 
     bg_img = None
@@ -93,7 +89,18 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     player_scores, player_multipliers = [0] * total_players, [{t: set() for t in ROUNDS} for _ in range(total_players)]
     darts_thrown, active_player, current_round_idx = 0, 1, 0
-    for i in range(total_players): update_score_display(i, 0)
+    round_points = 0
+
+    def sync_hw_display():
+        for i in range(total_players):
+            display.set_score(i, max(0, player_scores[i]))
+        display.set_active_player(active_player - 1)
+        display.set_dart_arrows(3 - darts_thrown)
+        display.set_temp_score(round_points)
+        display.set_turn(min(current_round_idx + 1, len(ROUNDS)))
+        display.update()
+
+    sync_hw_display()
 
     running, clock, current_state, bot_timer, winner_name, combo_press_start = True, pygame.time.Clock(), "GAME", 0, "", 0
 
@@ -165,10 +172,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
                 elif pygame.time.get_ticks() > bot_timer:
                     darts_thrown = 0
+                    round_points = 0
                     active_player += 1
                     if active_player > total_players:
                         active_player, current_round_idx = 1, current_round_idx + 1
                         if current_round_idx >= len(ROUNDS): current_state = "WIN"
+                    sync_hw_display()
                     bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
@@ -176,10 +185,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if current_state == "GAME":
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
+                    round_points = 0
                     active_player += 1
                     if active_player > total_players:
                         active_player, current_round_idx = 1, current_round_idx + 1
                         if current_round_idx >= len(ROUNDS): current_state = "WIN"
+                    sync_hw_display()
                 
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
@@ -197,12 +208,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     
                     if points > 0:
                         player_scores[p_idx] += points
+                        round_points += points
                         player_multipliers[p_idx][target].add(mult)
-                        update_score_display(p_idx, player_scores[p_idx])
                         if player_multipliers[p_idx][target] == {1, 2, 3}:
                             current_state, winner_name = "WIN", (mode if is_berrys_turn else f"Spieler {active_player}")
                     
                     darts_thrown += 1
+                    sync_hw_display()
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
 
         if screensaver.check():
