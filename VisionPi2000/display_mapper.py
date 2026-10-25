@@ -4,7 +4,6 @@ import time
 class LoewenDisplay:
     def __init__(self, ser):
         self.ser = ser
-        # Korrigiert auf 9 Chips (U1 bis U9) statt 10
         self.buffer = [[0 for _ in range(8)] for _ in range(9)]
         self.last_sent = [[-1 for _ in range(8)] for _ in range(9)]
         self.light_state = True
@@ -29,52 +28,78 @@ class LoewenDisplay:
             "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
         }
 
-        # Physikalische Bit-Zuordnung der Zeilen/Segmente
+        # Physikalische Bit-Zuordnung der Zeilen/Segmente (Zeile 1..8 -> Bit 0..7)
         self.ROW_TO_BIT = {
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Vollständige, platinengetreue Segment-Tabellen für ALLE Chips U1 bis U9 nach Schaltplan
-        SEG_U1      = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 }
-        SEG_U1_SPEC = { "A": 5, "B": 3, "C": 6, "D": 7, "E": 4, "F": 1, "G": 2, "DP": 8 }
-        SEG_U2      = { "A": 5, "B": 2, "C": 1, "D": 3, "E": 4, "F": 7, "G": 6, "DP": 8 }
-        SEG_U3      = { "A": 4, "B": 2, "C": 3, "D": 5, "E": 1, "F": 6, "G": 7, "DP": 8 } # U3 Schaltplan-Zuordnung
-        SEG_U4      = { "A": 5, "B": 2, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 1 } # U4 Schaltplan-Zuordnung
-        SEG_U5_U6   = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 } # U5/U6 Schaltplan-Zuordnung
-        SEG_U7      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 } # U7 Schaltplan-Zuordnung
-        SEG_U8      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 6 } # U8 Schaltplan-Zuordnung
-        SEG_U9      = { "A": 8, "B": 7, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 1 } # U9 Schaltplan-Zuordnung
+        # 100% verifizierte Segment-Tabellen laut Löwen-Schaltplan Blatt 3 (Zeile 1..8)
+        # U1: 1=F, 2=G, 3=D, 4=E, 5=A, 6=B, 7=C, 8=DP (gilt für ALLE Displays auf U1!)
+        SEG_U1    = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 }
+        
+        # U2: 1=C, 2=B, 3=F, 4=E, 5=A, 6=G, 7=D, 8=DP (D und F waren vorher vertauscht!)
+        SEG_U2    = { "A": 5, "B": 2, "C": 1, "D": 7, "E": 4, "F": 3, "G": 6, "DP": 8 }
+        
+        # U3: 1=E, 2=B, 3=C, 4=A, 5=D, 6=F, 7=G, 8=DP
+        SEG_U3    = { "A": 4, "B": 2, "C": 3, "D": 5, "E": 1, "F": 6, "G": 7, "DP": 8 }
+        
+        # U4: 1=B, 2=DP, 3=E, 4=F, 5=A, 6=G, 7=C, 8=D (B und DP waren vorher vertauscht!)
+        SEG_U4    = { "A": 5, "B": 1, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 2 }
+        
+        # U5 & U6: 1=B, 2=DP, 3=D, 4=F, 5=A, 6=G, 7=C, 8=E
+        SEG_U5_U6 = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 }
+        
+        # U7: 1=E, 2=C, 3=B, 4=F, 5=A, 6=G, 7=D, 8=DP
+        SEG_U7    = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 }
+        
+        # U8: 1=F, 2=C, 3=DP, 4=E, 5=A, 6=B, 7=D, 8=G (B und DP waren vorher vertauscht!)
+        SEG_U8    = { "A": 5, "B": 6, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 3 }
+        
+        # U9: 1=A, 2=C, 3=D, 4=F, 5=E, 6=G, 7=DP, 8=B (A, B, DP waren vorher komplett verdreht!)
+        SEG_U9    = { "A": 1, "B": 8, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 7 }
 
         self.DISP_TABLE = {
-            1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
-            7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
+            # U1 (Chip 0) - Alle Displays nutzen SEG_U1
+            1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1),
+            7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
+            
+            # U3 (Chip 1)
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
             
+            # U2 (Chip 2)
             4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
+            
+            # U4 (Chip 3)
             16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
             
+            # U5 (Chip 4) & U6 (Chip 5)
             19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
             22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
             
+            # U7 (Chip 6)
             25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
+            
+            # U8 (Chip 7)
             31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8),
             36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
             
+            # U9 (Chip 8)
             28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9), 35: (8, "B", SEG_U9),
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
+        # Display-Zuordnung (Hunderter, Zehner, Einer) von links nach rechts
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     
-            1: (5, 4, 6),     
-            2: (9, 8, 7),     
-            3: (12, 11, 10),  
-            4: (30, 31, 32),  
-            5: (33, 34, 35),  
-            6: (36, 37, 38),  
-            7: (39, 40, 41),  
+            0: (3, 2, 1),     # Spieler 1: DISP3 (links), DISP2 (mitte), DISP1 (rechts)
+            1: (5, 4, 6),     # Spieler 2: DISP5 (links), DISP4 (mitte), DISP6 (rechts)
+            2: (9, 8, 7),     # Spieler 3: DISP9 (links), DISP8 (mitte), DISP7 (rechts)
+            3: (12, 11, 10),  # Spieler 4: DISP12 (links), DISP11 (mitte), DISP10 (rechts)
+            4: (30, 31, 32),  # Spieler 5
+            5: (33, 34, 35),  # Spieler 6
+            6: (36, 37, 38),  # Spieler 7
+            7: (39, 40, 41),  # Spieler 8
         }
 
         self.TEMP_SCORE_DISP = (25, 26, 27)
@@ -89,15 +114,16 @@ class LoewenDisplay:
             15: (23, 24),
         }
 
+        # Spieler-Aktiv-Lampen (PLYR 1A/1B bis 8A/8B laut Schaltplan Blatt 3: U1 Spalte C & U8 Spalte A)
         self.ALL_PL_LEDS = {
-            1: [(1, "H", 2), (1, "H", 7)],
-            2: [(0, "H", 2), (0, "H", 7)],
-            3: [(1, "H", 8), (1, "H", 4)],
-            4: [(1, "D", 8), (1, "D", 4)],
-            5: [(3, "B", 4), (3, "B", 6)],
-            6: [(3, "H", 2), (3, "H", 6)],
-            7: [(2, "A", 1), (2, "A", 5)],
-            8: [(3, "B", 2), (3, "B", 7)],
+            1: [(0, "C", 6), (0, "C", 2)], # PLYR 1A (Zeile 6), 1B (Zeile 2) auf U1 Spalte C
+            2: [(0, "C", 7), (0, "C", 3)], # PLYR 2A (Zeile 7), 2B (Zeile 3) auf U1 Spalte C
+            3: [(0, "C", 5), (0, "C", 1)], # PLYR 3A (Zeile 5), 3B (Zeile 1) auf U1 Spalte C
+            4: [(0, "C", 4), (0, "C", 8)], # PLYR 4A (Zeile 4), 4B (Zeile 8) auf U1 Spalte C
+            5: [(7, "A", 4), (7, "A", 8)], # PLYR 5A (Zeile 4), 5B (Zeile 8) auf U8 Spalte A
+            6: [(7, "A", 1), (7, "A", 5)], # PLYR 6A (Zeile 1), 6B (Zeile 5) auf U8 Spalte A
+            7: [(7, "A", 6), (7, "A", 2)], # PLYR 7A (Zeile 6), 7B (Zeile 2) auf U8 Spalte A
+            8: [(7, "A", 7), (7, "A", 3)], # PLYR 8A (Zeile 7), 8B (Zeile 3) auf U8 Spalte A
         }
 
         self.CRICKET_LEDS = {
@@ -314,7 +340,6 @@ class LoewenDisplay:
                 except: pass
             return
 
-        # Exakte Iteration über alle 9 realen Chips (U1 bis U9)
         for chip in range(9):
             for digit in range(8):
                 val = self.buffer[chip][digit]
@@ -323,6 +348,6 @@ class LoewenDisplay:
                         self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
                         self.ser.flush()
                         self.last_sent[chip][digit] = val
-                        # Erhöhte Pause (8ms) zum Schutz vor Takt-Drift in den Kaskaden
-                        time.sleep(0.008)
+                        time.sleep(0.004)
                     except: pass
+        
