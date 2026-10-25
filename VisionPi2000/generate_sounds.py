@@ -15,9 +15,8 @@ def save_wav(filename, audio_data, sample_rate=44100):
             f.writeframesraw(struct.pack('<h', val))
 
 def generate_arcade_sounds():
-    print("Generiere erweiterte Retro-Arcade Sounds...")
+    print("Generiere alle Retro-Arcade Sounds (inkl. Bust & Miss)...")
     
-    # 1. CLICK (Menü)
     click = []
     for i in range(int(44100 * 0.05)):
         t = i / 44100.0
@@ -25,7 +24,6 @@ def generate_arcade_sounds():
         click.append(val)
     save_wav("sounds/click.wav", click)
 
-    # 2. START
     start = []
     for freq in [440.0, 554.37, 659.25, 880.0]:
         for i in range(int(44100 * 0.1)):
@@ -33,16 +31,29 @@ def generate_arcade_sounds():
             start.append(math.copysign(0.3, math.sin(2 * math.pi * freq * t)))
     save_wav("sounds/start.wav", start)
 
-    # 3. SPIELERWECHSEL (Neuer, markanter Bestätigungston)
     switch_player = []
     for i in range(int(44100 * 0.12)):
         t = i / 44100.0
-        freq = 900 - t * 300  # Abfallender Ton zur Bestätigung
+        freq = 900 - t * 300
         val = math.copysign(0.3, math.sin(2 * math.pi * freq * t)) * math.exp(-t * 20)
         switch_player.append(val)
     save_wav("sounds/switch_player.wav", switch_player)
 
-    # 4. CHAMP / BULLSEYE FANFARE
+    bust = []
+    for i in range(int(44100 * 0.25)):
+        t = i / 44100.0
+        freq = 300 - t * 200
+        val = math.copysign(0.35, math.sin(2 * math.pi * freq * t)) * math.exp(-t * 8)
+        bust.append(val)
+    save_wav("sounds/bust.wav", bust)
+
+    miss = []
+    for i in range(int(44100 * 0.1)):
+        t = i / 44100.0
+        val = math.copysign(0.2, math.sin(2 * math.pi * 180 * t)) * math.exp(-t * 30)
+        miss.append(val)
+    save_wav("sounds/miss.wav", miss)
+
     champ = []
     for i in range(int(44100 * 0.15)):
         champ.append(math.copysign(0.3, math.sin(2 * math.pi * 783.99 * (i / 44100.0))))
@@ -52,7 +63,6 @@ def generate_arcade_sounds():
         champ.append(math.copysign(0.3, math.sin(2 * math.pi * 1046.50 * t)) * math.exp(-t * 3))
     save_wav("sounds/champ.wav", champ)
 
-    # 5. HIT SINGLE
     hit_s = []
     for i in range(int(44100 * 0.08)):
         t = i / 44100.0
@@ -60,7 +70,6 @@ def generate_arcade_sounds():
         hit_s.append(val)
     save_wav("sounds/hit_single.wav", hit_s)
 
-    # 6. HIT DOUBLE
     hit_d = []
     for i in range(int(44100 * 0.1)):
         t = i / 44100.0
@@ -68,7 +77,6 @@ def generate_arcade_sounds():
         hit_d.append(val)
     save_wav("sounds/hit_double.wav", hit_d)
 
-    # 7. HIT TRIPLE
     hit_t = []
     for i in range(int(44100 * 0.12)):
         t = i / 44100.0
@@ -81,3 +89,4 @@ def generate_arcade_sounds():
 
 if __name__ == "__main__":
     generate_arcade_sounds()
+    
