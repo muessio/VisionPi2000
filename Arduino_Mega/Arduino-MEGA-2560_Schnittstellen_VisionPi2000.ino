@@ -1,330 +1,318 @@
-# Datei: display_mapper.py
-import time
+// =================================================================================
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI)
+// =================================================================================
 
-class LoewenDisplay:
-    def __init__(self, ser):
-        self.ser = ser
-        self.buffer = [[0 for _ in range(8)] for _ in range(10)]
-        self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
-        self.light_state = True
+const int rowPins[4]  = {22, 24, 26, 28}; 
+const int colPins[16] = {30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 23, 42, 43, 44, 45};
+const int btnRed      = 46;
+const int btnBlue     = 47;
+const int btnGrey     = 48;
+const int btnStart    = 49;
+const int btnPlayer   = 50;
+const int irSensorPin = 2;  
+const int lightRelayPin = 3;  
+const int piezoPin    = A0; 
 
-        self.FONT = {
-            "0": ["A", "B", "C", "D", "E", "F"],
-            "1": ["B", "C"],
-            "2": ["A", "B", "D", "E", "G"],
-            "3": ["A", "B", "C", "D", "G"],
-            "4": ["B", "C", "F", "G"],
-            "5": ["A", "C", "D", "F", "G"],
-            "6": ["A", "C", "D", "E", "F", "G"],
-            "7": ["A", "B", "C"],
-            "8": ["A", "B", "C", "D", "E", "F", "G"],
-            "9": ["A", "B", "C", "D", "F", "G"],
-            " ": [],
-            "-": ["G"]
-        }
+const int clkPin   = 4;   
+const int loadPin  = 5;   
+const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
-        # Exaktes physikalisches Spalten-Mapping der Löwen-Platine
-        self.COL_TO_DIGIT = {
-            "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
-        }
+// displayMem[Strang 0..4][0 = Vorderer Chip (DIN), 1 = Hinterer Chip (DOUT)][Digit 0..7]
+byte displayMem[5][2][8] = {0};
 
-        # Physikalische Bit-Zuordnung der Zeilen/Segmente
-        self.ROW_TO_BIT = {
-            1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
-        }
+char cmdBuffer[64];
+int cmdIndex = 0;
 
-        # Segment-Tabellen für alle Chips U1 bis U9 (inkl. korrigiertem U3)
-        SEG_U1      = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 }
-        SEG_U1_SPEC = { "A": 5, "B": 3, "C": 6, "D": 7, "E": 4, "F": 1, "G": 2, "DP": 8 }
-        SEG_U2      = { "A": 5, "B": 2, "C": 1, "D": 3, "E": 4, "F": 7, "G": 6, "DP": 8 }
-        SEG_U3      = { "A": 4, "B": 2, "C": 3, "D": 5, "E": 1, "F": 6, "G": 7, "DP": 8 } # Korrigierte U3-Zuordnung laut Schaltplan
-        SEG_U4      = { "A": 5, "B": 2, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 1 }
-        SEG_U5_U6   = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 }
-        SEG_U7      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 }
-        SEG_U8      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 6 }
-        SEG_U9      = { "A": 8, "B": 7, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 1 }
+const String dartBoard[4][16] = {
+  {"d12", "12", "d9", "9", "d14", "14", "d11", "11", "d8", "8", "-",  "t12", "t9", "t14", "t11", "t8"},
+  {"d16", "16", "d7", "7", "d19", "19", "d3", "3", "d17", "17", "db", "t16", "t7", "t19", "t3", "t17"},
+  {"d2",  "2",  "d15", "15", "d10", "10", "d6", "6", "d13", "13", "b",  "t2",  "t15", "t10", "t6", "t13"},
+  {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5",  "-",  "t4",  "t18", "t1",  "t20", "t5"}
+};
 
-        self.DISP_TABLE = {
-            1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
-            7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
-            10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
-            13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
-            
-            4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
-            16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
-            
-            19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
-            22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
-            
-            25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
-            31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8),
-            36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
-            
-            28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9),
-            33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9), 35: (8, "B", SEG_U9),
-            39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
-        }
+unsigned long lastHitTime = 0;       
+const int debounceDelay = 300;       
+unsigned long piezoHitTime = 0;
+bool piezoTriggered = false;
+const int piezoThreshold = 15; 
+const int piezoMatrixWaitTime = 100; 
 
-        self.PLAYER_DISP = {
-            0: (1, 2, 3),     
-            1: (5, 4, 6),     
-            2: (9, 8, 7),     
-            3: (12, 11, 10),  
-            4: (30, 31, 32),  
-            5: (33, 34, 35),  
-            6: (36, 37, 38),  
-            7: (39, 40, 41),  
-        }
+const int btnDebounceDelay = 200; 
+unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPressPlayer = 0;
+bool stateRed, stateBlue, stateGrey, stateStart, statePlayer = true;
+bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
 
-        self.TEMP_SCORE_DISP = (25, 26, 27)
-        self.TURN_DISP       = (28, 29)
+bool lastIrState = HIGH;
+unsigned long lastIrChangeTime = 0;
+const unsigned long irDebounceTime = 300;
 
-        self.CRICKET_TARGET_DISP = {
-            20: (13, 14),
-            19: (15, 16),
-            18: (17, 18),
-            17: (19, 20),
-            16: (21, 22),
-            15: (23, 24),
-        }
+inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
+  digitalWrite(clkPin, LOW);
+  digitalWrite(dPins[0], b0);
+  digitalWrite(dPins[1], b1);
+  digitalWrite(dPins[2], b2);
+  digitalWrite(dPins[3], b3);
+  digitalWrite(dPins[4], b4);
+  delayMicroseconds(4);
+  digitalWrite(clkPin, HIGH);
+  delayMicroseconds(4);
+  digitalWrite(clkPin, LOW);
+  delayMicroseconds(2);
+}
 
-        self.ALL_PL_LEDS = {
-            1: [(1, "H", 2), (1, "H", 7)],
-            2: [(0, "H", 2), (0, "H", 7)],
-            3: [(1, "H", 8), (1, "H", 4)],
-            4: [(1, "D", 8), (1, "D", 4)],
-            5: [(3, "B", 4), (3, "B", 6)],
-            6: [(3, "H", 2), (3, "H", 6)],
-            7: [(2, "A", 1), (2, "A", 5)],
-            8: [(3, "B", 2), (3, "B", 7)],
-        }
+void sendCommandToAll(byte addr, byte data) {
+  digitalWrite(clkPin, LOW);
+  digitalWrite(loadPin, LOW);
+  delayMicroseconds(5);
 
-        self.CRICKET_LEDS = {
-            0: {
-                20: [(2, "H", 5), (2, "G", 2), (2, "G", 3)],
-                19: [(3, "F", 1), (3, "G", 2), (3, "H", 1)],
-                18: [(3, "H", 5), (3, "F", 8), (3, "F", 7)],
-                17: [(4, "D", 5), (4, "D", 7), (4, "D", 1)],
-                16: [(5, "D", 2), (5, "D", 8), (5, "D", 1)],
-                15: [(6, "D", 2), (6, "D", 6), (6, "D", 7)],
-                25: [(6, "F", 5), (6, "F", 6), (6, "G", 3)],
-            },
-            1: {
-                20: [(2, "E", 4), (2, "H", 7), (2, "H", 1)],
-                19: [(2, "H", 5), (3, "F", 3), (3, "H", 4)],
-                18: [(3, "F", 6), (3, "H", 6), (3, "F", 2)],
-                17: [(4, "C", 6), (4, "D", 2), (4, "D", 3)],
-                16: [(5, "D", 7), (5, "D", 6), (5, "D", 5)],
-                15: [(6, "D", 5), (6, "D", 1), (6, "D", 4)],
-                25: [(6, "F", 1), (6, "F", 3), (6, "F", 7)],
-            },
-            2: {
-                20: [(2, "E", 8), (2, "E", 6), (2, "E", 3)],
-                19: [(2, "E", 2), (2, "E", 1), (2, "H", 8)],
-                18: [(3, "B", 1), (3, "B", 8), (3, "B", 7)],
-                17: [(4, "H", 5), (4, "H", 4), (4, "H", 1)],
-                16: [(5, "H", 2), (5, "H", 4), (5, "H", 1)],
-                15: [(6, "G", 2), (6, "G", 6), (6, "G", 7)],
-                25: [(6, "G", 4), (6, "G", 8), (6, "H", 2)],
-            },
-            3: {
-                20: [(2, "E", 5), (2, "E", 7), (2, "E", 1)],
-                19: [(2, "E", 4), (3, "H", 3), (3, "H", 7)],
-                18: [(3, "B", 6), (3, "H", 3), (3, "B", 7)],
-                17: [(4, "H", 6), (4, "H", 7), (4, "H", 2)],
-                16: [(5, "H", 7), (5, "H", 6), (5, "H", 5)],
-                15: [(6, "G", 5), (6, "G", 1), (6, "G", 4)],
-                25: [(6, "G", 3), (6, "G", 7), (6, "G", 8)],
-            },
-            4: {
-                20: [(1, "F", 5), (1, "F", 1), (1, "F", 6)],
-                19: [(3, "C", 4), (3, "G", 2), (3, "C", 3)],
-                18: [(3, "C", 1), (3, "C", 5), (3, "G", 7)],
-                17: [(4, "C", 8), (4, "C", 1), (4, "C", 5)],
-                16: [(5, "G", 4), (5, "A", 6), (5, "A", 2)],
-                15: [(5, "C", 5), (5, "G", 5), (5, "G", 1)],
-                25: [(7, "H", 6), (7, "H", 5), (7, "H", 1)],
-            },
-            5: {
-                20: [(1, "F", 2), (1, "F", 3), (1, "F", 6)],
-                19: [(3, "G", 4), (3, "G", 6), (3, "G", 8)],
-                18: [(3, "G", 1), (3, "C", 6), (3, "C", 8)],
-                17: [(4, "C", 6), (4, "G", 6), (4, "C", 4)],
-                16: [(5, "G", 8), (5, "A", 7), (5, "A", 8)],
-                15: [(5, "G", 3), (5, "A", 3), (5, "A", 1)],
-                25: [(7, "H", 7), (7, "H", 2), (7, "H", 4)],
-            },
-            6: {
-                20: [(1, "G", 4), (1, "G", 8), (1, "G", 7)],
-                19: [(3, "G", 7), (3, "B", 2), (3, "B", 4)],
-                18: [(4, "A", 3), (4, "A", 1), (4, "G", 1)],
-                17: [(4, "A", 7), (4, "A", 2), (4, "A", 5)],
-                16: [(5, "C", 6), (5, "A", 4), (5, "A", 5)],
-                15: [(5, "C", 3), (5, "C", 2), (5, "C", 1)],
-                25: [(7, "C", 8), (7, "C", 5), (7, "C", 1)],
-            },
-            7: {
-                20: [(1, "G", 2), (1, "G", 3), (1, "G", 6)],
-                19: [(3, "C", 2), (3, "C", 6), (3, "C", 4)],
-                18: [(4, "G", 4), (4, "G", 2), (4, "G", 7)],
-                17: [(4, "G", 5), (4, "A", 6), (4, "A", 4)],
-                16: [(5, "C", 8), (5, "A", 7), (5, "A", 3)],
-                15: [(5, "G", 7), (5, "C", 7), (5, "C", 3)],
-                25: [(7, "C", 6), (7, "C", 2), (7, "C", 4)],
-            }
-        }
+  for (int repeat = 0; repeat < 2; repeat++) {
+    for (int i = 7; i >= 0; i--) {
+      byte b = (addr >> i) & 1;
+      clockBit(b, b, b, b, b);
+    }
+    for (int i = 7; i >= 0; i--) {
+      byte b = (data >> i) & 1;
+      clockBit(b, b, b, b, b);
+    }
+  }
 
-        self.PLAYER_ACTIVE_LEDS = {
-            0: [(0, "C", 6), (0, "C", 2)],
-            1: [(0, "C", 7), (0, "C", 3)],
-            2: [(0, "C", 5), (0, "C", 1)],
-            3: [(0, "C", 4), (0, "C", 8)],
-            4: [(7, "A", 4), (7, "A", 8)],
-            5: [(7, "A", 1), (7, "A", 5)],
-            6: [(7, "A", 6), (7, "A", 2)],
-            7: [(7, "A", 7), (7, "A", 3)],
-        }
+  delayMicroseconds(5);
+  digitalWrite(loadPin, HIGH);
+  delayMicroseconds(5);
+}
 
-        self.DART_ARROW_LEDS = {
-            1: [(2, "B", 5), (2, "B", 2), (2, "B", 6)],
-            2: [(0, "G", 5), (0, "G", 1), (2, "B", 1)],
-            3: [(0, "G", 4), (0, "G", 8), (2, "B", 7)],
-        }
+void updateDigitForAllStrands(int digitIndex) {
+  digitalWrite(clkPin, LOW);
+  digitalWrite(loadPin, LOW);
+  delayMicroseconds(5);
 
-    def set_light(self, state):
-        self.light_state = bool(state)
-        if not self.ser: return
-        try:
-            cmd = b"LIGHT:ON\n" if state else b"LIGHT:OFF\n"
-            self.ser.write(cmd)
-            self.ser.flush()
-            time.sleep(0.01)
-        except: pass
+  byte addr = digitIndex + 1;
 
-    def check_light_auto_on(self):
-        if not self.light_state:
-            self.set_light(True)
+  // Paket 1: Daten für den HINTEREN Chip (DOUT: U3, U4, U6, U8)
+  for (int i = 7; i >= 0; i--) {
+    byte b = (addr >> i) & 1;
+    clockBit(b, b, b, b, 0);
+  }
+  for (int i = 7; i >= 0; i--) {
+    clockBit(
+      (displayMem[0][1][digitIndex] >> i) & 1,
+      (displayMem[1][1][digitIndex] >> i) & 1,
+      (displayMem[2][1][digitIndex] >> i) & 1,
+      (displayMem[3][1][digitIndex] >> i) & 1,
+      0
+    );
+  }
 
-    def test_single_chip(self, chip_idx, digit_idx, bit_val=0xFF):
-        self.buffer = [[0 for _ in range(8)] for _ in range(10)]
-        if 0 <= chip_idx < 10 and 0 <= digit_idx < 8:
-            self.buffer[chip_idx][digit_idx] = bit_val
-            if chip_idx == 8:
-                self.buffer[9][digit_idx] = bit_val
-        self.update()
+  // Paket 2: Daten für den VORDEREN Chip (DIN: U1, U2, U5, U7) sowie U9 auf Strang D4
+  for (int i = 7; i >= 0; i--) {
+    byte b = (addr >> i) & 1;
+    clockBit(b, b, b, b, b);
+  }
+  for (int i = 7; i >= 0; i--) {
+    clockBit(
+      (displayMem[0][0][digitIndex] >> i) & 1,
+      (displayMem[1][0][digitIndex] >> i) & 1,
+      (displayMem[2][0][digitIndex] >> i) & 1,
+      (displayMem[3][0][digitIndex] >> i) & 1,
+      (displayMem[4][0][digitIndex] >> i) & 1
+    );
+  }
 
-    def set_led(self, chip, col_letter, row_num, state):
-        digit_idx = self.COL_TO_DIGIT[col_letter]
-        bit_pos = self.ROW_TO_BIT[row_num]
-        if state:
-            self.buffer[chip][digit_idx] |= (1 << bit_pos)
-        else:
-            self.buffer[chip][digit_idx] &= ~(1 << bit_pos)
-        if chip == 8:
-            self.buffer[9][digit_idx] = self.buffer[8][digit_idx]
+  delayMicroseconds(5);
+  digitalWrite(loadPin, HIGH);
+  delayMicroseconds(5);
+}
 
-    def set_pl_lamp(self, lamp_num, state):
-        self.check_light_auto_on()
-        if lamp_num in self.ALL_PL_LEDS:
-            for chip, col, row in self.ALL_PL_LEDS[lamp_num]:
-                self.set_led(chip, col, row, state)
+void clearAllDisplays() {
+  sendCommandToAll(0x0F, 0x00); 
+  for (int i = 0; i < 8; i++) {
+    for (int c = 0; c < 5; c++) {
+      displayMem[c][0][i] = 0;
+      displayMem[c][1][i] = 0;
+    }
+    updateDigitForAllStrands(i);
+  }
+}
 
-    def set_disp_char(self, disp_num, char, dot=False):
-        if disp_num not in self.DISP_TABLE:
-            return
-        chip, col_letter, seg_order = self.DISP_TABLE[disp_num]
-        digit_idx = self.COL_TO_DIGIT[col_letter]
+void fillAllDisplays() {
+  for (int i = 0; i < 8; i++) {
+    for (int c = 0; c < 5; c++) {
+      displayMem[c][0][i] = 0xFF;
+      displayMem[c][1][i] = 0xFF;
+    }
+    updateDigitForAllStrands(i);
+  }
+}
 
-        char = str(char).upper()
-        active_segs = list(self.FONT.get(char, []))
-        if dot:
-            active_segs.append("DP")
+void processSerialCommand(String command) {
+  command.trim();
+  if (command.length() == 0) return;
 
-        byte_val = 0
-        for seg in active_segs:
-            if seg in seg_order:
-                row_num = seg_order[seg]
-                bit_pos = self.ROW_TO_BIT[row_num]
-                byte_val |= (1 << bit_pos)
-
-        self.buffer[chip][digit_idx] = byte_val
-        if chip == 8:
-            self.buffer[9][digit_idx] = byte_val
-
-    def set_score(self, player_idx, score):
-        if player_idx not in self.PLAYER_DISP:
-            return
-        self.check_light_auto_on()
-        d_hund, d_ten, d_unit = self.PLAYER_DISP[player_idx]
-        if score is None or score == "":
-            self.set_disp_char(d_hund, " ")
-            self.set_disp_char(d_ten,  " ")
-            self.set_disp_char(d_unit, " ")
-            return
-
-        score = max(0, min(999, int(score)))
-        score_str = f"{score:3d}"
-        self.set_disp_char(d_hund, score_str[0])
-        self.set_disp_char(d_ten,  score_str[1])
-        self.set_disp_char(d_unit, score_str[2])
-
-    def set_temp_score(self, score):
-        self.check_light_auto_on()
-        d_hund, d_ten, d_unit = self.TEMP_SCORE_DISP
-        if score is None or score == "":
-            for d in (d_hund, d_ten, d_unit): self.set_disp_char(d, " ")
-            return
-        score_str = f"{max(0, min(999, int(score))):3d}"
-        self.set_disp_char(d_hund, score_str[0])
-        self.set_disp_char(d_ten,  score_str[1])
-        self.set_disp_char(d_unit, score_str[2])
-
-    def set_cricket_marks(self, player_idx, target, marks):
-        self.check_light_auto_on()
-        if target in self.CRICKET_TARGET_DISP:
-            d_ten, d_unit = self.CRICKET_TARGET_DISP[target]
-            t_str = f"{target:2d}"
-            self.set_disp_char(d_ten, t_str[0])
-            self.set_disp_char(d_unit, t_str[1])
-
-        if player_idx in self.CRICKET_LEDS and target in self.CRICKET_LEDS[player_idx]:
-            leds = self.CRICKET_LEDS[player_idx][target]
-            for i, (chip, col, row) in enumerate(leds):
-                self.set_led(chip, col, row, i < marks)
-
-    def clear_all(self):
-        self.buffer = [[0 for _ in range(8)] for _ in range(10)]
-        self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
-        if not self.ser: return
-        try:
-            self.ser.write(b"CLEAR\n")
-            self.ser.flush()
-            time.sleep(0.02)
-        except: pass
-
-    def update(self):
-        if not self.ser: return
+  if (command == "LIGHT:ON") {
+    digitalWrite(lightRelayPin, HIGH);
+  }
+  else if (command == "LIGHT:OFF") {
+    digitalWrite(lightRelayPin, LOW);
+  }
+  else if (command == "CLEAR") {
+    clearAllDisplays();
+  }
+  else if (command == "FILL" || command == "TEST:ON") {
+    fillAllDisplays();
+  }
+  else if (command == "TEST:OFF") {
+    clearAllDisplays();
+  }
+  else if (command.startsWith("RAW:")) {
+    int firstColon = command.indexOf(':');
+    int secondColon = command.indexOf(':', firstColon + 1);
+    int thirdColon = command.indexOf(':', secondColon + 1);
+    
+    if (secondColon > 0 && thirdColon > 0) {
+      int chip  = command.substring(firstColon + 1, secondColon).toInt();
+      int digit = command.substring(secondColon + 1, thirdColon).toInt();
+      int value = command.substring(thirdColon + 1).toInt();
+      
+      if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
+        int chain = chip / 2;      
+        int chipIdx = chip % 2;   
         
-        all_full = all(self.buffer[c][d] == 255 for c in range(9) for d in range(8))
-        if all_full:
-            if not all(self.last_sent[c][d] == 255 for c in range(9) for d in range(8)):
-                try:
-                    self.ser.write(b"FILL\n")
-                    self.ser.flush()
-                    for c in range(10):
-                        for d in range(8):
-                            self.last_sent[c][d] = 255
-                    time.sleep(0.02)
-                except: pass
-            return
+        if (chain == 4) {
+          displayMem[4][0][digit] = (byte)value; 
+        } else {
+          displayMem[chain][chipIdx][digit] = (byte)value; 
+        }
+        
+        updateDigitForAllStrands(digit);
+      }
+    }
+  }
+}
 
-        for chip in range(10):
-            for digit in range(8):
-                val = self.buffer[chip][digit]
-                if val != self.last_sent[chip][digit]:
-                    try:
-                        self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
-                        self.ser.flush()
-                        self.last_sent[chip][digit] = val
-                        time.sleep(0.004)
-                    except: pass
+void setup() {
+  Serial.begin(115200); 
+  for (int r = 0; r < 4; r++) { pinMode(rowPins[r], OUTPUT); digitalWrite(rowPins[r], HIGH); }
+  for (int c = 0; c < 16; c++) { pinMode(colPins[c], INPUT_PULLUP); }
+  
+  pinMode(btnRed, INPUT_PULLUP); pinMode(btnBlue, INPUT_PULLUP);
+  pinMode(btnGrey, INPUT_PULLUP); pinMode(btnStart, INPUT_PULLUP);
+  pinMode(btnPlayer, INPUT_PULLUP); pinMode(irSensorPin, INPUT_PULLUP);
+  
+  pinMode(lightRelayPin, OUTPUT); 
+  digitalWrite(lightRelayPin, LOW); 
+  
+  pinMode(clkPin, OUTPUT); pinMode(loadPin, OUTPUT);
+  for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
+  digitalWrite(clkPin, LOW); 
+  digitalWrite(loadPin, HIGH);
+  delay(500);
+
+  sendCommandToAll(0x0F, 0x00); 
+  sendCommandToAll(0x09, 0x00); 
+  sendCommandToAll(0x0B, 0x07); 
+  sendCommandToAll(0x0A, 0x0F); 
+  sendCommandToAll(0x0C, 0x01); 
+
+  clearAllDisplays();
+  Serial.println("SYSTEM:READY"); 
+}
+
+void loop() {
+  while (Serial.available() > 0) {
+    char c = Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (cmdIndex > 0) {
+        cmdBuffer[cmdIndex] = '\0';
+        processSerialCommand(String(cmdBuffer));
+        cmdIndex = 0;
+      }
+    } else if (cmdIndex < 62) {
+      cmdBuffer[cmdIndex++] = c;
+    }
+  }
+
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - lastHitTime > debounceDelay) {
+    for (int r = 0; r < 4; r++) {
+      digitalWrite(rowPins[r], LOW); 
+      delayMicroseconds(10);         
+      for (int c = 0; c < 16; c++) {
+        if (digitalRead(colPins[c]) == LOW) { 
+          String hitSegment = dartBoard[r][c];
+          if (hitSegment != "-") { 
+            Serial.print("HIT:"); Serial.println(hitSegment);
+            lastHitTime = currentMillis;  
+            piezoTriggered = false;     
+          }
+        }
+      }
+      digitalWrite(rowPins[r], HIGH); 
+    }
+  }
+
+  int piezoValue = analogRead(piezoPin);
+  if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
+    if (!piezoTriggered) { 
+      piezoTriggered = true; 
+      piezoHitTime = currentMillis; 
+    }
+  }
+  if (piezoTriggered && (currentMillis - piezoHitTime > piezoMatrixWaitTime)) {
+    Serial.println("MISS:1");
+    piezoTriggered = false; 
+    lastHitTime = currentMillis; 
+  }
+
+  stateRed = digitalRead(btnRed);
+  if (stateRed == LOW && lastRed == HIGH) { 
+    if (currentMillis - lastPressRed > btnDebounceDelay) { Serial.println("BTN:RED"); lastPressRed = currentMillis; }
+  }
+  lastRed = stateRed;
+
+  stateBlue = digitalRead(btnBlue);
+  if (stateBlue == LOW && lastBlue == HIGH) { 
+    if (currentMillis - lastPressBlue > btnDebounceDelay) { Serial.println("BTN:BLUE"); lastPressBlue = currentMillis; }
+  }
+  lastBlue = stateBlue;
+
+  stateGrey = digitalRead(btnGrey);
+  if (stateGrey == LOW && lastGrey == HIGH) { 
+    if (currentMillis - lastPressGrey > btnDebounceDelay) { Serial.println("BTN:GREY"); lastPressGrey = currentMillis; }
+  }
+  lastGrey = stateGrey;
+
+  stateStart = digitalRead(btnStart);
+  if (stateStart == LOW && lastStart == HIGH) { 
+    if (currentMillis - lastPressStart > btnDebounceDelay) { Serial.println("BTN:START"); lastPressStart = currentMillis; }
+  }
+  lastStart = stateStart;
+
+  statePlayer = digitalRead(btnPlayer);
+  if (statePlayer == LOW && lastPlayer == HIGH) { 
+    if (currentMillis - lastPressPlayer > btnDebounceDelay) { Serial.println("BTN:PLAYER"); lastPressPlayer = currentMillis; }
+  }
+  lastPlayer = statePlayer;
+
+  bool currentIrState = digitalRead(irSensorPin);
+  if (currentIrState == HIGH && lastIrState == LOW) {
+    if (currentMillis - lastIrChangeTime > irDebounceTime) {
+      Serial.println("IR:DETECT");
+      lastIrChangeTime = currentMillis;
+    }
+  }
+  lastIrState = currentIrState;
+
+  static unsigned long comboTimer = 0;
+  static bool comboTriggered = false;
+  if ((digitalRead(btnRed) == LOW) && (digitalRead(btnBlue) == LOW) && (digitalRead(btnGrey) == LOW)) {
+    if (comboTimer == 0) { comboTimer = currentMillis; }
+    else if (currentMillis - comboTimer >= 2000 && !comboTriggered) {
+      Serial.println("BTN:COMBO");
+      comboTriggered = true;
+    }
+  } else {
+    comboTimer = 0;
+    comboTriggered = false;
+  }
+}
