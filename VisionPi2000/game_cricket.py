@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.3.1"
+VERSION = "1.3.3"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -22,6 +22,14 @@ def get_bot_hit(bot_marks, p1_marks, diff):
                 return "b" if t == 25 else (f"t{t}" if diff == 3 and random.random() < 0.5 else str(t))
         return "20"
     return str(random.randint(1, 14))
+
+def safe_load_sound(path):
+    if os.path.exists(path):
+        try:
+            return pygame.mixer.Sound(path)
+        except:
+            return None
+    return None
 
 class ScreenSaver:
     def __init__(self, width, height):
@@ -80,14 +88,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         try: champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (350, 350))
         except: pass
 
-    sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
-    sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
-    sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
-    sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
-    sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
+    # Absolut sicheres Laden der Sounds ohne Absturzgefahr
+    sound_single = safe_load_sound("sounds/hit_single.wav")
+    sound_double = safe_load_sound("sounds/hit_double.wav")
+    sound_triple = safe_load_sound("sounds/hit_triple.wav")
+    sound_switch = safe_load_sound("sounds/switch_player.wav")
+    sound_champ = safe_load_sound("sounds/champ.wav")
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
-    big_font = pygame.font.SysFont("arial", 24, bold=True)
+    big_font = pygame.font.SysFont("arial", 22, bold=True)
     giant_font = pygame.font.SysFont("arial", 90, bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
@@ -248,18 +257,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (40, 55))
             
-            # Tiefergelegte Tabelle (start_y = 120), damit oben und unten alles frei bleibt
             col_width = 80
             start_x = 180
             start_y = 120
 
-            # Spaltenköpfe (Ziele: 15 bis BULL)
             for j, target in enumerate(TARGETS):
                 t_label = "BULL" if target == 25 else str(target)
                 lbl_surf = big_font.render(t_label, True, HIGHLIGHT)
                 screen.blit(lbl_surf, (start_x + j * col_width + (col_width - lbl_surf.get_width()) // 2, start_y))
 
-            # Zeilen (Spieler untereinander)
             row_height = 30
             for p in range(total_players):
                 row_y = start_y + 30 + p * row_height
@@ -277,7 +283,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, SCREEN_HEIGHT - 45))
             
-            # Ganz nach unten verschoben, unüberdeckt
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, SCREEN_HEIGHT - 45))
 
             if pygame.time.get_ticks() < champ_display_until and champ_img:
