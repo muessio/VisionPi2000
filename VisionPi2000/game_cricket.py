@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.3.6"
+VERSION = "1.3.7"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -87,7 +87,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
-    big_font = pygame.font.SysFont("arial", 26, bold=True)       # Etwas größer für bessere Lesbarkeit
+    big_font = pygame.font.SysFont("arial", 22, bold=True)       # Sichere, kompakte Größe für alle Auflösungen
     giant_font = pygame.font.SysFont("arial", 90, bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
@@ -246,12 +246,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if current_state == "GAME":
             screen.blit(title_font.render(f"SPIEL: {game_name}  |  Runde {round_num}", True, HIGHLIGHT), (40, 20))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
-            screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (40, 55))
+            screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (40, 50))
             
-            # Etwas großzügigeres Matrix-Layout für eine größere Tabelle
-            col_width = 92
+            # Harmonische, leicht vergrößerte Tabellen-Maße im sicheren Bereich
+            col_width = 85
             start_x = 160
-            start_y = 110
+            start_y = 100
 
             # Spaltenköpfe (Ziele: 15 bis BULL)
             for j, target in enumerate(TARGETS):
@@ -259,10 +259,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 lbl_surf = big_font.render(t_label, True, HIGHLIGHT)
                 screen.blit(lbl_surf, (start_x + j * col_width + (col_width - lbl_surf.get_width()) // 2, start_y))
 
-            # Zeilen (Spieler untereinander mit etwas mehr Abstand)
-            row_height = 38
+            # Zeilen (Spieler untereinander)
+            row_height = 34
             for p in range(total_players):
-                row_y = start_y + 35 + p * row_height
+                row_y = start_y + 32 + p * row_height
                 p_n = f"P{p+1}" if not (is_berry_game and p == total_players-1) else "Berry"
                 c = HIGHLIGHT if p == (active_player - 1) else WHITE
                 name_surf = big_font.render(p_n, True, c)
@@ -276,10 +276,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
-                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, SCREEN_HEIGHT - 45))
+                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, SCREEN_HEIGHT - 70))
             
-            # Pfeile geworfen ganz nach unten gerückt
-            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, SCREEN_HEIGHT - 40))
+            # Sicher im sichtbaren Bildschirmbereich platziert (garantiert kein Out-of-Bounds-Crash)
+            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, SCREEN_HEIGHT - 60))
 
             # Bullseye-Berry / Champ Animation bei besonderen Treffern
             if pygame.time.get_ticks() < champ_display_until and champ_img is not None:
