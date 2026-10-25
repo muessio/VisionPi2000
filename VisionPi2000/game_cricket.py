@@ -2,8 +2,9 @@ import pygame
 import math
 import os
 import random
+import time
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -59,10 +60,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
-    try:
-        display.clear_all()
-    except:
-        pass
+    try: display.clear_all()
+    except: pass
 
     bg_img = None
     if os.path.exists("background.png"):
@@ -88,6 +87,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
     sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
     sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
+    sound_miss = pygame.mixer.Sound("sounds/miss.wav") if os.path.exists("sounds/miss.wav") else None
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
     big_font = pygame.font.SysFont("arial", 28, bold=True)
@@ -99,6 +99,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     round_num, round_points = 1, 0
     champ_display_until = 0
     combo_press_start = 0
+    switch_delay_timer = 0
 
     def sync_hw_display(update_player_idx=None):
         try:
@@ -118,8 +119,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             display.set_temp_score(round_points)
             display.set_turn(round_num)
             display.update()
-        except:
-            pass
+        except: pass
 
     sync_hw_display()
 
@@ -150,18 +150,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
-        # Abbruch-Combo Überprüfung (Rot + Blau + Grau bzw. BTN:COMBO)
+        # IR-Sensor-Blockade: IR:DETECT wird ignoriert, solange nicht alle 3 Pfeile geworfen sind
+        if raw_data == "IR:DETECT" and darts_thrown < 3:
+            raw_data = None
+
         keys = pygame.key.get_pressed()
         trigger_abort = False
-        if raw_data == "BTN:COMBO":
-            trigger_abort = True
+        if raw_data == "BTN:COMBO": trigger_abort = True
         elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
-            if combo_press_start == 0:
-                combo_press_start = pygame.time.get_ticks()
-            elif pygame.time.get_ticks() - combo_press_start >= 2000:
-                trigger_abort = True
-        else:
-            combo_press_start = 0
+            if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
+            elif pygame.time.get_ticks() - combo_press_start >= 2000: trigger_abort = True
+        else: combo_press_start = 0
 
         if trigger_abort:
             confirming = True
@@ -187,15 +186,23 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         elif s_in == "BTN:START": cancel_action = "NO"
                     except: pass
                 if cancel_action == "YES": return
-                elif cancel_action == "NO":
-                    confirming = False
-                    combo_press_start = 0
+                elif cancel_action == "NO": confirming = False; combo_press_start = 0
             raw_data = None
+
+        # Prüfen auf 1 Sekunde Verzögerung beim automatischen Spielerwechsel nach 3 Darts
+        if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
+            switch_delay_timer = 0
+            darts_thrown = 0
+            round_points = 0
+            if active_player == total_players: round_num += 1
+            active_player = (active_player % total_players) + 1
+            if sound_switch is not None: sound_switch.play()
+            sync_hw_display(active_player - 1)
 
         is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None:
+        if is_berrys_turn and current_state == "GAME" and raw_data is None and switch_delay_timer == 0:
             if darts_thrown < 3:
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
                 elif pygame.time.get_ticks() > bot_timer:
@@ -205,12 +212,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             else:
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
                 elif pygame.time.get_ticks() > bot_timer:
-                    darts_thrown = 0
-                    round_points = 0
-                    if active_player == total_players: round_num += 1
-                    active_player = (active_player % total_players) + 1
-                    if sound_switch is not None: sound_switch.play()
-                    sync_hw_display(active_player - 1)
+                    switch_delay_timer = pygame.time.get_ticks() + 1000
                     bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
@@ -218,6 +220,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if current_state == "GAME":
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     if sound_switch is not None: sound_switch.play()
+                    switch_delay_timer = 0
                     darts_thrown = 0
                     round_points = 0
                     if active_player == total_players: round_num += 1
@@ -227,29 +230,44 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     
-                    is_special_hit = hit_seg in ["t16", "t17", "t18", "t19", "t20", "b", "db"]
+                    p_idx = active_player - 1
+                    val, marks = parse_hit(hit_seg) if hit_seg != "MISS" else (0, 0)
+
+                    # Nur gültige Cricket-Ziele (15-20, Bull) lösen Spezial-Sounds/Animationen aus
+                    is_valid_cricket_hit = (val in TARGETS)
+                    is_special_hit = is_valid_cricket_hit and hit_seg in ["t16", "t17", "t18", "t19", "t20", "b", "db"]
+
                     if is_special_hit:
                         champ_display_until = pygame.time.get_ticks() + 2000
                         if sound_champ is not None: sound_champ.play()
-                    elif hit_seg != "-" and hit_seg != "MISS":
+                    elif hit_seg != "-" and hit_seg != "MISS" and is_valid_cricket_hit:
                         if hit_seg.startswith("t") and sound_triple is not None: sound_triple.play()
                         elif (hit_seg.startswith("d") or hit_seg == "db") and sound_double is not None: sound_double.play()
                         elif sound_single is not None: sound_single.play()
-                    elif hit_seg == "MISS" and sound_single is not None:
-                        sound_single.play()
+                    else:
+                        # Fehlwurf / Ungültiger Treffer -> Miss Sound
+                        if sound_miss is not None: sound_miss.play()
 
-                    p_idx = active_player - 1
-                    val, marks = parse_hit(hit_seg) if hit_seg != "MISS" else (0, 0)
                     if val in TARGETS:
                         for _ in range(marks):
                             if player_marks[p_idx][val] < 3: player_marks[p_idx][val] += 1
                             elif not all(player_marks[i][val] >= 3 for i in range(total_players)):
                                 player_scores[p_idx] += val
                                 round_points += val
+                    
                     darts_thrown += 1
                     sync_hw_display(p_idx)
+
+                    if darts_thrown >= 3 and switch_delay_timer == 0:
+                        switch_delay_timer = pygame.time.get_ticks() + 1000
+
                     if check_win(): current_state = "WIN"
-            elif current_state == "WIN" and raw_data == "BTN:START": running = False
+
+            elif current_state == "WIN":
+                # Spielende: Rückkehr ins Hauptmenü über Spielerwechsel-Button
+                if raw_data in ["BTN:PLAYER", "BTN:START"] or (e.type == pygame.KEYDOWN and e.key == pygame.K_p):
+                    if sound_switch is not None: sound_switch.play()
+                    return
 
         if screensaver.check():
             screensaver.update_and_draw(screen, title_font)
@@ -300,6 +318,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 anim_size = int(150 + math.sin(pygame.time.get_ticks() * 0.005) * 10) 
                 screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (880, 200))
         elif current_state == "WIN":
-            screen.blit(giant_font.render("GEWONNEN!", True, (50, 255, 50)), (250, 250))
+            screen.blit(giant_font.render("GEWONNEN!", True, (50, 255, 50)), (250, 220))
+            hint_txt = title_font.render("Drücke Taste 'Spielerwechsel' für das Hauptmenü", True, WHITE)
+            screen.blit(hint_txt, ((screen.get_width() - hint_txt.get_width()) // 2, 360))
             
         pygame.display.flip(); clock.tick(30)
+        
