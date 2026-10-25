@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.4.0"
+VERSION = "1.6.0"
 GAMES = ["301 Elimination"]
 OPTIONS = ["Standard", "Schnell"]
 
@@ -129,10 +129,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
-        is_berrys_turn = (is_berry_game and active_player == total_players)
-        if raw_data == "IR:DETECT" and darts_thrown < 3:
-            raw_data = None
-
         keys = pygame.key.get_pressed()
         trigger_abort = False
         if raw_data == "BTN:COMBO": trigger_abort = True
@@ -168,43 +164,51 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif cancel_action == "NO": confirming = False; combo_press_start = 0
             raw_data = None 
 
-        if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
-            switch_delay_timer = 0
-            darts_thrown = 0
-            round_points = 0
-            if active_player == total_players: round_num += 1
-            active_player = (active_player % total_players) + 1
-            if sound_switch is not None: sound_switch.play()
-            sync_hw_display()
+        if current_state == "GAME":
+            is_berrys_turn = (is_berry_game and active_player == total_players)
+            
+            # --- 1. Exakte Spielerwechsel-Steuerung ---
+            if raw_data == "BTN:PLAYER":
+                switch_delay_timer = pygame.time.get_ticks() 
+                raw_data = None
+            elif raw_data == "IR:DETECT":
+                if darts_thrown >= 3 and not is_berrys_turn and switch_delay_timer == 0:
+                    switch_delay_timer = pygame.time.get_ticks() + 1000
+                raw_data = None
+            
+            if is_berrys_turn and darts_thrown >= 3 and switch_delay_timer == 0:
+                if bot_timer == 0:
+                    bot_timer = pygame.time.get_ticks() + 1000
+                elif pygame.time.get_ticks() > bot_timer:
+                    switch_delay_timer = pygame.time.get_ticks() + 1000
+                    bot_timer = 0
 
-        if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
+            # Ausführung des Spielerwechsels
+            if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
+                switch_delay_timer = 0
+                darts_thrown = 0
+                round_points = 0
+                if active_player == total_players: round_num += 1
+                active_player = (active_player % total_players) + 1
+                if sound_switch is not None: sound_switch.play()
+                sync_hw_display()
+                bot_timer = 0
+                is_berrys_turn = (is_berry_game and active_player == total_players)
 
-        if is_berrys_turn and current_state == "GAME" and raw_data is None and switch_delay_timer == 0:
-            if darts_thrown < 3:
+            # --- 2. Berry Wurf-Automatik ---
+            if is_berrys_turn and switch_delay_timer == 0 and darts_thrown < 3:
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
                 elif pygame.time.get_ticks() > bot_timer:
                     diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
                     raw_data = f"HIT:{get_bot_hit(player_scores[total_players-1], target_score, diff)}"
                     bot_timer = 0 
-            else:
-                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1000
-                elif pygame.time.get_ticks() > bot_timer:
-                    switch_delay_timer = pygame.time.get_ticks() + 1000
-                    bot_timer = 0
-        elif not is_berrys_turn: bot_timer = 0
+            elif not is_berrys_turn: 
+                bot_timer = 0
 
+        # --- 3. Treffer-Verarbeitung (KOMPLETT OHNE AUTO-SWITCH) ---
         if raw_data:
             if current_state == "GAME":
-                if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
-                    if sound_switch is not None: sound_switch.play()
-                    switch_delay_timer = 0
-                    darts_thrown = 0
-                    round_points = 0
-                    if active_player == total_players: round_num += 1
-                    active_player = (active_player % total_players) + 1
-                    sync_hw_display()
-                
-                elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+                if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     
                     if hit_seg != "-" and hit_seg != "MISS":
@@ -229,8 +233,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         darts_thrown = 3 
                         if sound_bust is not None: sound_bust.play()
                         sync_hw_display()
-                        if switch_delay_timer == 0:
-                            switch_delay_timer = pygame.time.get_ticks() + 1000
                     else:
                         player_scores[active_player-1] = new_score
                         round_points += points
@@ -239,8 +241,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             if p_idx != (active_player - 1) and player_scores[p_idx] == new_score and new_score != 0:
                                 player_scores[p_idx] = 0
                         sync_hw_display()
-                        if darts_thrown >= 3 and switch_delay_timer == 0:
-                            switch_delay_timer = pygame.time.get_ticks() + 1000
                         if new_score == target_score: current_state = "WIN"
 
             elif current_state == "WIN":
