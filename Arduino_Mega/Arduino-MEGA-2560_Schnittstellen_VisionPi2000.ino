@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (PUFFER-FIX & SCHNELLES UPDATE)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (SPI-FLANKEN-FIX & RELAIS-FIX)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -44,26 +44,39 @@ unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300;
 
 void sendCommandToAll(byte addr, byte data) {
+  digitalWrite(clkPin, LOW);
   digitalWrite(loadPin, LOW);
+  delayMicroseconds(2);
+
   for (int repeat = 0; repeat < 2; repeat++) {
     for (int i = 7; i >= 0; i--) {
       digitalWrite(clkPin, LOW);
       byte b = (addr >> i) & 1;
       for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], b); }
+      delayMicroseconds(2);
       digitalWrite(clkPin, HIGH);
+      delayMicroseconds(2);
     }
     for (int i = 7; i >= 0; i--) {
       digitalWrite(clkPin, LOW);
       byte b = (data >> i) & 1;
       for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], b); }
+      delayMicroseconds(2);
       digitalWrite(clkPin, HIGH);
+      delayMicroseconds(2);
     }
   }
+  // WICHTIG: Erst CLK auf LOW ziehen, DANN LOAD auf HIGH flanken!
+  digitalWrite(clkPin, LOW);
+  delayMicroseconds(2);
   digitalWrite(loadPin, HIGH);
+  delayMicroseconds(2);
 }
 
 void updateDigitForAllStrands(int digitIndex) {
+  digitalWrite(clkPin, LOW);
   digitalWrite(loadPin, LOW);
+  delayMicroseconds(2);
 
   byte addr = digitIndex + 1;
 
@@ -73,13 +86,17 @@ void updateDigitForAllStrands(int digitIndex) {
     byte b = (addr >> i) & 1;
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], b); }
     digitalWrite(dPins[4], LOW); // Strang 4 (Einzelchip U9) bekommt No-Op 0
+    delayMicroseconds(2);
     digitalWrite(clkPin, HIGH);
+    delayMicroseconds(2);
   }
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
     digitalWrite(dPins[4], LOW);
+    delayMicroseconds(2);
     digitalWrite(clkPin, HIGH);
+    delayMicroseconds(2);
   }
 
   // --- PAKET 2 (Zweite 16 Takte): Für den VORDEREN Chip (Chip 0: U1, U2, U5, U7, U9) ---
@@ -87,15 +104,23 @@ void updateDigitForAllStrands(int digitIndex) {
     digitalWrite(clkPin, LOW);
     byte b = (addr >> i) & 1;
     for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], b); }
+    delayMicroseconds(2);
     digitalWrite(clkPin, HIGH);
+    delayMicroseconds(2);
   }
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
+    delayMicroseconds(2);
     digitalWrite(clkPin, HIGH);
+    delayMicroseconds(2);
   }
 
+  // WICHTIG: Erst CLK auf LOW ziehen, DANN LOAD auf HIGH flanken (verhindert Bit-Shift an DOUT->DIN)!
+  digitalWrite(clkPin, LOW);
+  delayMicroseconds(2);
   digitalWrite(loadPin, HIGH);
+  delayMicroseconds(2);
 }
 
 void clearAllDisplays() {
@@ -122,21 +147,22 @@ void setup() {
   
   pinMode(clkPin, OUTPUT); pinMode(loadPin, OUTPUT);
   for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
-  digitalWrite(clkPin, HIGH); digitalWrite(loadPin, HIGH);
+  // Ruhepegel: CLK = LOW, LOAD = HIGH!
+  digitalWrite(clkPin, LOW); 
+  digitalWrite(loadPin, HIGH);
   delay(500);
 
+  sendCommandToAll(0x0F, 0x00); // Display-Test aus
   sendCommandToAll(0x09, 0x00); // Keine BCD-Decodierung
   sendCommandToAll(0x0B, 0x07); // Scan Limit: Alle 8 Digits
   sendCommandToAll(0x0A, 0x0F); // Helligkeit: Maximum
   sendCommandToAll(0x0C, 0x01); // Normal Operation (Kein Shutdown)
-  sendCommandToAll(0x0F, 0x00); // Display-Test sicher ausschalten
 
   clearAllDisplays();
   Serial.println("SYSTEM:READY"); 
 }
 
 void loop() {
-  // ALLE anstehenden seriellen Befehle sofort abarbeiten, damit der 64-Byte Puffer nie überläuft!
   while (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');
     command.trim(); 
