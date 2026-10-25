@@ -33,16 +33,16 @@ class LoewenDisplay:
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Vollständig korrigierte Segment-Tabellen für ALLE Chips U1 bis U9 nach Schaltplan[cite: 8]
+        # Vollständige Segment-Tabellen (U3 exakt auf U1 gespiegelt für maximale Stabilität)
         SEG_U1      = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 }
         SEG_U1_SPEC = { "A": 5, "B": 3, "C": 6, "D": 7, "E": 4, "F": 1, "G": 2, "DP": 8 }
         SEG_U2      = { "A": 5, "B": 2, "C": 1, "D": 3, "E": 4, "F": 7, "G": 6, "DP": 8 }
-        SEG_U3      = { "A": 4, "B": 2, "C": 3, "D": 5, "E": 1, "F": 6, "G": 7, "DP": 8 }
-        SEG_U4      = { "A": 5, "B": 2, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 1 } # Korrigiert nach U4 Schaltplan[cite: 8]
-        SEG_U5_U6   = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 } # Korrigiert nach U5/U6[cite: 8]
-        SEG_U7      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 } # Korrigiert nach U7[cite: 8]
-        SEG_U8      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 6 } # Korrigiert nach U8[cite: 8]
-        SEG_U9      = { "A": 8, "B": 7, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 1 } # Korrigiert nach U9[cite: 8]
+        SEG_U3      = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 } # Auf U1-Basis gespiegelt!
+        SEG_U4      = { "A": 5, "B": 2, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 1 }
+        SEG_U5_U6   = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 }
+        SEG_U7      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 }
+        SEG_U8      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 6 }
+        SEG_U9      = { "A": 8, "B": 7, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 1 }
 
         self.DISP_TABLE = {
             1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
