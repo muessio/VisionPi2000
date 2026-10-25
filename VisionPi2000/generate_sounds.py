@@ -3,6 +3,9 @@ import struct
 import math
 import os
 
+# Revisionsindex: v1.1.0 (Erweiterter Miss-Ton & Revisionsverwaltung)
+VERSION = "1.1.0"
+
 os.makedirs("sounds", exist_ok=True)
 
 def save_wav(filename, audio_data, sample_rate=44100):
@@ -15,8 +18,9 @@ def save_wav(filename, audio_data, sample_rate=44100):
             f.writeframesraw(struct.pack('<h', val))
 
 def generate_arcade_sounds():
-    print("Generiere alle Retro-Arcade Sounds (inkl. Bust & Miss)...")
+    print("Generiere Sounds (mit knackigerem Fehlwurf-Ton)...")
     
+    # 1. CLICK (Menü)
     click = []
     for i in range(int(44100 * 0.05)):
         t = i / 44100.0
@@ -24,6 +28,7 @@ def generate_arcade_sounds():
         click.append(val)
     save_wav("sounds/click.wav", click)
 
+    # 2. START
     start = []
     for freq in [440.0, 554.37, 659.25, 880.0]:
         for i in range(int(44100 * 0.1)):
@@ -31,6 +36,7 @@ def generate_arcade_sounds():
             start.append(math.copysign(0.3, math.sin(2 * math.pi * freq * t)))
     save_wav("sounds/start.wav", start)
 
+    # 3. SPIELERWECHSEL
     switch_player = []
     for i in range(int(44100 * 0.12)):
         t = i / 44100.0
@@ -39,6 +45,7 @@ def generate_arcade_sounds():
         switch_player.append(val)
     save_wav("sounds/switch_player.wav", switch_player)
 
+    # 4. BUST / ÜBERWORFEN
     bust = []
     for i in range(int(44100 * 0.25)):
         t = i / 44100.0
@@ -47,13 +54,17 @@ def generate_arcade_sounds():
         bust.append(val)
     save_wav("sounds/bust.wav", bust)
 
+    # 5. MISS / FEHLWURF (Jetzt markanter, etwas höher und kerniger)
     miss = []
-    for i in range(int(44100 * 0.1)):
+    for i in range(int(44100 * 0.12)):
         t = i / 44100.0
-        val = math.copysign(0.2, math.sin(2 * math.pi * 180 * t)) * math.exp(-t * 30)
+        freq = 240 - t * 120  # Leichter Abwärtstrend, aber kerniger
+        # Etwas härtere Charakteristik für mehr Präsenz
+        val = math.copysign(0.3, math.sin(2 * math.pi * freq * t)) * math.exp(-t * 35)
         miss.append(val)
     save_wav("sounds/miss.wav", miss)
 
+    # 6. CHAMP / BULLSEYE FANFARE
     champ = []
     for i in range(int(44100 * 0.15)):
         champ.append(math.copysign(0.3, math.sin(2 * math.pi * 783.99 * (i / 44100.0))))
@@ -63,6 +74,7 @@ def generate_arcade_sounds():
         champ.append(math.copysign(0.3, math.sin(2 * math.pi * 1046.50 * t)) * math.exp(-t * 3))
     save_wav("sounds/champ.wav", champ)
 
+    # 7. HIT SINGLE
     hit_s = []
     for i in range(int(44100 * 0.08)):
         t = i / 44100.0
@@ -70,6 +82,7 @@ def generate_arcade_sounds():
         hit_s.append(val)
     save_wav("sounds/hit_single.wav", hit_s)
 
+    # 8. HIT DOUBLE
     hit_d = []
     for i in range(int(44100 * 0.1)):
         t = i / 44100.0
@@ -77,6 +90,7 @@ def generate_arcade_sounds():
         hit_d.append(val)
     save_wav("sounds/hit_double.wav", hit_d)
 
+    # 9. HIT TRIPLE
     hit_t = []
     for i in range(int(44100 * 0.12)):
         t = i / 44100.0
@@ -85,8 +99,7 @@ def generate_arcade_sounds():
         hit_t.append(val)
     save_wav("sounds/hit_triple.wav", hit_t)
 
-    print("\nAlle Sounds erfolgreich generiert!")
+    print("\nAlle Sounds (mit knackigerem Miss-Ton) erfolgreich generiert!")
 
 if __name__ == "__main__":
     generate_arcade_sounds()
-    
