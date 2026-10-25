@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.3.9"
+VERSION = "1.4.0"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -90,7 +90,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
-    big_font = pygame.font.SysFont("arial", 28, bold=True)       # Größere Schrift für bessere Lesbarkeit
+    big_font = pygame.font.SysFont("arial", 28, bold=True)
     giant_font = pygame.font.SysFont("arial", 90, bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
@@ -98,6 +98,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     darts_thrown, active_player = 0, 1
     round_num, round_points = 1, 0
     champ_display_until = 0
+    combo_press_start = 0
 
     def sync_hw_display(update_player_idx=None):
         try:
@@ -122,7 +123,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     sync_hw_display()
 
-    running, clock, current_state, bot_timer, combo_press_start = True, pygame.time.Clock(), "GAME", 0, 0
+    running, clock, current_state, bot_timer = True, pygame.time.Clock(), "GAME", 0
 
     def check_win():
         for i in range(total_players):
@@ -141,13 +142,55 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif e.key == pygame.K_i: raw_data = "IR:DETECT"
-                elif e.key == pygame.K_1: raw_data = "HIT:20"
-                elif e.key == pygame.K_2: raw_data = "HIT:t20"
-                elif e.key == pygame.K_3: raw_data = "HIT:b"
+                elif e.key == pygame.K_r: raw_data = "BTN:RED"
+                elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
+                elif e.key == pygame.K_g: raw_data = "BTN:GREY"
                 elif e.key == pygame.K_0: raw_data = "HIT:WIN_CHEAaT"
                 elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
+
+        # Abbruch-Combo Überprüfung (Rot + Blau + Grau bzw. BTN:COMBO)
+        keys = pygame.key.get_pressed()
+        trigger_abort = False
+        if raw_data == "BTN:COMBO":
+            trigger_abort = True
+        elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
+            if combo_press_start == 0:
+                combo_press_start = pygame.time.get_ticks()
+            elif pygame.time.get_ticks() - combo_press_start >= 2000:
+                trigger_abort = True
+        else:
+            combo_press_start = 0
+
+        if trigger_abort:
+            confirming = True
+            if ser:
+                try: ser.reset_input_buffer()
+                except: pass
+            while confirming:
+                if bg_img: screen.blit(bg_img, (0, 0))
+                else: screen.fill((0, 0, 0))
+                screen.blit(big_font.render("SPIEL ABBRECHEN?", True, RED_COL), (330, 180))
+                screen.blit(title_font.render("Spiel abbrechen mit Taste Spielerwechsel", True, WHITE), (240, 280))
+                screen.blit(title_font.render("Weiterspielen mit Taste Start", True, HIGHLIGHT), (310, 340))
+                pygame.display.flip()
+                cancel_action = None
+                for ev in pygame.event.get():
+                    if ev.type == pygame.KEYDOWN:
+                        if ev.key in [pygame.K_p, pygame.K_ESCAPE]: cancel_action = "YES"
+                        elif ev.key in [pygame.K_SPACE, pygame.K_RETURN]: cancel_action = "NO"
+                if ser and ser.in_waiting > 0:
+                    try:
+                        s_in = ser.readline().decode('utf-8','ignore').strip()
+                        if s_in == "BTN:PLAYER": cancel_action = "YES"
+                        elif s_in == "BTN:START": cancel_action = "NO"
+                    except: pass
+                if cancel_action == "YES": return
+                elif cancel_action == "NO":
+                    confirming = False
+                    combo_press_start = 0
+            raw_data = None
 
         is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
@@ -222,18 +265,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (40, 55))
             
-            # Vergrößertes Tabellen-Layout
             col_width = 100
             start_x = 140
             start_y = 110
 
-            # Spaltenköpfe (Ziele: 15 bis BULL)
             for j, target in enumerate(TARGETS):
                 t_label = "BULL" if target == 25 else str(target)
                 lbl_surf = big_font.render(t_label, True, HIGHLIGHT)
                 screen.blit(lbl_surf, (start_x + j * col_width + (col_width - lbl_surf.get_width()) // 2, start_y))
 
-            # Zeilen (Spieler untereinander)
             row_height = 45
             for p in range(total_players):
                 row_y = start_y + 40 + p * row_height
@@ -242,7 +282,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 name_surf = big_font.render(p_n, True, c)
                 screen.blit(name_surf, (40, row_y))
 
-                # Marks für jeden Spieler bei jedem Ziel anzeigen
                 for j, target in enumerate(TARGETS):
                     marks = player_marks[p][target]
                     m_surf = big_font.render(f"{marks}/3", True, (50, 255, 50) if marks == 3 else WHITE)
@@ -252,10 +291,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, screen.get_height() - 75))
             
-            # Pfeile geworfen ganz nach unten gerückt
             screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, screen.get_height() - 50))
 
-            # Bullseye-Berry / Champ Animation bei besonderen Treffern
             if pygame.time.get_ticks() < champ_display_until and champ_img is not None:
                 screen.blit(champ_img, ((screen.get_width() - 350) // 2, (screen.get_height() - 350) // 2))
                 screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((screen.get_width() - 200) // 2, (screen.get_height() // 2 + 150)))
