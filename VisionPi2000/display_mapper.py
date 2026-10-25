@@ -6,6 +6,7 @@ class LoewenDisplay:
         self.ser = ser
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
         self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
+        self.light_state = True  # Start-Status für den Lampentreiber
 
         self.FONT = {
             "0": ["A", "B", "C", "D", "E", "F"],
@@ -30,65 +31,51 @@ class LoewenDisplay:
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Anhand der Live-Fotos (47498.jpg & 47497.jpg) verifizierte Segment-Tabellen:
         SEG_U1       = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
         SEG_U1_SPEC  = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
-        # U2 Fix: Zeile 3 ist D (unten), Zeile 7 ist F (oben links) -> behebt "901" zu "301"
         SEG_U2       = { "C": 1, "B": 2, "D": 3, "E": 4, "A": 5, "G": 6, "F": 7, "DP": 8 }
-        # U3 Original laut Schaltplan Blatt 3 (mit F=6, G=7)
         SEG_U3       = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
         SEG_U4       = { "B": 1, "DP": 2, "E": 3, "F": 4, "A": 5, "G": 6, "C": 7, "D": 8 }
         SEG_U5_U6    = { "B": 1, "DP": 2, "D": 3, "F": 4, "A": 5, "G": 6, "C": 7, "E": 8 }
         SEG_U7       = { "E": 1, "C": 2, "B": 3, "F": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
-        # U8 Fix: B liegt auf Zeile 3, DP auf Zeile 6 -> behebt "0.1" und "3. 1"
         SEG_U8       = { "F": 1, "C": 2, "B": 3, "E": 4, "A": 5, "DP": 6, "D": 7, "G": 8 }
-        # U9 Fix: B liegt auf Zeile 7, DP auf Zeile 8 -> behebt "3.0.1" zu "301"
         SEG_U9       = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "B": 7, "DP": 8 }
 
         self.DISP_TABLE = {
-            # Strang D0: U1 (Chip 0), U3 (Chip 1)
             1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
             7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
             
-            # Strang D1: U2 (Chip 2), U4 (Chip 3)
             4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
             16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
             
-            # Strang D2: U5 (Chip 4), U6 (Chip 5)
             19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
             22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
             
-            # Strang D3: U7 (Chip 6), U8 (Chip 7)
             25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
             31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8),
             36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
             
-            # Strang D4: U9 (Chip 8)
             28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9), 35: (8, "B", SEG_U9),
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
-        # =========================================================================
-        # PHYSISCHE SPIELER-BLÖCKE (Hunderter, Zehner, Einer von links nach rechts)
-        # =========================================================================
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     # Block 1: 301 perfekt!
-            1: (5, 4, 6),     # Block 2: 5=links, 4=Mitte, 6=rechts
-            2: (9, 8, 7),     # Block 3: 9=links, 8=Mitte, 7=rechts (behebt "103" zu "301")
-            3: (12, 11, 10),  # Block 4: 12=links, 11=Mitte, 10=rechts
-            4: (30, 31, 32),  # Block 5
-            5: (33, 34, 35),  # Block 6
-            6: (36, 37, 38),  # Block 7
-            7: (39, 40, 41),  # Block 8
+            0: (1, 2, 3),     
+            1: (5, 4, 6),     
+            2: (9, 8, 7),     
+            3: (10, 11, 12),  
+            4: (30, 31, 32),  
+            5: (33, 34, 35),  
+            6: (36, 37, 38),  
+            7: (39, 40, 41),  
         }
 
         self.TEMP_SCORE_DISP = (25, 26, 27)
         self.TURN_DISP       = (28, 29)
 
-        # Grüne Cricket-Zielzahlen in der Mitte
         self.CRICKET_TARGET_DISP = {
             20: (13, 14),
             19: (15, 16),
@@ -99,7 +86,7 @@ class LoewenDisplay:
         }
 
         self.CRICKET_LEDS = {
-            0: { # Spieler 1 (PL1)
+            0: {
                 20: [(2, "H", 5), (2, "G", 2), (2, "G", 3)],
                 19: [(3, "F", 1), (3, "G", 2), (3, "H", 1)],
                 18: [(3, "H", 5), (3, "F", 8), (3, "F", 7)],
@@ -108,7 +95,7 @@ class LoewenDisplay:
                 15: [(6, "D", 2), (6, "D", 6), (6, "D", 7)],
                 25: [(6, "F", 5), (6, "F", 6), (6, "G", 3)],
             },
-            1: { # Spieler 2 (PL2)
+            1: {
                 20: [(2, "E", 4), (2, "H", 7), (2, "H", 1)],
                 19: [(2, "H", 5), (3, "F", 3), (3, "H", 4)],
                 18: [(3, "F", 6), (3, "H", 6), (3, "F", 2)],
@@ -117,7 +104,7 @@ class LoewenDisplay:
                 15: [(6, "D", 5), (6, "D", 1), (6, "D", 4)],
                 25: [(6, "F", 1), (6, "F", 3), (6, "F", 7)],
             },
-            2: { # Spieler 3 (PL3)
+            2: {
                 20: [(2, "E", 8), (2, "E", 6), (2, "E", 3)],
                 19: [(2, "E", 2), (2, "E", 1), (2, "H", 8)],
                 18: [(3, "B", 1), (3, "B", 8), (3, "B", 7)],
@@ -126,7 +113,7 @@ class LoewenDisplay:
                 15: [(6, "G", 2), (6, "G", 6), (6, "G", 7)],
                 25: [(6, "G", 4), (6, "G", 8), (6, "H", 2)],
             },
-            3: { # Spieler 4 (PL4)
+            3: {
                 20: [(2, "E", 5), (2, "E", 7), (2, "E", 1)],
                 19: [(2, "E", 4), (3, "H", 3), (3, "H", 7)],
                 18: [(3, "B", 6), (3, "H", 3), (3, "B", 7)],
@@ -135,7 +122,7 @@ class LoewenDisplay:
                 15: [(6, "G", 5), (6, "G", 1), (6, "G", 4)],
                 25: [(6, "G", 3), (6, "G", 7), (6, "G", 8)],
             },
-            4: { # Spieler 5 (PL5)
+            4: {
                 20: [(1, "F", 5), (1, "F", 1), (1, "F", 6)],
                 19: [(3, "C", 4), (3, "G", 2), (3, "C", 3)],
                 18: [(3, "C", 1), (3, "C", 5), (3, "G", 7)],
@@ -144,7 +131,7 @@ class LoewenDisplay:
                 15: [(5, "C", 5), (5, "G", 5), (5, "G", 1)],
                 25: [(7, "H", 6), (7, "H", 5), (7, "H", 1)],
             },
-            5: { # Spieler 6 (PL6)
+            5: {
                 20: [(1, "F", 2), (1, "F", 3), (1, "F", 6)],
                 19: [(3, "G", 4), (3, "G", 6), (3, "G", 8)],
                 18: [(3, "G", 1), (3, "C", 6), (3, "C", 8)],
@@ -153,7 +140,7 @@ class LoewenDisplay:
                 15: [(5, "G", 3), (5, "A", 3), (5, "A", 1)],
                 25: [(7, "H", 7), (7, "H", 2), (7, "H", 4)],
             },
-            6: { # Spieler 7 (PL7)
+            6: {
                 20: [(1, "G", 4), (1, "G", 8), (1, "G", 7)],
                 19: [(3, "G", 7), (3, "B", 2), (3, "B", 4)],
                 18: [(4, "A", 3), (4, "A", 1), (4, "G", 1)],
@@ -162,7 +149,7 @@ class LoewenDisplay:
                 15: [(5, "C", 3), (5, "C", 2), (5, "C", 1)],
                 25: [(7, "C", 8), (7, "C", 5), (7, "C", 1)],
             },
-            7: { # Spieler 8 (PL8)
+            7: {
                 20: [(1, "G", 2), (1, "G", 3), (1, "G", 6)],
                 19: [(3, "C", 2), (3, "C", 6), (3, "C", 4)],
                 18: [(4, "G", 4), (4, "G", 2), (4, "G", 7)],
@@ -191,6 +178,7 @@ class LoewenDisplay:
         }
 
     def set_light(self, state):
+        self.light_state = bool(state)
         if not self.ser: return
         try:
             cmd = b"LIGHT:ON\n" if state else b"LIGHT:OFF\n"
@@ -198,6 +186,11 @@ class LoewenDisplay:
             self.ser.flush()
             time.sleep(0.01)
         except: pass
+
+    def check_light_auto_on(self):
+        """Reaktiviert den Lampentreiber automatisch, sobald ein Spiel ein Signal sendet."""
+        if not self.light_state:
+            self.set_light(True)
 
     def set_led(self, chip, col_letter, row_num, state):
         digit_idx = self.COL_TO_DIGIT[col_letter]
@@ -234,6 +227,7 @@ class LoewenDisplay:
     def set_score(self, player_idx, score):
         if player_idx not in self.PLAYER_DISP:
             return
+        self.check_light_auto_on()
         d_hund, d_ten, d_unit = self.PLAYER_DISP[player_idx]
         if score is None or score == "":
             self.set_disp_char(d_hund, " ")
@@ -248,6 +242,7 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_temp_score(self, score):
+        self.check_light_auto_on()
         d_hund, d_ten, d_unit = self.TEMP_SCORE_DISP
         if score is None or score == "":
             for d in (d_hund, d_ten, d_unit): self.set_disp_char(d, " ")
@@ -258,6 +253,7 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_cricket_marks(self, player_idx, target, marks):
+        self.check_light_auto_on()
         if target in self.CRICKET_TARGET_DISP:
             d_ten, d_unit = self.CRICKET_TARGET_DISP[target]
             t_str = f"{target:2d}"
@@ -281,6 +277,20 @@ class LoewenDisplay:
 
     def update(self):
         if not self.ser: return
+        
+        all_full = all(self.buffer[c][d] == 255 for c in range(9) for d in range(8))
+        if all_full:
+            if not all(self.last_sent[c][d] == 255 for c in range(9) for d in range(8)):
+                try:
+                    self.ser.write(b"FILL\n")
+                    self.ser.flush()
+                    for c in range(10):
+                        for d in range(8):
+                            self.last_sent[c][d] = 255
+                    time.sleep(0.02)
+                except: pass
+            return
+
         for chip in range(10):
             for digit in range(8):
                 val = self.buffer[chip][digit]
