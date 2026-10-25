@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.3.3"
+VERSION = "1.3.4"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -81,6 +81,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         try: champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (350, 350))
         except: pass
 
+    # Absolut sicheres Laden der Sounds
     sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
     sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
@@ -193,7 +194,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     round_points = 0
                     if active_player == total_players: round_num += 1
                     active_player = (active_player % total_players) + 1
-                    if sound_switch: sound_switch.play()
+                    if sound_switch is not None: sound_switch.play()
                     sync_hw_display(active_player - 1)
                     bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
@@ -201,7 +202,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if raw_data:
             if current_state == "GAME":
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
-                    if sound_switch: sound_switch.play()
+                    if sound_switch is not None: sound_switch.play()
                     darts_thrown = 0
                     round_points = 0
                     if active_player == total_players: round_num += 1
@@ -214,12 +215,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     is_special_hit = hit_seg in ["t16", "t17", "t18", "t19", "t20", "b", "db"]
                     if is_special_hit:
                         champ_display_until = pygame.time.get_ticks() + 2000
-                        if sound_champ: sound_champ.play()
+                        if sound_champ is not None: sound_champ.play()
                     elif hit_seg != "-" and hit_seg != "MISS":
-                        if hit_seg.startswith("t") and sound_triple: sound_triple.play()
-                        elif (hit_seg.startswith("d") or hit_seg == "db") and sound_double: sound_double.play()
-                        elif sound_single: sound_single.play()
-                    elif hit_seg == "MISS" and sound_single:
+                        if hit_seg.startswith("t") and sound_triple is not None: sound_triple.play()
+                        elif (hit_seg.startswith("d") or hit_seg == "db") and sound_double is not None: sound_double.play()
+                        elif sound_single is not None: sound_single.play()
+                    elif hit_seg == "MISS" and sound_single is not None:
                         sound_single.play()
 
                     p_idx = active_player - 1
@@ -249,18 +250,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (40, 55))
             
-            # Matrix-Layout: Ziele oben horizontal als Spaltenköpfe, Spieler untereinander als Zeilen
             col_width = 80
             start_x = 180
             start_y = 95
 
-            # Spaltenköpfe (Ziele: 15 bis BULL)
             for j, target in enumerate(TARGETS):
                 t_label = "BULL" if target == 25 else str(target)
                 lbl_surf = big_font.render(t_label, True, HIGHLIGHT)
                 screen.blit(lbl_surf, (start_x + j * col_width + (col_width - lbl_surf.get_width()) // 2, start_y))
 
-            # Zeilen (Spieler untereinander)
             row_height = 32
             for p in range(total_players):
                 row_y = start_y + 30 + p * row_height
@@ -269,7 +267,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 name_surf = big_font.render(p_n, True, c)
                 screen.blit(name_surf, (40, row_y))
 
-                # Marks für jeden Spieler bei jedem Ziel anzeigen
                 for j, target in enumerate(TARGETS):
                     marks = player_marks[p][target]
                     m_surf = big_font.render(f"{marks}/3", True, (50, 255, 50) if marks == 3 else WHITE)
@@ -277,13 +274,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
-                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, SCREEN_HEIGHT - 45))
+                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 360))
             
-            # Pfeile geworfen ganz nach unten verschoben, unüberdeckt
-            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, SCREEN_HEIGHT - 45))
+            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, 360))
 
-            # Bullseye-Berry / Champ Animation bei besonderen Treffern
-            if pygame.time.get_ticks() < champ_display_until and champ_img:
+            if pygame.time.get_ticks() < champ_display_until and champ_img is not None:
                 screen.blit(champ_img, ((screen.get_width() - 350) // 2, (screen.get_height() - 350) // 2))
                 screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((screen.get_width() - 200) // 2, (screen.get_height() // 2 + 150)))
             elif is_berrys_turn and avatar_img:
