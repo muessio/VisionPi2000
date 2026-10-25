@@ -29,8 +29,6 @@ class LoewenDisplay:
         }
 
         # Exakte Bit-Zuordnung der Zeilen 1..8 laut MAX7219-Pinout (Blatt 1 & 3):
-        # 1(Pin 22)=SEGDP(Bit 7), 2(Pin 17)=SEGG(Bit 0), 3(Pin 15)=SEGF(Bit 1), 4(Pin 21)=SEGE(Bit 2),
-        # 5(Pin 23)=SEGD(Bit 3),  6(Pin 20)=SEGC(Bit 4), 7(Pin 16)=SEGB(Bit 5), 8(Pin 14)=SEGA(Bit 6)
         self.ROW_TO_BIT = {
             1: 7, 2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6
         }
@@ -46,50 +44,40 @@ class LoewenDisplay:
         SEG_U9    = { "A": 1, "B": 8, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 7 }
 
         self.DISP_TABLE = {
-            # U1 (Chip 0)
             1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1),
             7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
             
-            # U3 (Chip 1)
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
             
-            # U2 (Chip 2)
             4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
             
-            # U4 (Chip 3)
             16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
             
-            # U5 (Chip 4) & U6 (Chip 5)
             19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
             22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
             
-            # U7 (Chip 6)
             25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
             
-            # U8 (Chip 7)
             31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8),
             36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
             
-            # U9 (Chip 8)
             28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9), 35: (8, "B", SEG_U9),
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
-        # Display-Zuordnung (Hunderter, Zehner, Einer) von links nach rechts
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     # Spieler 1: DISP1 (links), DISP2 (mitte), DISP3 (rechts)
-            1: (4, 5, 6),     # Spieler 2: DISP4 (links), DISP5 (mitte), DISP6 (rechts)
-            2: (7, 8, 9),     # Spieler 3: DISP7 (links), DISP8 (mitte), DISP9 (rechts)
-            3: (10, 11, 12),  # Spieler 4: DISP10 (links), DISP11 (mitte), DISP12 (rechts)
-            4: (30, 31, 32),  # Spieler 5: DISP30 (links), DISP31 (mitte), DISP32 (rechts)
-            5: (33, 34, 35),  # Spieler 6: DISP33 (links), DISP34 (mitte), DISP35 (rechts)
-            6: (36, 37, 38),  # Spieler 7: DISP36 (links), DISP37 (mitte), DISP38 (rechts)
-            7: (39, 40, 41),  # Spieler 8: DISP39 (links), DISP40 (mitte), DISP41 (rechts)
+            0: (1, 2, 3),     
+            1: (4, 5, 6),     
+            2: (7, 8, 9),     
+            3: (10, 11, 12),  
+            4: (30, 31, 32),  
+            5: (33, 34, 35),  
+            6: (36, 37, 38),  
+            7: (39, 40, 41),  
         }
 
-        # Oben rechts: 3-stelliges grünes Display (TEMP SCORE) und 2-stelliges Display (Runde/Pfeile)
         self.TEMP_SCORE_DISP = (25, 26, 27)
         self.TURN_DISP       = (28, 29)
 
@@ -102,13 +90,11 @@ class LoewenDisplay:
             15: (23, 24),
         }
 
-        # Grünes Bullseye-Symbol (BE1..BE7 auf U7 = Chip 6, Spalte C, Zeile 1..7 laut Blatt 3)
         self.BULLSEYE_ICON_LEDS = [
             (6, "C", 1), (6, "C", 2), (6, "C", 3), (6, "C", 4),
             (6, "C", 5), (6, "C", 6), (6, "C", 7)
         ]
 
-        # Spieler-Lampen laut Schaltplan Blatt 3 (U1 Spalte C & U8 Spalte A)
         self.ALL_PL_LEDS = {
             1: [(0, "C", 6), (0, "C", 2)],
             2: [(0, "C", 7), (0, "C", 3)],
@@ -120,7 +106,7 @@ class LoewenDisplay:
             8: [(7, "A", 7), (7, "A", 3)],
         }
 
-        # 100% nach Löwen-Schaltplan Blatt 3 verifizierte Cricket-LED-Matrix (PL1..PL8, 20..15 & Bull)
+        # 100% korrigierte Cricket-LED-Matrix (inkl. präziser Korrektur für 16 und 15 nach Blatt 3)
         self.CRICKET_LEDS = {
             0: { # Spieler 1 (PL1)
                 20: [(2, "H", 8), (2, "H", 6), (2, "H", 3)],
@@ -128,7 +114,7 @@ class LoewenDisplay:
                 18: [(3, "F", 1), (3, "F", 2), (3, "F", 6)],
                 17: [(4, "D", 5), (4, "D", 7), (4, "D", 1)],
                 16: [(5, "D", 8), (5, "D", 4), (5, "D", 1)],
-                15: [(5, "D", 2), (6, "F", 6), (6, "F", 2)],
+                15: [(6, "D", 2), (6, "F", 6), (6, "F", 2)],
                 25: [(6, "D", 2), (6, "D", 6), (6, "D", 7)],
             },
             1: { # Spieler 2 (PL2)
@@ -137,7 +123,7 @@ class LoewenDisplay:
                 18: [(3, "F", 6), (3, "F", 3), (3, "F", 7)],
                 17: [(4, "D", 6), (4, "D", 7), (4, "D", 2)],
                 16: [(5, "D", 7), (5, "D", 6), (5, "D", 5)],
-                15: [(5, "D", 3), (6, "F", 1), (6, "F", 5)],
+                15: [(6, "D", 5), (6, "F", 1), (6, "F", 5)],
                 25: [(6, "D", 5), (6, "D", 1), (6, "D", 4)],
             },
             2: { # Spieler 3 (PL3)
@@ -146,7 +132,7 @@ class LoewenDisplay:
                 18: [(3, "B", 1), (3, "B", 8), (3, "B", 2)],
                 17: [(4, "H", 5), (4, "H", 4), (4, "H", 1)],
                 16: [(5, "H", 8), (5, "H", 4), (5, "H", 1)],
-                15: [(5, "H", 2), (6, "F", 4), (6, "F", 7)],
+                15: [(6, "D", 7), (6, "F", 4), (6, "F", 7)],
                 25: [(6, "G", 2), (6, "G", 6), (6, "G", 7)],
             },
             3: { # Spieler 4 (PL4)
@@ -155,7 +141,7 @@ class LoewenDisplay:
                 18: [(3, "B", 6), (3, "B", 3), (3, "B", 7)],
                 17: [(4, "H", 6), (4, "H", 7), (4, "H", 2)],
                 16: [(5, "H", 7), (5, "H", 6), (5, "H", 5)],
-                15: [(5, "H", 3), (6, "F", 3), (6, "F", 8)],
+                15: [(6, "D", 3), (6, "F", 3), (6, "F", 8)],
                 25: [(6, "G", 5), (6, "G", 1), (6, "G", 4)],
             },
             4: { # Spieler 5 (PL5)
@@ -163,8 +149,8 @@ class LoewenDisplay:
                 19: [(3, "C", 7), (3, "C", 2), (3, "C", 8)],
                 18: [(3, "C", 1), (3, "C", 5), (4, "G", 3)],
                 17: [(4, "C", 8), (4, "C", 1), (4, "C", 5)],
-                16: [(5, "G", 4), (5, "A", 6), (5, "A", 2)],
-                15: [(5, "C", 3), (5, "G", 5), (5, "G", 1)],
+                16: [(5, "C", 2), (5, "G", 4), (5, "G", 8)],
+                15: [(5, "C", 5), (5, "G", 5), (5, "G", 1)],
                 25: [(7, "H", 8), (7, "H", 5), (7, "H", 1)],
             },
             5: { # Spieler 6 (PL6)
@@ -172,8 +158,8 @@ class LoewenDisplay:
                 19: [(3, "G", 4), (3, "G", 6), (3, "G", 8)],
                 18: [(3, "G", 1), (3, "G", 5), (4, "G", 6)],
                 17: [(4, "C", 6), (4, "C", 2), (4, "C", 4)],
-                16: [(5, "G", 8), (5, "A", 1), (5, "A", 8)],
-                15: [(5, "G", 2), (5, "G", 3), (5, "G", 7)],
+                16: [(5, "C", 7), (5, "G", 2), (5, "G", 6)],
+                15: [(5, "G", 3), (5, "G", 2), (5, "G", 7)],
                 25: [(7, "H", 6), (7, "H", 2), (7, "H", 4)],
             },
             6: { # Spieler 7 (PL7)
@@ -181,8 +167,8 @@ class LoewenDisplay:
                 19: [(3, "F", 7), (3, "G", 2), (3, "C", 3)],
                 18: [(4, "A", 3), (4, "G", 1), (4, "G", 8)],
                 17: [(4, "A", 7), (4, "A", 1), (4, "A", 5)],
-                16: [(5, "C", 4), (5, "A", 4), (5, "A", 5)],
-                15: [(5, "C", 5), (5, "C", 6), (5, "C", 1)],
+                16: [(5, "H", 2), (5, "C", 4), (5, "C", 8)],
+                15: [(5, "C", 3), (5, "C", 6), (5, "C", 1)],
                 25: [(7, "C", 8), (7, "C", 5), (7, "C", 1)],
             },
             7: { # Spieler 8 (PL8)
@@ -190,8 +176,8 @@ class LoewenDisplay:
                 19: [(3, "C", 4), (3, "C", 6), (3, "G", 7)],
                 18: [(4, "G", 4), (4, "G", 2), (4, "G", 7)],
                 17: [(4, "A", 6), (4, "A", 2), (4, "A", 4)],
-                16: [(5, "C", 8), (5, "A", 7), (5, "A", 3)],
-                15: [(5, "G", 3), (5, "C", 7), (5, "C", 2)],
+                16: [(5, "H", 5), (5, "C", 5), (5, "C", 6)],
+                15: [(5, "G", 8), (5, "C", 7), (5, "C", 2)],
                 25: [(7, "C", 6), (7, "C", 2), (7, "C", 4)],
             }
         }
@@ -207,7 +193,6 @@ class LoewenDisplay:
             7: [(7, "A", 7), (7, "A", 3)],
         }
 
-        # Grüne Dartpfeil-Symbole oben links (DART 1A..3C auf U1 Spalte G & U2 Spalte B)
         self.DART_ARROW_LEDS = {
             1: [(2, "B", 5), (2, "B", 2), (2, "B", 6)],
             2: [(0, "G", 5), (0, "G", 1), (2, "B", 1)],
@@ -250,7 +235,6 @@ class LoewenDisplay:
                 self.set_led(chip, col, row, state)
 
     def set_active_player(self, active_player_idx):
-        """Schaltet die Lampe des aktuell aktiven Spielers (0..7) ein und alle anderen aus."""
         self.check_light_auto_on()
         for p_idx, leds in self.PLAYER_ACTIVE_LEDS.items():
             state = (p_idx == active_player_idx)
@@ -258,7 +242,6 @@ class LoewenDisplay:
                 self.set_led(chip, col, row, state)
 
     def set_dart_arrows(self, arrows_count):
-        """Schaltet 0 bis 3 grüne Dartpfeil-Symbole (übrige Pfeile) ein."""
         self.check_light_auto_on()
         arrows_count = max(0, min(3, int(arrows_count or 0)))
         for arrow_num in (1, 2, 3):
@@ -267,7 +250,6 @@ class LoewenDisplay:
                 self.set_led(chip, col, row, state)
 
     def set_bullseye_icon(self, state=True):
-        """Schaltet das grüne Bullseye-Kreissymbol rechts neben der 15 (BE1..BE7 auf U7 Spalte C) ein/aus."""
         self.check_light_auto_on()
         for chip, col, row in self.BULLSEYE_ICON_LEDS:
             self.set_led(chip, col, row, state)
@@ -310,7 +292,6 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_temp_score(self, score):
-        """Zeigt oben rechts (TEMP SCORE, DISP25-27) die Wurfsumme oder den aktuellen Punktestand an."""
         self.check_light_auto_on()
         d_hund, d_ten, d_unit = self.TEMP_SCORE_DISP
         if score is None or score == "":
@@ -322,7 +303,6 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_turn(self, value):
-        """Zeigt ganz oben rechts (neben dem C-Symbol, DISP28-29) die Runde oder übrige Pfeile an."""
         self.check_light_auto_on()
         d_ten, d_unit = self.TURN_DISP
         if value is None or value == "":
@@ -341,7 +321,6 @@ class LoewenDisplay:
             self.set_disp_char(d_ten, t_str[0])
             self.set_disp_char(d_unit, t_str[1])
         elif target == 25:
-            # Grünes Bullseye-Symbol neben der 15 aktivieren!
             self.set_bullseye_icon(True)
 
         if player_idx in self.CRICKET_LEDS and target in self.CRICKET_LEDS[player_idx]:
