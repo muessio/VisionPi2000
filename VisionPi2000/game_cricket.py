@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -81,7 +81,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
-    big_font = pygame.font.SysFont("arial", 38, bold=True)
+    big_font = pygame.font.SysFont("arial", 26, bold=True)
     giant_font = pygame.font.SysFont("arial", 90, bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
@@ -230,23 +230,41 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         if current_state == "GAME":
-            screen.blit(title_font.render(f"SPIEL: {game_name}  |  Runde {round_num}", True, HIGHLIGHT), (40, 60))
+            screen.blit(title_font.render(f"SPIEL: {game_name}  |  Runde {round_num}", True, HIGHLIGHT), (40, 20))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
-            screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (150, 120))
+            screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (40, 60))
             
+            # Neue Achsen-Anordnung: Spieler horizontal oben als Spaltenkopf, Ziele untereinander
+            col_width = max(70, min(105, 880 // total_players))
+            start_x = 160
+            start_y = 100
+
+            # Spieler-Spaltenköpfe zeichnen
+            for p in range(total_players):
+                p_n = f"P{p+1}" if not (is_berry_game and p == total_players-1) else "Berry"
+                c = HIGHLIGHT if p == (active_player - 1) else WHITE
+                surf = big_font.render(p_n, True, c)
+                screen.blit(surf, (start_x + p * col_width + (col_width - surf.get_width()) // 2, start_y))
+
+            # Ziele (15 bis Bull) untereinander von oben nach unten
             for i, target in enumerate(TARGETS):
-                screen.blit(big_font.render("BULL" if target == 25 else str(target), True, HIGHLIGHT), (200, 220 + i*50))
+                row_y = start_y + 35 + i * 32
+                t_label = "BULL" if target == 25 else str(target)
+                lbl_surf = big_font.render(t_label, True, HIGHLIGHT)
+                screen.blit(lbl_surf, (40, row_y))
+
                 for p in range(total_players):
                     marks = player_marks[p][target]
-                    screen.blit(big_font.render(f"{marks}/3", True, (50, 255, 50) if marks == 3 else WHITE), (350 + p*100, 220 + i*50))
-                    if i == 0: screen.blit(title_font.render(f"P{p+1}" if not (is_berry_game and p == total_players-1) else "Berry", True, (150,150,150)), (350 + p*100, 180))
+                    m_surf = big_font.render(f"{marks}/3", True, (50, 255, 50) if marks == 3 else WHITE)
+                    screen.blit(m_surf, (start_x + p * col_width + (col_width - m_surf.get_width()) // 2, row_y))
 
             if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
-                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
-            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
+                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 450))
+            
+            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, 410))
 
-            y_base = 660
+            y_base = 450
             for i in range(total_players):
                 p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
                 c = HIGHLIGHT if i == (active_player - 1) else WHITE
@@ -254,11 +272,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 row, col = i % 2, i // 2
                 items_in_row = (total_players + 1) // 2 if row == 0 else total_players // 2
                 spacing = screen.get_width() // (items_in_row + 1)
-                screen.blit(surf, ((col + 1) * spacing - surf.get_width() // 2, y_base + (row * 40)))
+                # screen.blit(surf, ((col + 1) * spacing - surf.get_width() // 2, y_base + (row * 35)))
 
             if is_berrys_turn and avatar_img:
-                anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
-                screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (800, 500))
+                anim_size = int(150 + math.sin(pygame.time.get_ticks() * 0.005) * 10) 
+                screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (880, 250))
         elif current_state == "WIN":
             screen.blit(giant_font.render("GEWONNEN!", True, (50, 255, 50)), (250, 250))
             
