@@ -23,10 +23,12 @@ try: import game_shanghai
 except ImportError: game_shanghai = None
 try: import game_aroundclock
 except ImportError: game_aroundclock = None
+try: import game_spieleanleitung
+except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.2.3"       
+VERSION = "1.3.0"       
 BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
@@ -175,6 +177,8 @@ def main():
         for g in game_shanghai.GAMES: game_registry.append({"name": g, "options": game_shanghai.OPTIONS, "module": game_shanghai})
     if game_aroundclock:
         for g in game_aroundclock.GAMES: game_registry.append({"name": g, "options": game_aroundclock.OPTIONS, "module": game_aroundclock})
+    if game_spieleanleitung:
+        for g in game_spieleanleitung.GAMES: game_registry.append({"name": g, "options": game_spieleanleitung.OPTIONS, "module": game_spieleanleitung})
     if game_service:
         for g in game_service.GAMES: game_registry.append({"name": g, "options": game_service.OPTIONS, "module": game_service})
 
@@ -323,3 +327,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
+    
