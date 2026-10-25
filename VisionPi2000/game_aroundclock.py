@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.3"
+VERSION = "1.3.0"
 GAMES = ["Around the Clock"]
 OPTIONS = ["Standard", "Mit Bull"]
 TARGETS = list(range(1, 21)) + [25]
@@ -72,10 +72,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     berry_images = {"Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"}
     avatar_path = berry_images.get(mode, "")
     avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
+    champ_img = None
+    if os.path.exists("Bullseye-Berry_Champ.png"):
+        try: champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (350, 350))
+        except: pass
 
     sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
     sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
+    sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
+    sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
     big_font = pygame.font.SysFont("arial", 38, bold=True)
@@ -85,6 +91,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     active_targets = TARGETS if option == "Mit Bull" else TARGETS[:-1]
     player_target_indices, darts_thrown, active_player = [0] * total_players, 0, 1
     round_num = 1
+    champ_display_until = 0
 
     def sync_hw_display():
         for i in range(total_players):
@@ -172,6 +179,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     darts_thrown = 0
                     if active_player == total_players: round_num += 1
                     active_player = (active_player % total_players) + 1
+                    if sound_switch: sound_switch.play()
                     sync_hw_display()
                     bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
@@ -179,6 +187,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if raw_data:
             if current_state == "GAME":
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
+                    if sound_switch: sound_switch.play()
                     darts_thrown = 0
                     if active_player == total_players: round_num += 1
                     active_player = (active_player % total_players) + 1
@@ -187,7 +196,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     
-                    if hit_seg != "-" and hit_seg != "MISS":
+                    is_special_hit = hit_seg in ["t16", "t17", "t18", "t19", "t20", "b", "db"]
+                    if is_special_hit:
+                        champ_display_until = pygame.time.get_ticks() + 2000
+                        if sound_champ: sound_champ.play()
+                    elif hit_seg != "-" and hit_seg != "MISS":
                         if hit_seg.startswith("t") and sound_triple: sound_triple.play()
                         elif (hit_seg.startswith("d" ) or hit_seg == "db") and sound_double: sound_double.play()
                         elif sound_single: sound_single.play()
@@ -244,7 +257,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 spacing = screen.get_width() // (items_in_row + 1)
                 screen.blit(surf, ((col + 1) * spacing - surf.get_width() // 2, y_base + (row * 40)))
 
-            if is_berrys_turn and avatar_img:
+            if pygame.time.get_ticks() < champ_display_until and champ_img:
+                screen.blit(champ_img, ((screen.get_width() - 350) // 2, screen.get_height() // 2 - 100))
+                screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((screen.get_width() - 200) // 2, screen.get_height() // 2 + 180))
+            elif is_berrys_turn and avatar_img:
                 anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
                 screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (800, 500))
         elif current_state == "WIN":
