@@ -44,36 +44,43 @@ class LoewenDisplay:
         SEG_U8      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 6 }
         SEG_U9      = { "A": 8, "B": 7, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 1 }
 
+        # Korrigierte Display-Tabelle (Exakt nach Schaltplan U1 bis U9)
         self.DISP_TABLE = {
+            # U1 & U3 (Strang D0)
             1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
-            7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
+            7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
             
+            # U2 & U4 (Strang D1)
             4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
             16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
             
+            # U5 & U6 (Strang D2 - Cricket Zielanzeigen 15-20)
             19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
             22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
             
+            # U7 & U8 (Strang D3 - Temp Score & Blöcke 5-8)
             25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
             31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8),
             36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
             
+            # U9 (Strang D4 - Blöcke 5-8 Ziffern)
             28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9), 35: (8, "B", SEG_U9),
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
+        # Die 8 Spieler-Blöcke (Hunderter, Zehner, Einer)
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     
-            1: (5, 4, 6),     
-            2: (9, 8, 7),     
-            3: (12, 11, 10),  
-            4: (30, 31, 32),  
-            5: (33, 34, 35),  
-            6: (36, 37, 38),  
-            7: (39, 40, 41),  
+            0: (1, 2, 3),     # Block 1
+            1: (5, 4, 6),     # Block 2
+            2: (9, 8, 7),     # Block 3
+            3: (12, 11, 10),  # Block 4
+            4: (30, 31, 32),  # Block 5
+            5: (33, 34, 35),  # Block 6
+            6: (36, 37, 38),  # Block 7
+            7: (39, 40, 41),  # Block 8
         }
 
         self.TEMP_SCORE_DISP = (25, 26, 27)
@@ -88,16 +95,15 @@ class LoewenDisplay:
             15: (23, 24),
         }
 
-        # Vollständige Erfassung ALLER in den Schaltplänen (`Display-Wiring-diagram.jpg`) definierten PL-Lampen & Sonder-LEDs
         self.ALL_PL_LEDS = {
-            1: [(1, "H", 2), (1, "H", 7)], # PL1
-            2: [(0, "H", 2), (0, "H", 7)], # PL2
-            3: [(1, "H", 8), (1, "H", 4)], # PL3
-            4: [(1, "D", 8), (1, "D", 4)], # PL4
-            5: [(3, "B", 4), (3, "B", 6)], # PL5
-            6: [(3, "H", 2), (3, "H", 6)], # PL6
-            7: [(2, "A", 1), (2, "A", 5)], # PL7
-            8: [(3, "B", 2), (3, "B", 7)], # PL8
+            1: [(1, "H", 2), (1, "H", 7)],
+            2: [(0, "H", 2), (0, "H", 7)],
+            3: [(1, "H", 8), (1, "H", 4)],
+            4: [(1, "D", 8), (1, "D", 4)],
+            5: [(3, "B", 4), (3, "B", 6)],
+            6: [(3, "H", 2), (3, "H", 6)],
+            7: [(2, "A", 1), (2, "A", 5)],
+            8: [(3, "B", 2), (3, "B", 7)],
         }
 
         self.CRICKET_LEDS = {
@@ -224,7 +230,6 @@ class LoewenDisplay:
         if chip == 8:
             self.buffer[9][digit_idx] = self.buffer[8][digit_idx]
 
-    # NEU: Hilfsfunktion, um jede beliebige PL-Lampe direkt per Nummer (1-8) anzusteuern!
     def set_pl_lamp(self, lamp_num, state):
         self.check_light_auto_on()
         if lamp_num in self.ALL_PL_LEDS:
@@ -267,7 +272,7 @@ class LoewenDisplay:
         score = max(0, min(999, int(score)))
         score_str = f"{score:3d}"
         self.set_disp_char(d_hund, score_str[0])
-        self.set_disp_char(d_ten,  score_str[1])
+        self.set_disp_char(d_ten, score_str[1])
         self.set_disp_char(d_unit, score_str[2])
 
     def set_temp_score(self, score):
@@ -330,4 +335,4 @@ class LoewenDisplay:
                         self.last_sent[chip][digit] = val
                         time.sleep(0.004)
                     except: pass
-        
+                        
