@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 GAMES = ["Around the Clock"]
 OPTIONS = ["Standard", "Mit Bull"]
 TARGETS = list(range(1, 21)) + [25]
@@ -56,10 +56,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
-    def update_score_display(player_idx, score):
-        display.set_score(player_idx, max(0, score))
-        display.update()
-
     display.clear_all()
 
     bg_img = None
@@ -88,7 +84,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     active_targets = TARGETS if option == "Mit Bull" else TARGETS[:-1]
     player_target_indices, darts_thrown, active_player = [0] * total_players, 0, 1
-    for i in range(total_players): update_score_display(i, active_targets[0])
+    round_num = 1
+
+    def sync_hw_display():
+        for i in range(total_players):
+            idx = min(player_target_indices[i], len(active_targets) - 1)
+            display.set_score(i, active_targets[idx])
+        curr_idx = min(player_target_indices[active_player - 1], len(active_targets) - 1)
+        display.set_active_player(active_player - 1)
+        display.set_dart_arrows(3 - darts_thrown)
+        display.set_temp_score(active_targets[curr_idx])
+        display.set_turn(round_num)
+        display.update()
+
+    sync_hw_display()
 
     running, clock, current_state, bot_timer, winner_name, combo_press_start = True, pygame.time.Clock(), "GAME", 0, "", 0
 
@@ -161,7 +170,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
                 elif pygame.time.get_ticks() > bot_timer:
                     darts_thrown = 0
+                    if active_player == total_players: round_num += 1
                     active_player = (active_player % total_players) + 1
+                    sync_hw_display()
                     bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
@@ -169,7 +180,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if current_state == "GAME":
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
+                    if active_player == total_players: round_num += 1
                     active_player = (active_player % total_players) + 1
+                    sync_hw_display()
                 
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
@@ -188,10 +201,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         player_target_indices[p_idx] += 1
                         if player_target_indices[p_idx] >= len(active_targets):
                             current_state, winner_name = "WIN", (mode if is_berrys_turn else f"Spieler {active_player}")
-                        else: 
-                            update_score_display(p_idx, active_targets[player_target_indices[p_idx]])
                     
                     darts_thrown += 1
+                    sync_hw_display()
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
 
         if screensaver.check():
@@ -207,7 +219,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             p_idx = active_player - 1
             curr_target_val = active_targets[player_target_indices[p_idx]] if player_target_indices[p_idx] < len(active_targets) else 0
             
-            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}", True, HIGHLIGHT), (40, 60))
+            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}  |  Runde {round_num}", True, HIGHLIGHT), (40, 60))
             screen.blit(giant_font.render(f"ZIEL: {'BULL' if curr_target_val == 25 else curr_target_val}", True, (50, 255, 50)), (150, 120))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Fortschritt: {player_target_indices[p_idx]}/{len(active_targets)}", True, RED_COL if is_berrys_turn else WHITE), (150, 300))
