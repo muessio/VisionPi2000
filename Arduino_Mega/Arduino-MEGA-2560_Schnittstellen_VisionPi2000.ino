@@ -91,7 +91,6 @@ void updateDigitForAllStrands(int digitIndex) {
   byte addr = digitIndex + 1;
 
   // --- PAKET 1 (Takte 1..16): Geht durch Chip 0 hindurch in den HINTEREN Chip (Chip 1: U3, U4, U6, U8) ---
-  // Für Strang 4 (U9, Einzelchip) fällt dieses Paket an DOUT einfach ins Leere, wir senden trotzdem sauber mit:
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
     clockBit(b, b, b, b, 0);
@@ -127,7 +126,7 @@ void updateDigitForAllStrands(int digitIndex) {
 }
 
 void clearAllDisplays() {
-  sendCommandToAll(0x0F, 0x00); // Display-Test Register sicher ausschalten
+  sendCommandToAll(0x0F, 0x00); 
   for (int i = 0; i < 8; i++) {
     for (int c = 0; c < 5; c++) {
       displayMem[c][0][i] = 0;
@@ -178,12 +177,15 @@ void processSerialCommand(String command) {
       
       if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
         int chain = chip / 2;      
-        int chipIdx = chip % 2;    
+        int rawChipIdx = chip % 2;    
+        
+        // Korrektur: Invertierung der Chip-Reihenfolge (Vorderer/Hinterer Chip getauscht)
+        int correctedChipIdx = (chain == 4) ? 0 : (1 - rawChipIdx);
         
         if (chain == 4) {
           displayMem[4][0][digit] = (byte)value; 
         } else {
-          displayMem[chain][chipIdx][digit] = (byte)value; 
+          displayMem[chain][correctedChipIdx][digit] = (byte)value; 
         }
         
         updateDigitForAllStrands(digit);
@@ -210,12 +212,11 @@ void setup() {
   digitalWrite(loadPin, HIGH);
   delay(500);
 
-  // Alle 9 MAX7219 Chips sauber initialisieren
-  sendCommandToAll(0x0F, 0x00); // Display-Test aus
-  sendCommandToAll(0x09, 0x00); // Keine BCD-Decodierung (reiner Matrix-Modus)
-  sendCommandToAll(0x0B, 0x07); // Scan Limit: Alle 8 Spalten (0..7)
-  sendCommandToAll(0x0A, 0x0F); // Helligkeit: Maximum (15)
-  sendCommandToAll(0x0C, 0x01); // Normal Operation (Shutdown beenden)
+  sendCommandToAll(0x0F, 0x00); 
+  sendCommandToAll(0x09, 0x00); 
+  sendCommandToAll(0x0B, 0x07); 
+  sendCommandToAll(0x0A, 0x0F); 
+  sendCommandToAll(0x0C, 0x01); 
 
   clearAllDisplays();
   Serial.println("SYSTEM:READY"); 
