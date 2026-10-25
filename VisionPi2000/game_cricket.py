@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
