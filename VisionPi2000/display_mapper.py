@@ -23,9 +23,9 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
-        # Korrigiertes Spalten-Mapping (Digit 0 bis 7)
+        # Das EXAKTE physikalische Spalten-Mapping der Löwen-Platine (Schaltplan Blatt 1 & 2)
         self.COL_TO_DIGIT = {
-            "A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7
+            "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
         }
 
         self.ROW_TO_BIT = {
@@ -63,15 +63,16 @@ class LoewenDisplay:
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
+        # Die korrekten Spieler-Blöcke (Hunderter, Zehner, Einer)
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     
-            1: (5, 4, 6),     
-            2: (9, 8, 7),     
-            3: (10, 11, 12),  
-            4: (30, 31, 32),  
-            5: (33, 34, 35),  
-            6: (36, 37, 38),  
-            7: (39, 40, 41),  
+            0: (1, 2, 3),     # Block 1
+            1: (5, 4, 6),     # Block 2
+            2: (7, 8, 9),     # Block 3 -> Korrigiert auf (7, 8, 9) damit 301 richtig herum steht!
+            3: (10, 11, 12),  # Block 4
+            4: (30, 31, 32),  # Block 5
+            5: (33, 34, 35),  # Block 6
+            6: (36, 37, 38),  # Block 7
+            7: (39, 40, 41),  # Block 8
         }
 
         self.TEMP_SCORE_DISP = (25, 26, 27)
