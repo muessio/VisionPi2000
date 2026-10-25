@@ -17,7 +17,7 @@ const int clkPin   = 4;
 const int loadPin  = 5;   
 const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
-// displayMem[Strang 0..4][0 = Vorderer Chip (DIN: U1,U2,U5,U7,U9), 1 = Hinterer Chip (DOUT: U3,U4,U6,U8)][Digit 0..7]
+// displayMem[Strang 0..4][0 = Vorderer Chip (DIN), 1 = Hinterer Chip (DOUT)][Digit 0..7]
 byte displayMem[5][2][8] = {0};
 
 char cmdBuffer[64];
@@ -88,7 +88,7 @@ void updateDigitForAllStrands(int digitIndex) {
 
   byte addr = digitIndex + 1;
 
-  // Paket 1: Geht durch Chip 0 hindurch in den HINTEREN Chip (Chip 1: U3, U4, U6, U8)
+  // Paket 1: Daten für den HINTEREN Chip (DOUT: U3, U4, U6, U8)
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
     clockBit(b, b, b, b, 0);
@@ -103,7 +103,7 @@ void updateDigitForAllStrands(int digitIndex) {
     );
   }
 
-  // Paket 2: Bleibt im VORDEREN Chip (Chip 0: U1, U2, U5, U7, U9) stehen
+  // Paket 2: Daten für den VORDEREN Chip (DIN: U1, U2, U5, U7) sowie U9 auf Strang D4
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
     clockBit(b, b, b, b, b);
@@ -175,7 +175,7 @@ void processSerialCommand(String command) {
       
       if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
         int chain = chip / 2;      
-        int chipIdx = chip % 2; // Korrekt: Gerade Chips = 0 (vorderer Chip), Ungerade Chips = 1 (hinterer Chip)   
+        int chipIdx = chip % 2;   
         
         if (chain == 4) {
           displayMem[4][0][digit] = (byte)value; 
