@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (FINALER SERIAL- & SPI-FIX)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -17,10 +17,9 @@ const int clkPin   = 4;
 const int loadPin  = 5;   
 const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
-// [Strang 0..4][Chip 0 (vorn/DIN) oder Chip 1 (hinten/DOUT)][Digit 0..7]
+// displayMem[Strang 0..4][0 = Vorderer Chip (DIN: U1,U2,U5,U7,U9), 1 = Hinterer Chip (DOUT: U3,U4,U6,U8)][Digit 0..7]
 byte displayMem[5][2][8] = {0};
 
-// Schneller, nicht-blockierender Zeilenpuffer für die serielle Schnittstelle
 char cmdBuffer[64];
 int cmdIndex = 0;
 
@@ -47,90 +46,102 @@ bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300;
 
+// Hilfsfunktion: Taktet exakt 1 Bit auf allen 5 Strängen nach MAX7219-Spezifikation
+inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
+  digitalWrite(clkPin, LOW);
+  digitalWrite(dPins[0], b0);
+  digitalWrite(dPins[1], b1);
+  digitalWrite(dPins[2], b2);
+  digitalWrite(dPins[3], b3);
+  digitalWrite(dPins[4], b4);
+  delayMicroseconds(4);
+  digitalWrite(clkPin, HIGH);
+  delayMicroseconds(4);
+  digitalWrite(clkPin, LOW);
+  delayMicroseconds(2);
+}
+
 void sendCommandToAll(byte addr, byte data) {
   digitalWrite(clkPin, LOW);
   digitalWrite(loadPin, LOW);
-  delayMicroseconds(2);
+  delayMicroseconds(5);
 
+  // 2x 16 Bit = 32 Takte für alle 5 Stränge
   for (int repeat = 0; repeat < 2; repeat++) {
     for (int i = 7; i >= 0; i--) {
-      digitalWrite(clkPin, LOW);
       byte b = (addr >> i) & 1;
-      for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], b); }
-      delayMicroseconds(2);
-      digitalWrite(clkPin, HIGH);
-      delayMicroseconds(2);
+      clockBit(b, b, b, b, b);
     }
     for (int i = 7; i >= 0; i--) {
-      digitalWrite(clkPin, LOW);
       byte b = (data >> i) & 1;
-      for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], b); }
-      delayMicroseconds(2);
-      digitalWrite(clkPin, HIGH);
-      delayMicroseconds(2);
+      clockBit(b, b, b, b, b);
     }
   }
-  digitalWrite(clkPin, LOW);
-  delayMicroseconds(2);
+
+  delayMicroseconds(5);
   digitalWrite(loadPin, HIGH);
-  delayMicroseconds(2);
+  delayMicroseconds(5);
 }
 
 void updateDigitForAllStrands(int digitIndex) {
   digitalWrite(clkPin, LOW);
   digitalWrite(loadPin, LOW);
-  delayMicroseconds(2);
+  delayMicroseconds(5);
 
   byte addr = digitIndex + 1;
 
-  // --- PAKET 1 (Erste 16 Takte): Für den HINTEREN Chip (Chip 1: U3, U4, U6, U8) ---
+  // --- PAKET 1 (Takte 1..16): Geht durch Chip 0 hindurch in den HINTEREN Chip (Chip 1: U3, U4, U6, U8) ---
+  // Für Strang 4 (U9, Einzelchip) fällt dieses Paket an DOUT einfach ins Leere, wir senden trotzdem sauber mit:
   for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
     byte b = (addr >> i) & 1;
-    for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], b); }
-    digitalWrite(dPins[4], LOW); // Strang 4 (U9) bekommt No-Op 0x00
-    delayMicroseconds(2);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(2);
+    clockBit(b, b, b, b, 0);
   }
   for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
-    digitalWrite(dPins[4], LOW);
-    delayMicroseconds(2);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(2);
+    clockBit(
+      (displayMem[0][1][digitIndex] >> i) & 1,
+      (displayMem[1][1][digitIndex] >> i) & 1,
+      (displayMem[2][1][digitIndex] >> i) & 1,
+      (displayMem[3][1][digitIndex] >> i) & 1,
+      0
+    );
   }
 
-  // --- PAKET 2 (Zweite 16 Takte): Für den VORDEREN Chip (Chip 0: U1, U2, U5, U7, U9) ---
+  // --- PAKET 2 (Takte 17..32): Bleibt im VORDEREN Chip (Chip 0: U1, U2, U5, U7, U9) stehen ---
   for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
     byte b = (addr >> i) & 1;
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], b); }
-    delayMicroseconds(2);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(2);
+    clockBit(b, b, b, b, b);
   }
   for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 5; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
-    delayMicroseconds(2);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(2);
+    clockBit(
+      (displayMem[0][0][digitIndex] >> i) & 1,
+      (displayMem[1][0][digitIndex] >> i) & 1,
+      (displayMem[2][0][digitIndex] >> i) & 1,
+      (displayMem[3][0][digitIndex] >> i) & 1,
+      (displayMem[4][0][digitIndex] >> i) & 1
+    );
   }
 
-  digitalWrite(clkPin, LOW);
-  delayMicroseconds(2);
+  delayMicroseconds(5);
   digitalWrite(loadPin, HIGH);
-  delayMicroseconds(2);
+  delayMicroseconds(5);
 }
 
 void clearAllDisplays() {
-  sendCommandToAll(0x0F, 0x00); // Falls Display-Test aktiv war, sicher beenden
+  sendCommandToAll(0x0F, 0x00); // Display-Test Register sicher ausschalten
   for (int i = 0; i < 8; i++) {
     for (int c = 0; c < 5; c++) {
       displayMem[c][0][i] = 0;
       displayMem[c][1][i] = 0;
+    }
+    updateDigitForAllStrands(i);
+  }
+}
+
+void fillAllDisplays() {
+  for (int i = 0; i < 8; i++) {
+    for (int c = 0; c < 5; c++) {
+      displayMem[c][0][i] = 0xFF;
+      displayMem[c][1][i] = 0xFF;
     }
     updateDigitForAllStrands(i);
   }
@@ -149,11 +160,11 @@ void processSerialCommand(String command) {
   else if (command == "CLEAR") {
     clearAllDisplays();
   }
-  else if (command == "TEST:ON") {
-    sendCommandToAll(0x0F, 0x01);
+  else if (command == "FILL" || command == "TEST:ON") {
+    fillAllDisplays();
   }
   else if (command == "TEST:OFF") {
-    sendCommandToAll(0x0F, 0x00);
+    clearAllDisplays();
   }
   else if (command.startsWith("RAW:")) {
     int firstColon = command.indexOf(':');
@@ -199,18 +210,18 @@ void setup() {
   digitalWrite(loadPin, HIGH);
   delay(500);
 
+  // Alle 9 MAX7219 Chips sauber initialisieren
   sendCommandToAll(0x0F, 0x00); // Display-Test aus
-  sendCommandToAll(0x09, 0x00); // Keine BCD-Decodierung
-  sendCommandToAll(0x0B, 0x07); // Scan Limit: Alle 8 Digits
-  sendCommandToAll(0x0A, 0x0F); // Helligkeit: Maximum
-  sendCommandToAll(0x0C, 0x01); // Normal Operation
+  sendCommandToAll(0x09, 0x00); // Keine BCD-Decodierung (reiner Matrix-Modus)
+  sendCommandToAll(0x0B, 0x07); // Scan Limit: Alle 8 Spalten (0..7)
+  sendCommandToAll(0x0A, 0x0F); // Helligkeit: Maximum (15)
+  sendCommandToAll(0x0C, 0x01); // Normal Operation (Shutdown beenden)
 
   clearAllDisplays();
   Serial.println("SYSTEM:READY"); 
 }
 
 void loop() {
-  // Nicht-blockierendes Einlesen: Kein serielles Paket geht jemals verloren!
   while (Serial.available() > 0) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
