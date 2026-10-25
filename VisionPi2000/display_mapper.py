@@ -30,25 +30,25 @@ class LoewenDisplay:
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Exakt verifizierte Segment-Zuordnungen anhand der Live-Board-Fotos:
+        # Anhand der Live-Fotos (47498.jpg & 47497.jpg) verifizierte Segment-Tabellen:
         SEG_U1       = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
         SEG_U1_SPEC  = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
-        # U2 laut Schaltplan Blatt 3: Zeile 3=F, Zeile 4=E, Zeile 6=G, Zeile 7=D
-        SEG_U2       = { "C": 1, "B": 2, "F": 3, "E": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
-        # U3 Fix: Aus "0" wurde "e" -> Zeile 6 ist G und Zeile 7 ist F!
-        SEG_U3       = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "G": 6, "F": 7, "DP": 8 }
+        # U2 Fix: Zeile 3 ist D (unten), Zeile 7 ist F (oben links) -> behebt "901" zu "301"
+        SEG_U2       = { "C": 1, "B": 2, "D": 3, "E": 4, "A": 5, "G": 6, "F": 7, "DP": 8 }
+        # U3 Original laut Schaltplan Blatt 3 (mit F=6, G=7)
+        SEG_U3       = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
         SEG_U4       = { "B": 1, "DP": 2, "E": 3, "F": 4, "A": 5, "G": 6, "C": 7, "D": 8 }
         SEG_U5_U6    = { "B": 1, "DP": 2, "D": 3, "F": 4, "A": 5, "G": 6, "C": 7, "E": 8 }
         SEG_U7       = { "E": 1, "C": 2, "B": 3, "F": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
-        SEG_U8       = { "F": 1, "C": 2, "DP": 3, "E": 4, "A": 5, "B": 6, "D": 7, "G": 8 }
-        # U9 laut Schaltplan Blatt 3: Zeile 6=G, Zeile 7=DP, Zeile 8=B
-        SEG_U9       = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "DP": 7, "B": 8 }
+        # U8 Fix: B liegt auf Zeile 3, DP auf Zeile 6 -> behebt "0.1" und "3. 1"
+        SEG_U8       = { "F": 1, "C": 2, "B": 3, "E": 4, "A": 5, "DP": 6, "D": 7, "G": 8 }
+        # U9 Fix: B liegt auf Zeile 7, DP auf Zeile 8 -> behebt "3.0.1" zu "301"
+        SEG_U9       = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "B": 7, "DP": 8 }
 
         self.DISP_TABLE = {
             # Strang D0: U1 (Chip 0), U3 (Chip 1)
-            # Auf Block 1 braucht DISP3 das Spezial-Mapping, auf Block 3 braucht DISP9 das Standard-Mapping!
             1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
-            7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
+            7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
             
@@ -72,13 +72,13 @@ class LoewenDisplay:
         }
 
         # =========================================================================
-        # EXAKT VERIFIZIERTE SPIELER-BLÖCKE (Hunderter, Zehner, Einer von links nach rechts)
+        # PHYSISCHE SPIELER-BLÖCKE (Hunderter, Zehner, Einer von links nach rechts)
         # =========================================================================
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     # Block 1: 501 war bereits perfekt!
-            1: (5, 4, 6),     # Block 2: bei Cricket ("  0") leuchtete die Mitte (4), also (5, 4, 6) oder (6, 4, 5)
-            2: (7, 8, 9),     # Block 3: 5 stand auf 7 (links), 0 bei Cricket auf 9 (rechts)!
-            3: (10, 11, 12),  # Block 4: bei 501 stand 5 rechts (10), bei Cricket 0 links (12) -> (10, 11, 12)!
+            0: (1, 2, 3),     # Block 1: 301 perfekt!
+            1: (5, 4, 6),     # Block 2: 5=links, 4=Mitte, 6=rechts
+            2: (9, 8, 7),     # Block 3: 9=links, 8=Mitte, 7=rechts (behebt "103" zu "301")
+            3: (12, 11, 10),  # Block 4: 12=links, 11=Mitte, 10=rechts
             4: (30, 31, 32),  # Block 5
             5: (33, 34, 35),  # Block 6
             6: (36, 37, 38),  # Block 7
@@ -86,16 +86,16 @@ class LoewenDisplay:
         }
 
         self.TEMP_SCORE_DISP = (25, 26, 27)
-        self.TURN_DISP       = (29, 28)
+        self.TURN_DISP       = (28, 29)
 
-        # Grüne Cricket-Zielzahlen (Zehner links, Einer rechts)
+        # Grüne Cricket-Zielzahlen in der Mitte
         self.CRICKET_TARGET_DISP = {
-            20: (14, 13),
-            19: (16, 15),
-            18: (18, 17),
-            17: (20, 19),
-            16: (22, 21),
-            15: (24, 23),
+            20: (13, 14),
+            19: (15, 16),
+            18: (17, 18),
+            17: (19, 20),
+            16: (21, 22),
+            15: (23, 24),
         }
 
         self.CRICKET_LEDS = {
@@ -193,11 +193,10 @@ class LoewenDisplay:
     def set_light(self, state):
         if not self.ser: return
         try:
-            time.sleep(0.02)
             cmd = b"LIGHT:ON\n" if state else b"LIGHT:OFF\n"
             self.ser.write(cmd)
             self.ser.flush()
-            time.sleep(0.02)
+            time.sleep(0.01)
         except: pass
 
     def set_led(self, chip, col_letter, row_num, state):
@@ -277,12 +276,12 @@ class LoewenDisplay:
         try:
             self.ser.write(b"CLEAR\n")
             self.ser.flush()
-            time.sleep(0.04)
+            time.sleep(0.02)
         except: pass
 
     def update(self):
         if not self.ser: return
-        for chip in range(9):
+        for chip in range(10):
             for digit in range(8):
                 val = self.buffer[chip][digit]
                 if val != self.last_sent[chip][digit]:
@@ -290,5 +289,5 @@ class LoewenDisplay:
                         self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
                         self.ser.flush()
                         self.last_sent[chip][digit] = val
-                        time.sleep(0.006)
+                        time.sleep(0.004)
                     except: pass
