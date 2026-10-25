@@ -23,21 +23,22 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
-        # Originales, physikalisches Spalten-Mapping der Löwen-Platine
+        # Exaktes physikalisches Spalten-Mapping der Löwen-Platine
         self.COL_TO_DIGIT = {
             "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
         }
 
+        # Physikalische Bit-Zuordnung der Zeilen/Segmente
         self.ROW_TO_BIT = {
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Feinjustierte Segment-Zuordnungen basierend auf der Bilderserie
+        # Platinengenau korrigierte Segment-Tabellen laut Schaltbild (Blatt 1-3)
         SEG_U1      = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 }
         SEG_U1_SPEC = { "A": 5, "B": 3, "C": 6, "D": 7, "E": 4, "F": 1, "G": 2, "DP": 8 }
         SEG_U2      = { "A": 5, "B": 2, "C": 1, "D": 3, "E": 4, "F": 7, "G": 6, "DP": 8 }
-        SEG_U3      = { "A": 4, "B": 2, "C": 3, "D": 5, "E": 1, "F": 6, "G": 7, "DP": 8 }
-        SEG_U4      = { "A": 5, "B": 1, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 2 }
+        SEG_U3      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 6, "DP": 8 } # Exakt nach U3 Schaltplan
+        SEG_U4      = { "A": 5, "B": 2, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 1 } # Exakt nach U4 Schaltplan
         SEG_U5_U6   = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 }
         SEG_U7      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 }
         SEG_U8      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 6 }
@@ -45,7 +46,7 @@ class LoewenDisplay:
 
         self.DISP_TABLE = {
             1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
-            7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
+            7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
             
@@ -310,3 +311,4 @@ class LoewenDisplay:
                         self.last_sent[chip][digit] = val
                         time.sleep(0.004)
                     except: pass
+                        
