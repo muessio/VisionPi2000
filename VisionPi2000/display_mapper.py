@@ -23,43 +23,32 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
-        # Exaktes physikalisches Spalten-Mapping der Löwen-Platine
+        # Exaktes physikalisches Spalten-Mapping laut Schaltplan Blatt 1 & 3:
+        # A(Pin 6)=DIG2, B(Pin 5)=DIG6, C(Pin 10)=DIG5, D(Pin 3)=DIG4,
+        # E(Pin 7)=DIG3, F(Pin 8)=DIG7, G(Pin 11)=DIG1, H(Pin 2)=DIG0
         self.COL_TO_DIGIT = {
             "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
         }
 
-        # Physikalische Bit-Zuordnung der Zeilen/Segmente (Zeile 1..8 -> Bit 0..7)
+        # Exakte Bit-Zuordnung der Zeilen 1..8 laut MAX7219-Pinout (Blatt 1 & 3):
+        # 1(Pin 22)=SEGDP(Bit 7), 2(Pin 17)=SEGG(Bit 0), 3(Pin 15)=SEGF(Bit 1), 4(Pin 21)=SEGE(Bit 2),
+        # 5(Pin 23)=SEGD(Bit 3),  6(Pin 20)=SEGC(Bit 4), 7(Pin 16)=SEGB(Bit 5), 8(Pin 14)=SEGA(Bit 6)
         self.ROW_TO_BIT = {
-            1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
+            1: 7, 2: 0, 3: 1, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6
         }
 
         # 100% verifizierte Segment-Tabellen laut Löwen-Schaltplan Blatt 3 (Zeile 1..8)
-        # U1: 1=F, 2=G, 3=D, 4=E, 5=A, 6=B, 7=C, 8=DP (gilt für ALLE Displays auf U1!)
         SEG_U1    = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 }
-        
-        # U2: 1=C, 2=B, 3=F, 4=E, 5=A, 6=G, 7=D, 8=DP (D und F waren vorher vertauscht!)
         SEG_U2    = { "A": 5, "B": 2, "C": 1, "D": 7, "E": 4, "F": 3, "G": 6, "DP": 8 }
-        
-        # U3: 1=E, 2=B, 3=C, 4=A, 5=D, 6=F, 7=G, 8=DP
         SEG_U3    = { "A": 4, "B": 2, "C": 3, "D": 5, "E": 1, "F": 6, "G": 7, "DP": 8 }
-        
-        # U4: 1=B, 2=DP, 3=E, 4=F, 5=A, 6=G, 7=C, 8=D (B und DP waren vorher vertauscht!)
         SEG_U4    = { "A": 5, "B": 1, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 2 }
-        
-        # U5 & U6: 1=B, 2=DP, 3=D, 4=F, 5=A, 6=G, 7=C, 8=E
         SEG_U5_U6 = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 }
-        
-        # U7: 1=E, 2=C, 3=B, 4=F, 5=A, 6=G, 7=D, 8=DP
         SEG_U7    = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 }
-        
-        # U8: 1=F, 2=C, 3=DP, 4=E, 5=A, 6=B, 7=D, 8=G (B und DP waren vorher vertauscht!)
         SEG_U8    = { "A": 5, "B": 6, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 3 }
-        
-        # U9: 1=A, 2=C, 3=D, 4=F, 5=E, 6=G, 7=DP, 8=B (A, B, DP waren vorher komplett verdreht!)
         SEG_U9    = { "A": 1, "B": 8, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 7 }
 
         self.DISP_TABLE = {
-            # U1 (Chip 0) - Alle Displays nutzen SEG_U1
+            # U1 (Chip 0)
             1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1),
             7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
             
@@ -92,16 +81,17 @@ class LoewenDisplay:
 
         # Display-Zuordnung (Hunderter, Zehner, Einer) von links nach rechts
         self.PLAYER_DISP = {
-            0: (3, 2, 1),     # Spieler 1: DISP3 (links), DISP2 (mitte), DISP1 (rechts)
+            0: (1, 2, 3),     # Spieler 1: DISP1 (links), DISP2 (mitte), DISP3 (rechts)
             1: (5, 4, 6),     # Spieler 2: DISP5 (links), DISP4 (mitte), DISP6 (rechts)
             2: (9, 8, 7),     # Spieler 3: DISP9 (links), DISP8 (mitte), DISP7 (rechts)
-            3: (12, 11, 10),  # Spieler 4: DISP12 (links), DISP11 (mitte), DISP10 (rechts)
-            4: (30, 31, 32),  # Spieler 5
-            5: (33, 34, 35),  # Spieler 6
-            6: (36, 37, 38),  # Spieler 7
-            7: (39, 40, 41),  # Spieler 8
+            3: (10, 11, 12),  # Spieler 4: DISP10 (links), DISP11 (mitte), DISP12 (rechts)
+            4: (30, 31, 32),  # Spieler 5: DISP30 (links), DISP31 (mitte), DISP32 (rechts)
+            5: (33, 34, 35),  # Spieler 6: DISP33 (links), DISP34 (mitte), DISP35 (rechts)
+            6: (36, 37, 38),  # Spieler 7: DISP36 (links), DISP37 (mitte), DISP38 (rechts)
+            7: (39, 40, 41),  # Spieler 8: DISP39 (links), DISP40 (mitte), DISP41 (rechts)
         }
 
+        # Oben rechts: 3-stelliges grünes Display (TEMP SCORE) und 2-stelliges Display (Runde/Pfeile)
         self.TEMP_SCORE_DISP = (25, 26, 27)
         self.TURN_DISP       = (28, 29)
 
@@ -114,16 +104,16 @@ class LoewenDisplay:
             15: (23, 24),
         }
 
-        # Spieler-Aktiv-Lampen (PLYR 1A/1B bis 8A/8B laut Schaltplan Blatt 3: U1 Spalte C & U8 Spalte A)
+        # Spieler-Lampen laut Schaltplan Blatt 3 (U1 Spalte C & U8 Spalte A)
         self.ALL_PL_LEDS = {
-            1: [(0, "C", 6), (0, "C", 2)], # PLYR 1A (Zeile 6), 1B (Zeile 2) auf U1 Spalte C
-            2: [(0, "C", 7), (0, "C", 3)], # PLYR 2A (Zeile 7), 2B (Zeile 3) auf U1 Spalte C
-            3: [(0, "C", 5), (0, "C", 1)], # PLYR 3A (Zeile 5), 3B (Zeile 1) auf U1 Spalte C
-            4: [(0, "C", 4), (0, "C", 8)], # PLYR 4A (Zeile 4), 4B (Zeile 8) auf U1 Spalte C
-            5: [(7, "A", 4), (7, "A", 8)], # PLYR 5A (Zeile 4), 5B (Zeile 8) auf U8 Spalte A
-            6: [(7, "A", 1), (7, "A", 5)], # PLYR 6A (Zeile 1), 6B (Zeile 5) auf U8 Spalte A
-            7: [(7, "A", 6), (7, "A", 2)], # PLYR 7A (Zeile 6), 7B (Zeile 2) auf U8 Spalte A
-            8: [(7, "A", 7), (7, "A", 3)], # PLYR 8A (Zeile 7), 8B (Zeile 3) auf U8 Spalte A
+            1: [(0, "C", 6), (0, "C", 2)],
+            2: [(0, "C", 7), (0, "C", 3)],
+            3: [(0, "C", 5), (0, "C", 1)],
+            4: [(0, "C", 4), (0, "C", 8)],
+            5: [(7, "A", 4), (7, "A", 8)],
+            6: [(7, "A", 1), (7, "A", 5)],
+            7: [(7, "A", 6), (7, "A", 2)],
+            8: [(7, "A", 7), (7, "A", 3)],
         }
 
         self.CRICKET_LEDS = {
@@ -212,6 +202,7 @@ class LoewenDisplay:
             7: [(7, "A", 7), (7, "A", 3)],
         }
 
+        # Grüne Dartpfeil-Symbole oben links (DART 1A..3C auf U1 Spalte G & U2 Spalte B)
         self.DART_ARROW_LEDS = {
             1: [(2, "B", 5), (2, "B", 2), (2, "B", 6)],
             2: [(0, "G", 5), (0, "G", 1), (2, "B", 1)],
@@ -225,7 +216,7 @@ class LoewenDisplay:
             cmd = b"LIGHT:ON\n" if state else b"LIGHT:OFF\n"
             self.ser.write(cmd)
             self.ser.flush()
-            time.sleep(0.01)
+            time.sleep(0.015)
         except: pass
 
     def check_light_auto_on(self):
@@ -251,6 +242,23 @@ class LoewenDisplay:
         self.check_light_auto_on()
         if lamp_num in self.ALL_PL_LEDS:
             for chip, col, row in self.ALL_PL_LEDS[lamp_num]:
+                self.set_led(chip, col, row, state)
+
+    def set_active_player(self, active_player_idx):
+        """Schaltet die Lampe des aktuell aktiven Spielers (0..7) ein und alle anderen aus."""
+        self.check_light_auto_on()
+        for p_idx, leds in self.PLAYER_ACTIVE_LEDS.items():
+            state = (p_idx == active_player_idx)
+            for chip, col, row in leds:
+                self.set_led(chip, col, row, state)
+
+    def set_dart_arrows(self, arrows_count):
+        """Schaltet 0 bis 3 grüne Dartpfeil-Symbole (übrige Pfeile) ein."""
+        self.check_light_auto_on()
+        arrows_count = max(0, min(3, int(arrows_count or 0)))
+        for arrow_num in (1, 2, 3):
+            state = (arrow_num <= arrows_count)
+            for chip, col, row in self.DART_ARROW_LEDS[arrow_num]:
                 self.set_led(chip, col, row, state)
 
     def set_disp_char(self, disp_num, char, dot=False):
@@ -291,6 +299,7 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_temp_score(self, score):
+        """Zeigt oben rechts (TEMP SCORE, DISP25-27) die Wurfsumme oder den aktuellen Punktestand an."""
         self.check_light_auto_on()
         d_hund, d_ten, d_unit = self.TEMP_SCORE_DISP
         if score is None or score == "":
@@ -300,6 +309,18 @@ class LoewenDisplay:
         self.set_disp_char(d_hund, score_str[0])
         self.set_disp_char(d_ten,  score_str[1])
         self.set_disp_char(d_unit, score_str[2])
+
+    def set_turn(self, value):
+        """Zeigt ganz oben rechts (neben dem C-Symbol, DISP28-29) die Runde oder übrige Pfeile an."""
+        self.check_light_auto_on()
+        d_ten, d_unit = self.TURN_DISP
+        if value is None or value == "":
+            self.set_disp_char(d_ten,  " ")
+            self.set_disp_char(d_unit, " ")
+            return
+        val_str = f"{max(0, min(99, int(value))):2d}"
+        self.set_disp_char(d_ten,  val_str[0])
+        self.set_disp_char(d_unit, val_str[1])
 
     def set_cricket_marks(self, player_idx, target, marks):
         self.check_light_auto_on()
@@ -321,7 +342,7 @@ class LoewenDisplay:
         try:
             self.ser.write(b"CLEAR\n")
             self.ser.flush()
-            time.sleep(0.02)
+            time.sleep(0.03)
         except: pass
 
     def update(self):
@@ -336,7 +357,7 @@ class LoewenDisplay:
                     for c in range(9):
                         for d in range(8):
                             self.last_sent[c][d] = 255
-                    time.sleep(0.02)
+                    time.sleep(0.03)
                 except: pass
             return
 
@@ -348,6 +369,6 @@ class LoewenDisplay:
                         self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
                         self.ser.flush()
                         self.last_sent[chip][digit] = val
-                        time.sleep(0.004)
+                        # 12ms Pause verhindert zuverlässig den 64-Byte UART-Buffer-Overflow am Arduino!
+                        time.sleep(0.012)
                     except: pass
-        
