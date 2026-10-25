@@ -23,11 +23,9 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
-        # Exaktes physikalisches Spalten-Mapping laut Schaltplan Blatt 1 & 3:
-        # A(Pin 6)=DIG2, B(Pin 5)=DIG6, C(Pin 10)=DIG5, D(Pin 3)=DIG4,
-        # E(Pin 7)=DIG3, F(Pin 8)=DIG7, G(Pin 11)=DIG1, H(Pin 2)=DIG0
+        # Exaktes physikalisches Spalten-Mapping der Löwen-Platine (A..H = DIG7..DIG0):
         self.COL_TO_DIGIT = {
-            "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
+            "A": 7, "B": 6, "C": 5, "D": 4, "E": 3, "F": 2, "G": 1, "H": 0
         }
 
         # Exakte Bit-Zuordnung der Zeilen 1..8 laut MAX7219-Pinout (Blatt 1 & 3):
@@ -79,11 +77,11 @@ class LoewenDisplay:
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
-        # Display-Zuordnung (Hunderter, Zehner, Einer) von links nach rechts
+        # Display-Zuordnung (Hunderter, Zehner, Einer) von links nach rechts - jetzt streng linear!
         self.PLAYER_DISP = {
             0: (1, 2, 3),     # Spieler 1: DISP1 (links), DISP2 (mitte), DISP3 (rechts)
-            1: (5, 4, 6),     # Spieler 2: DISP5 (links), DISP4 (mitte), DISP6 (rechts)
-            2: (9, 8, 7),     # Spieler 3: DISP9 (links), DISP8 (mitte), DISP7 (rechts)
+            1: (4, 5, 6),     # Spieler 2: DISP4 (links), DISP5 (mitte), DISP6 (rechts)
+            2: (7, 8, 9),     # Spieler 3: DISP7 (links), DISP8 (mitte), DISP9 (rechts)
             3: (10, 11, 12),  # Spieler 4: DISP10 (links), DISP11 (mitte), DISP12 (rechts)
             4: (30, 31, 32),  # Spieler 5: DISP30 (links), DISP31 (mitte), DISP32 (rechts)
             5: (33, 34, 35),  # Spieler 6: DISP33 (links), DISP34 (mitte), DISP35 (rechts)
@@ -369,6 +367,5 @@ class LoewenDisplay:
                         self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
                         self.ser.flush()
                         self.last_sent[chip][digit] = val
-                        # 12ms Pause verhindert zuverlässig den 64-Byte UART-Buffer-Overflow am Arduino!
                         time.sleep(0.012)
                     except: pass
