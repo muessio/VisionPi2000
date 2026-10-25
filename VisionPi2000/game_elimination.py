@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.6.0"
+VERSION = "1.6.2"
 GAMES = ["301 Elimination"]
 OPTIONS = ["Standard", "Schnell"]
 
@@ -259,15 +259,29 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if current_state == "GAME":
             screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}  |  Runde {round_num}", True, HIGHLIGHT), (40, 60))
+            
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
-            screen.blit(big_font.render(f"AM ZUG: {p_name}  (Aufnahme: {round_points})", True, RED_COL if is_berrys_turn else WHITE), (280, 120))
-            screen.blit(giant_font.render(str(player_scores[active_player-1]), True, WHITE), (350, 280))
+            name_color = RED_COL if is_berrys_turn else WHITE
+            
+            # --- NEUES LAYOUT: Spielername zentriert ---
+            name_surf = big_font.render(p_name, True, name_color)
+            screen.blit(name_surf, ((screen.get_width() - name_surf.get_width()) // 2, 110))
+            
+            # --- NEUES LAYOUT: (Temp Score) darunter zentriert ---
+            temp_score_surf = title_font.render(f"(Temp Score: {round_points})", True, (200, 200, 200))
+            screen.blit(temp_score_surf, ((screen.get_width() - temp_score_surf.get_width()) // 2, 155))
+            
+            # --- NEUES LAYOUT: Score zentriert ---
+            score_surf = giant_font.render(str(player_scores[active_player-1]), True, WHITE)
+            screen.blit(score_surf, ((screen.get_width() - score_surf.get_width()) // 2, 210))
             
             if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
             
-            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
+            # --- NEUES LAYOUT: Darts-Anzeige zentriert ---
+            darts_surf = big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150))
+            screen.blit(darts_surf, ((screen.get_width() - darts_surf.get_width()) // 2, 600))
 
             y_base = 660
             for i in range(total_players):
