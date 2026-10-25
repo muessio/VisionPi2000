@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -210,7 +210,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     
-                    # Spezial-Sound & Animation Trigger für Triples 16-20 sowie Bullseye (b/db)
                     is_special_hit = hit_seg in ["t16", "t17", "t18", "t19", "t20", "b", "db"]
                     if is_special_hit:
                         champ_display_until = pygame.time.get_ticks() + 2000
