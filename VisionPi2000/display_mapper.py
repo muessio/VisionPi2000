@@ -37,8 +37,8 @@ class LoewenDisplay:
         SEG_U1      = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 }
         SEG_U1_SPEC = { "A": 5, "B": 3, "C": 6, "D": 7, "E": 4, "F": 1, "G": 2, "DP": 8 }
         SEG_U2      = { "A": 5, "B": 2, "C": 1, "D": 3, "E": 4, "F": 7, "G": 6, "DP": 8 }
-        SEG_U3      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 6, "DP": 8 } # Exakt nach U3 Schaltplan
-        SEG_U4      = { "A": 5, "B": 2, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 1 } # Exakt nach U4 Schaltplan
+        SEG_U3      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 6, "DP": 8 }
+        SEG_U4      = { "A": 5, "B": 2, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 1 }
         SEG_U5_U6   = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 }
         SEG_U7      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 }
         SEG_U8      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 6 }
@@ -86,6 +86,18 @@ class LoewenDisplay:
             17: (19, 20),
             16: (21, 22),
             15: (23, 24),
+        }
+
+        # Vollständige Erfassung ALLER in den Schaltplänen (`Display-Wiring-diagram.jpg`) definierten PL-Lampen & Sonder-LEDs
+        self.ALL_PL_LEDS = {
+            1: [(1, "H", 2), (1, "H", 7)], # PL1
+            2: [(0, "H", 2), (0, "H", 7)], # PL2
+            3: [(1, "H", 8), (1, "H", 4)], # PL3
+            4: [(1, "D", 8), (1, "D", 4)], # PL4
+            5: [(3, "B", 4), (3, "B", 6)], # PL5
+            6: [(3, "H", 2), (3, "H", 6)], # PL6
+            7: [(2, "A", 1), (2, "A", 5)], # PL7
+            8: [(3, "B", 2), (3, "B", 7)], # PL8
         }
 
         self.CRICKET_LEDS = {
@@ -212,6 +224,13 @@ class LoewenDisplay:
         if chip == 8:
             self.buffer[9][digit_idx] = self.buffer[8][digit_idx]
 
+    # NEU: Hilfsfunktion, um jede beliebige PL-Lampe direkt per Nummer (1-8) anzusteuern!
+    def set_pl_lamp(self, lamp_num, state):
+        self.check_light_auto_on()
+        if lamp_num in self.ALL_PL_LEDS:
+            for chip, col, row in self.ALL_PL_LEDS[lamp_num]:
+                self.set_led(chip, col, row, state)
+
     def set_disp_char(self, disp_num, char, dot=False):
         if disp_num not in self.DISP_TABLE:
             return
@@ -311,4 +330,4 @@ class LoewenDisplay:
                         self.last_sent[chip][digit] = val
                         time.sleep(0.004)
                     except: pass
-                        
+        
