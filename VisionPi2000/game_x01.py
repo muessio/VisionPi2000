@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -162,6 +162,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
+        is_berrys_turn = (is_berry_game and active_player == total_players)
         if raw_data == "IR:DETECT" and darts_thrown < 3:
             raw_data = None
 
@@ -211,7 +212,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if sound_switch is not None: sound_switch.play()
             sync_hw_display()
 
-        is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
         if is_berrys_turn and current_state == "GAME" and raw_data is None and switch_delay_timer == 0:
@@ -221,7 +221,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option)}"
                     bot_timer = 0 
             else:
-                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
+                if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1000
                 elif pygame.time.get_ticks() > bot_timer:
                     switch_delay_timer = pygame.time.get_ticks() + 1000
                     bot_timer = 0
