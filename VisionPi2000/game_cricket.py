@@ -9,7 +9,7 @@ OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
 
 def parse_hit(hit_str):
-    if hit_str in ["-", "WIN_CHEAT", "MISS"]: return (0, 0)
+    if hit_str in ["-", "WIN_CHEAaT", "MISS"]: return (0, 0)
     if hit_str == "b": return (25, 1)   
     if hit_str == "db": return (25, 2)  
     mult = 3 if hit_str.startswith("t") else (2 if hit_str.startswith("d") else 1)
@@ -88,7 +88,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         try: champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (350, 350))
         except: pass
 
-    # Absolut sicheres Laden der Sounds ohne Absturzgefahr
     sound_single = safe_load_sound("sounds/hit_single.wav")
     sound_double = safe_load_sound("sounds/hit_double.wav")
     sound_triple = safe_load_sound("sounds/hit_triple.wav")
