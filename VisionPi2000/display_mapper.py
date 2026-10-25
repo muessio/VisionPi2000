@@ -23,61 +23,56 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
-        # Das EXAKTE physikalische Spalten-Mapping der Löwen-Platine (Schaltplan Blatt 1 & 2)
+        # Originales, physikalisches Spalten-Mapping der Löwen-Platine
         self.COL_TO_DIGIT = {
             "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
         }
 
+        # Exaktes Bit-Mapping für die 8 Zeilen/Segmente
         self.ROW_TO_BIT = {
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        SEG_U1       = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
-        SEG_U1_SPEC  = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
-        SEG_U2       = { "C": 1, "B": 2, "D": 3, "E": 4, "A": 5, "G": 6, "F": 7, "DP": 8 }
-        SEG_U3       = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
-        SEG_U4       = { "B": 1, "DP": 2, "E": 3, "F": 4, "A": 5, "G": 6, "C": 7, "D": 8 }
-        SEG_U5_U6    = { "B": 1, "DP": 2, "D": 3, "F": 4, "A": 5, "G": 6, "C": 7, "E": 8 }
-        SEG_U7       = { "E": 1, "C": 2, "B": 3, "F": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
-        SEG_U8       = { "F": 1, "C": 2, "B": 3, "E": 4, "A": 5, "DP": 6, "D": 7, "G": 8 }
-        SEG_U9       = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "B": 7, "DP": 8 }
+        # Bereinigte Segment-Pin-Zuordnungen für U1 bis U9 (Hardware-Abgleich)
+        SEG_U1      = { "A": 5, "B": 6, "C": 7, "D": 3, "E": 4, "F": 1, "G": 2, "DP": 8 }
+        SEG_U2      = { "A": 5, "B": 2, "C": 1, "D": 3, "E": 4, "F": 7, "G": 6, "DP": 8 }
+        SEG_U3      = { "A": 4, "B": 2, "C": 3, "D": 5, "E": 1, "F": 6, "G": 7, "DP": 8 }
+        SEG_U4      = { "A": 5, "B": 1, "C": 7, "D": 8, "E": 3, "F": 4, "G": 6, "DP": 2 }
+        SEG_U5_U6   = { "A": 5, "B": 1, "C": 7, "D": 3, "E": 8, "F": 4, "G": 6, "DP": 2 }
+        SEG_U7      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 1, "F": 4, "G": 6, "DP": 8 }
+        SEG_U8      = { "A": 5, "B": 3, "C": 2, "D": 7, "E": 4, "F": 1, "G": 8, "DP": 6 }
+        SEG_U9      = { "A": 8, "B": 7, "C": 2, "D": 3, "E": 5, "F": 4, "G": 6, "DP": 1 }
 
         self.DISP_TABLE = {
-            # Strang D0: U1 (Chip 0), U3 (Chip 1) - Block 1 & Block 3 mit SPEC-Fix für Spalte A & B
-            1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
-            7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
+            1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1),
+            7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
             
-            # Strang D1: U2 (Chip 2), U4 (Chip 3) - Block 2 & Block 4
             4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
             16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
             
-            # Strang D2: U5 (Chip 4), U6 (Chip 5) - Cricket Matrix
             19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
             22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
             
-            # Strang D3: U7 (Chip 6), U8 (Chip 7) - Temp Score & Block 5/7
             25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
             31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8),
             36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
             
-            # Strang D4: U9 (Chip 8) - Block 6 & Block 8
             28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9), 35: (8, "B", SEG_U9),
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
-        # Die exakten Spieler-Blöcke (Hunderter, Zehner, Einer von links nach rechts)
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     # Block 1
-            1: (5, 4, 6),     # Block 2
-            2: (9, 8, 7),     # Block 3 (9=Hund, 8=Zehn, 7=Einer)
-            3: (12, 11, 10),  # Block 4
-            4: (30, 31, 32),  # Block 5
-            5: (33, 34, 35),  # Block 6
-            6: (36, 37, 38),  # Block 7
-            7: (39, 40, 41),  # Block 8
+            0: (1, 2, 3),     
+            1: (5, 4, 6),     
+            2: (9, 8, 7),     
+            3: (12, 11, 10),  
+            4: (30, 31, 32),  
+            5: (33, 34, 35),  
+            6: (36, 37, 38),  
+            7: (39, 40, 41),  
         }
 
         self.TEMP_SCORE_DISP = (25, 26, 27)
@@ -315,4 +310,3 @@ class LoewenDisplay:
                         self.last_sent[chip][digit] = val
                         time.sleep(0.004)
                     except: pass
-                        
