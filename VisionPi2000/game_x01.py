@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.7.0"
+VERSION = "1.7.2"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -202,16 +202,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             
             # --- 1. Exakte Spielerwechsel-Steuerung ---
             if raw_data == "BTN:PLAYER":
-                # Button: Wechselt SOFORT (Verzögerung = 0), ignoriert wie viele Pfeile geworfen wurden
                 switch_delay_timer = pygame.time.get_ticks() 
                 raw_data = None
             elif raw_data == "IR:DETECT":
-                # IR-Sensor: Schaltet nur um, wenn 3 Darts geworfen wurden und startet 1-Sekunde Timer
                 if darts_thrown >= 3 and not is_berrys_turn and switch_delay_timer == 0:
                     switch_delay_timer = pygame.time.get_ticks() + 1000
                 raw_data = None
             
-            # Berry-Auto-Switch: Schaltet nach seinem 3. Dart automatisch mit 1-Sekunde Timer weiter
             if is_berrys_turn and darts_thrown >= 3 and switch_delay_timer == 0:
                 if bot_timer == 0:
                     bot_timer = pygame.time.get_ticks() + 1000
@@ -219,7 +216,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     switch_delay_timer = pygame.time.get_ticks() + 1000
                     bot_timer = 0
 
-            # Ausführung des Spielerwechsels (greift bei Button sofort, bei IR/Berry verzögert)
+            # Ausführung des Spielerwechsels
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer = 0
                 darts_thrown = 0
@@ -242,7 +239,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             elif not is_berrys_turn: 
                 bot_timer = 0
 
-        # --- 3. Treffer-Verarbeitung (KOMPLETT OHNE AUTO-SWITCH) ---
+        # --- 3. Treffer-Verarbeitung ---
         if raw_data:
             if current_state == "GAME":
                 if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
@@ -315,19 +312,33 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if current_state == "GAME":
             screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}  |  Runde {round_num}", True, HIGHLIGHT), (40, 60))
+            
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
-            screen.blit(big_font.render(f"AM ZUG: {p_name}  (Aufnahme: {round_points})", True, RED_COL if is_berrys_turn else WHITE), ((screen.get_width() - 450)//2, 120))
-            screen.blit(giant_font.render(str(player_scores[active_player-1]), True, WHITE), ((screen.get_width() - 400)//2, 220))
+            name_color = RED_COL if is_berrys_turn else WHITE
+            
+            # --- NEUES LAYOUT: Spielername zentriert ---
+            name_surf = big_font.render(p_name, True, name_color)
+            screen.blit(name_surf, ((screen.get_width() - name_surf.get_width()) // 2, 110))
+            
+            # --- NEUES LAYOUT: (Temp Score) darunter zentriert ---
+            temp_score_surf = title_font.render(f"(Temp Score: {round_points})", True, (200, 200, 200))
+            screen.blit(temp_score_surf, ((screen.get_width() - temp_score_surf.get_width()) // 2, 155))
+            
+            # --- NEUES LAYOUT: Score zentriert ---
+            score_surf = giant_font.render(str(player_scores[active_player-1]), True, WHITE)
+            screen.blit(score_surf, ((screen.get_width() - score_surf.get_width()) // 2, 210))
             
             if has_double_in and not player_in_checked[active_player-1]:
                 in_hint = title_font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
-                screen.blit(in_hint, ((screen.get_width() - in_hint.get_width())//2, 430))
+                screen.blit(in_hint, ((screen.get_width() - in_hint.get_width()) // 2, 430))
 
             if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 540))
 
-            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (350, 600))
+            # --- NEUES LAYOUT: Darts-Anzeige zentriert ---
+            darts_surf = big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150))
+            screen.blit(darts_surf, ((screen.get_width() - darts_surf.get_width()) // 2, 600))
 
             y_base = 660
             for i in range(total_players):
