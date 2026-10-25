@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -60,11 +60,14 @@ inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
   delayMicroseconds(2);
 }
 
+// Sendet einen Befehl an alle Chips (berücksichtigt Kaskadierung durch Wiederholung)
 void sendCommandToAll(byte addr, byte data) {
   digitalWrite(clkPin, LOW);
   digitalWrite(loadPin, LOW);
   delayMicroseconds(5);
 
+  // Da wir max 2 Chips in Kette haben, senden wir das Paket 2x hintereinander, 
+  // damit es durch den vorderen in den hinteren Chip durchgereicht wird.
   for (int repeat = 0; repeat < 2; repeat++) {
     for (int i = 7; i >= 0; i--) {
       byte b = (addr >> i) & 1;
@@ -88,11 +91,18 @@ void updateDigitForAllStrands(int digitIndex) {
 
   byte addr = digitIndex + 1;
 
-  // Paket 1: Daten für den HINTEREN Chip (DOUT: U3, U4, U6, U8)
+  // Für kaskadierte Stränge (D0-D3): 
+  // Chip 1 (Hinterer Chip, z.B. U3) bekommt die echten Daten.
+  // Chip 0 (Vorderer Chip, z.B. U1) muss währenddessen ein NO-OP (Adresse 0x00, Daten 0x00) erhalten,
+  // damit er seine Anzeige nicht überschreibt oder blockiert, während die Daten durch ihn hindurchwandern!
+  
+  // 1. Paket für den HINTEREN Chip (DOUT: U3, U4, U6, U8)
+  // Adresse schicken
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
-    clockBit(b, b, b, b, 0);
+    clockBit(b, b, b, b, 0); // D4 hat keinen hinteren Chip -> 0
   }
+  // Daten für hinteren Chip schicken
   for (int i = 7; i >= 0; i--) {
     clockBit(
       (displayMem[0][1][digitIndex] >> i) & 1,
@@ -103,11 +113,13 @@ void updateDigitForAllStrands(int digitIndex) {
     );
   }
 
-  // Paket 2: Daten für den VORDEREN Chip (DIN: U1, U2, U5, U7) sowie U9 auf Strang D4
+  // 2. Paket für den VORDEREN Chip (DIN: U1, U2, U5, U7) sowie U9 auf Strang D4
+  // Adresse schicken
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
     clockBit(b, b, b, b, b);
   }
+  // Daten für vorderen Chip schicken
   for (int i = 7; i >= 0; i--) {
     clockBit(
       (displayMem[0][0][digitIndex] >> i) & 1,
