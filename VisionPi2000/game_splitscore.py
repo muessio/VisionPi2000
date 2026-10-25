@@ -219,7 +219,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     target_rule = ROUNDS[current_round_idx]
                     pts = check_hit_valid(hit_seg, target_rule) if hit_seg != "MISS" else 0
 
-                    # Nur wenn der Treffer für das Ziel der Runde gültig ist, gibt es die Fanfare/Animation
                     if pts > 0:
                         champ_display_until = pygame.time.get_ticks() + 2000
                         if sound_champ is not None: sound_champ.play()
@@ -286,4 +285,3 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             screen.blit(hint_txt, ((screen.get_width() - hint_txt.get_width()) // 2, 380))
             
         pygame.display.flip(); clock.tick(30)
-                
