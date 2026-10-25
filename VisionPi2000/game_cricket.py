@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.3.4"
+VERSION = "1.3.6"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -75,13 +75,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     berry_images = {"Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"}
     avatar_path = berry_images.get(mode, "")
     avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
-    
     champ_img = None
     if os.path.exists("Bullseye-Berry_Champ.png"):
         try: champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (350, 350))
         except: pass
 
-    # Absolut sicheres Laden der Sounds
     sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
     sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
@@ -89,7 +87,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
-    big_font = pygame.font.SysFont("arial", 24, bold=True)
+    big_font = pygame.font.SysFont("arial", 26, bold=True)       # Etwas größer für bessere Lesbarkeit
     giant_font = pygame.font.SysFont("arial", 90, bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
@@ -250,23 +248,27 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
             screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (40, 55))
             
-            col_width = 80
-            start_x = 180
-            start_y = 95
+            # Etwas großzügigeres Matrix-Layout für eine größere Tabelle
+            col_width = 92
+            start_x = 160
+            start_y = 110
 
+            # Spaltenköpfe (Ziele: 15 bis BULL)
             for j, target in enumerate(TARGETS):
                 t_label = "BULL" if target == 25 else str(target)
                 lbl_surf = big_font.render(t_label, True, HIGHLIGHT)
                 screen.blit(lbl_surf, (start_x + j * col_width + (col_width - lbl_surf.get_width()) // 2, start_y))
 
-            row_height = 32
+            # Zeilen (Spieler untereinander mit etwas mehr Abstand)
+            row_height = 38
             for p in range(total_players):
-                row_y = start_y + 30 + p * row_height
+                row_y = start_y + 35 + p * row_height
                 p_n = f"P{p+1}" if not (is_berry_game and p == total_players-1) else "Berry"
                 c = HIGHLIGHT if p == (active_player - 1) else WHITE
                 name_surf = big_font.render(p_n, True, c)
                 screen.blit(name_surf, (40, row_y))
 
+                # Marks für jeden Spieler bei jedem Ziel anzeigen
                 for j, target in enumerate(TARGETS):
                     marks = player_marks[p][target]
                     m_surf = big_font.render(f"{marks}/3", True, (50, 255, 50) if marks == 3 else WHITE)
@@ -274,10 +276,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
-                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, 360))
+                screen.blit(block_hint, ((screen.get_width() - block_hint.get_width())//2, SCREEN_HEIGHT - 45))
             
-            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, 360))
+            # Pfeile geworfen ganz nach unten gerückt
+            screen.blit(big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150)), (40, SCREEN_HEIGHT - 40))
 
+            # Bullseye-Berry / Champ Animation bei besonderen Treffern
             if pygame.time.get_ticks() < champ_display_until and champ_img is not None:
                 screen.blit(champ_img, ((screen.get_width() - 350) // 2, (screen.get_height() - 350) // 2))
                 screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((screen.get_width() - 200) // 2, (screen.get_height() // 2 + 150)))
