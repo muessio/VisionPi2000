@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
@@ -70,7 +70,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     bg_img = None
     if os.path.exists("background.png"):
-        try: bg_img = pygame.transform.scale(pygame.image.load("background.png").convert(), (screen.get_width(), screen.get_height()))
+        try:
+            raw_bg = pygame.image.load("background.png").convert()
+            bg_img = pygame.transform.scale(raw_bg, (screen.get_width(), screen.get_height()))
+            darker_overlay = pygame.Surface((screen.get_width(), screen.get_height()))
+            darker_overlay.set_alpha(120)
+            darker_overlay.fill((0, 0, 0))
+            bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
     berry_images = {"Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"}
