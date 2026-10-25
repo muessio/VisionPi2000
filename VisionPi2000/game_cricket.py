@@ -150,7 +150,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
-        # IR-Sensor-Blockade: IR:DETECT wird ignoriert, solange nicht alle 3 Pfeile geworfen sind
         if raw_data == "IR:DETECT" and darts_thrown < 3:
             raw_data = None
 
@@ -189,7 +188,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif cancel_action == "NO": confirming = False; combo_press_start = 0
             raw_data = None
 
-        # Prüfen auf 1 Sekunde Verzögerung beim automatischen Spielerwechsel nach 3 Darts
         if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
             switch_delay_timer = 0
             darts_thrown = 0
@@ -233,7 +231,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     p_idx = active_player - 1
                     val, marks = parse_hit(hit_seg) if hit_seg != "MISS" else (0, 0)
 
-                    # Nur gültige Cricket-Ziele (15-20, Bull) lösen Spezial-Sounds/Animationen aus
                     is_valid_cricket_hit = (val in TARGETS)
                     is_special_hit = is_valid_cricket_hit and hit_seg in ["t16", "t17", "t18", "t19", "t20", "b", "db"]
 
@@ -245,7 +242,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         elif (hit_seg.startswith("d") or hit_seg == "db") and sound_double is not None: sound_double.play()
                         elif sound_single is not None: sound_single.play()
                     else:
-                        # Fehlwurf / Ungültiger Treffer -> Miss Sound
                         if sound_miss is not None: sound_miss.play()
 
                     if val in TARGETS:
@@ -264,7 +260,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     if check_win(): current_state = "WIN"
 
             elif current_state == "WIN":
-                # Spielende: Rückkehr ins Hauptmenü über Spielerwechsel-Button
                 if raw_data in ["BTN:PLAYER", "BTN:START"] or (e.type == pygame.KEYDOWN and e.key == pygame.K_p):
                     if sound_switch is not None: sound_switch.play()
                     return
@@ -323,4 +318,3 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             screen.blit(hint_txt, ((screen.get_width() - hint_txt.get_width()) // 2, 360))
             
         pygame.display.flip(); clock.tick(30)
-        
