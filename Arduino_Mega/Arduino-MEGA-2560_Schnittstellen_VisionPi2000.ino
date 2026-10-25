@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (SPI-FLANKEN-FIX & RELAIS-FIX)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (FINALER SERIAL- & SPI-FIX)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -17,8 +17,12 @@ const int clkPin   = 4;
 const int loadPin  = 5;   
 const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
-// [Strang 0..4][Chip 0 (vorn/DIN: U1,U2,U5,U7,U9) oder Chip 1 (hinten/DOUT: U3,U4,U6,U8)][Digit 0..7]
+// [Strang 0..4][Chip 0 (vorn/DIN) oder Chip 1 (hinten/DOUT)][Digit 0..7]
 byte displayMem[5][2][8] = {0};
+
+// Schneller, nicht-blockierender Zeilenpuffer für die serielle Schnittstelle
+char cmdBuffer[64];
+int cmdIndex = 0;
 
 const String dartBoard[4][16] = {
   {"d12", "12", "d9", "9", "d14", "14", "d11", "11", "d8", "8", "-",  "t12", "t9", "t14", "t11", "t8"},
@@ -66,7 +70,6 @@ void sendCommandToAll(byte addr, byte data) {
       delayMicroseconds(2);
     }
   }
-  // WICHTIG: Erst CLK auf LOW ziehen, DANN LOAD auf HIGH flanken!
   digitalWrite(clkPin, LOW);
   delayMicroseconds(2);
   digitalWrite(loadPin, HIGH);
@@ -85,7 +88,7 @@ void updateDigitForAllStrands(int digitIndex) {
     digitalWrite(clkPin, LOW);
     byte b = (addr >> i) & 1;
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], b); }
-    digitalWrite(dPins[4], LOW); // Strang 4 (Einzelchip U9) bekommt No-Op 0
+    digitalWrite(dPins[4], LOW); // Strang 4 (U9) bekommt No-Op 0x00
     delayMicroseconds(2);
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(2);
@@ -116,7 +119,6 @@ void updateDigitForAllStrands(int digitIndex) {
     delayMicroseconds(2);
   }
 
-  // WICHTIG: Erst CLK auf LOW ziehen, DANN LOAD auf HIGH flanken (verhindert Bit-Shift an DOUT->DIN)!
   digitalWrite(clkPin, LOW);
   delayMicroseconds(2);
   digitalWrite(loadPin, HIGH);
@@ -124,12 +126,58 @@ void updateDigitForAllStrands(int digitIndex) {
 }
 
 void clearAllDisplays() {
+  sendCommandToAll(0x0F, 0x00); // Falls Display-Test aktiv war, sicher beenden
   for (int i = 0; i < 8; i++) {
     for (int c = 0; c < 5; c++) {
       displayMem[c][0][i] = 0;
       displayMem[c][1][i] = 0;
     }
     updateDigitForAllStrands(i);
+  }
+}
+
+void processSerialCommand(String command) {
+  command.trim();
+  if (command.length() == 0) return;
+
+  if (command == "LIGHT:ON") {
+    digitalWrite(lightRelayPin, HIGH);
+  }
+  else if (command == "LIGHT:OFF") {
+    digitalWrite(lightRelayPin, LOW);
+  }
+  else if (command == "CLEAR") {
+    clearAllDisplays();
+  }
+  else if (command == "TEST:ON") {
+    sendCommandToAll(0x0F, 0x01);
+  }
+  else if (command == "TEST:OFF") {
+    sendCommandToAll(0x0F, 0x00);
+  }
+  else if (command.startsWith("RAW:")) {
+    int firstColon = command.indexOf(':');
+    int secondColon = command.indexOf(':', firstColon + 1);
+    int thirdColon = command.indexOf(':', secondColon + 1);
+    
+    if (secondColon > 0 && thirdColon > 0) {
+      int chip  = command.substring(firstColon + 1, secondColon).toInt();
+      int digit = command.substring(secondColon + 1, thirdColon).toInt();
+      int value = command.substring(thirdColon + 1).toInt();
+      
+      if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
+        int chain = chip / 2;      
+        int chipIdx = chip % 2;    
+        
+        if (chain == 4) {
+          displayMem[4][0][digit] = (byte)value; 
+        } else {
+          displayMem[chain][chipIdx][digit] = (byte)value; 
+        }
+        
+        updateDigitForAllStrands(digit);
+      }
+    }
   }
 }
 
@@ -147,7 +195,6 @@ void setup() {
   
   pinMode(clkPin, OUTPUT); pinMode(loadPin, OUTPUT);
   for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
-  // Ruhepegel: CLK = LOW, LOAD = HIGH!
   digitalWrite(clkPin, LOW); 
   digitalWrite(loadPin, HIGH);
   delay(500);
@@ -156,49 +203,24 @@ void setup() {
   sendCommandToAll(0x09, 0x00); // Keine BCD-Decodierung
   sendCommandToAll(0x0B, 0x07); // Scan Limit: Alle 8 Digits
   sendCommandToAll(0x0A, 0x0F); // Helligkeit: Maximum
-  sendCommandToAll(0x0C, 0x01); // Normal Operation (Kein Shutdown)
+  sendCommandToAll(0x0C, 0x01); // Normal Operation
 
   clearAllDisplays();
   Serial.println("SYSTEM:READY"); 
 }
 
 void loop() {
+  // Nicht-blockierendes Einlesen: Kein serielles Paket geht jemals verloren!
   while (Serial.available() > 0) {
-    String command = Serial.readStringUntil('\n');
-    command.trim(); 
-    
-    if (command == "LIGHT:ON") {
-      digitalWrite(lightRelayPin, HIGH);
-    }
-    else if (command == "LIGHT:OFF") {
-      digitalWrite(lightRelayPin, LOW);
-    }
-    else if (command == "CLEAR") {
-      clearAllDisplays();
-    }
-    else if (command.startsWith("RAW:")) {
-      int firstColon = command.indexOf(':');
-      int secondColon = command.indexOf(':', firstColon + 1);
-      int thirdColon = command.indexOf(':', secondColon + 1);
-      
-      if (secondColon > 0 && thirdColon > 0) {
-        int chip  = command.substring(firstColon + 1, secondColon).toInt();
-        int digit = command.substring(secondColon + 1, thirdColon).toInt();
-        int value = command.substring(thirdColon + 1).toInt();
-        
-        if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
-          int chain = chip / 2;      
-          int chipIdx = chip % 2;    
-          
-          if (chain == 4) {
-            displayMem[4][0][digit] = (byte)value; 
-          } else {
-            displayMem[chain][chipIdx][digit] = (byte)value; 
-          }
-          
-          updateDigitForAllStrands(digit);
-        }
+    char c = Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (cmdIndex > 0) {
+        cmdBuffer[cmdIndex] = '\0';
+        processSerialCommand(String(cmdBuffer));
+        cmdIndex = 0;
       }
+    } else if (cmdIndex < 62) {
+      cmdBuffer[cmdIndex++] = c;
     }
   }
 
