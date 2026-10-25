@@ -43,32 +43,37 @@ class LoewenDisplay:
         SEG_U9       = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "B": 7, "DP": 8 }
 
         self.DISP_TABLE = {
+            # Strang D0: U1 (Chip 0), U3 (Chip 1) - Block 1 & Block 3 mit SPEC-Fix für Spalte A & B
             1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_SPEC),
-            7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
+            7: (0, "F", SEG_U1_SPEC), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1_SPEC),
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
             
+            # Strang D1: U2 (Chip 2), U4 (Chip 3) - Block 2 & Block 4
             4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
             16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
             
+            # Strang D2: U5 (Chip 4), U6 (Chip 5) - Cricket Matrix
             19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
             22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
             
+            # Strang D3: U7 (Chip 6), U8 (Chip 7) - Temp Score & Block 5/7
             25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
             31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8),
             36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
             
+            # Strang D4: U9 (Chip 8) - Block 6 & Block 8
             28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9), 35: (8, "B", SEG_U9),
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
-        # Die korrekten Spieler-Blöcke (Hunderter, Zehner, Einer)
+        # Die exakten Spieler-Blöcke (Hunderter, Zehner, Einer von links nach rechts)
         self.PLAYER_DISP = {
             0: (1, 2, 3),     # Block 1
             1: (5, 4, 6),     # Block 2
-            2: (7, 8, 9),     # Block 3 -> Korrigiert auf (7, 8, 9) damit 301 richtig herum steht!
-            3: (10, 11, 12),  # Block 4
+            2: (9, 8, 7),     # Block 3 (9=Hund, 8=Zehn, 7=Einer)
+            3: (12, 11, 10),  # Block 4
             4: (30, 31, 32),  # Block 5
             5: (33, 34, 35),  # Block 6
             6: (36, 37, 38),  # Block 7
@@ -276,7 +281,7 @@ class LoewenDisplay:
 
     def clear_all(self):
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
-        self.last_sent = [[0 for _ in range(8)] for _ in range(10)]
+        self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
         if not self.ser: return
         try:
             self.ser.write(b"CLEAR\n")
@@ -310,3 +315,4 @@ class LoewenDisplay:
                         self.last_sent[chip][digit] = val
                         time.sleep(0.004)
                     except: pass
+                        
