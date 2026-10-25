@@ -1,8 +1,9 @@
+# Datei: game_service.py
 import pygame
 import time
 import os
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 GAMES = ["Service Menu"]
 OPTIONS = ["Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
