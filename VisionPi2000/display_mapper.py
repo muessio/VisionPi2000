@@ -23,8 +23,9 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
+        # Korrigiertes Spalten-Mapping (Digit 0 bis 7)
         self.COL_TO_DIGIT = {
-            "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
+            "A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7
         }
 
         self.ROW_TO_BIT = {
@@ -192,7 +193,6 @@ class LoewenDisplay:
             self.set_light(True)
 
     def test_single_chip(self, chip_idx, digit_idx, bit_val=0xFF):
-        """NEU: Testet einen spezifischen Chip (0-8) und eine Spalte (0-7) direkt."""
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
         if 0 <= chip_idx < 10 and 0 <= digit_idx < 8:
             self.buffer[chip_idx][digit_idx] = bit_val
