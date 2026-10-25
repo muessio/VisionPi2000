@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -164,7 +164,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
         is_berrys_turn = (is_berry_game and active_player == total_players)
-        if raw_data == "IR:DETECT" and darts_thrown < 3:
+        
+        # IR-Sensor blockieren, solange nicht 3 Darts geworfen wurden (außer es ist Berry am Zug, der wirft automatisch)
+        if raw_data == "IR:DETECT" and darts_thrown < 3 and not is_berrys_turn:
             raw_data = None
 
         keys = pygame.key.get_pressed()
@@ -213,7 +215,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if sound_switch is not None: sound_switch.play()
             sync_hw_display()
 
-        # Bot-Aktivierung greift NUR nach explizitem Spielerwechsel
+        # Bot-Aktivierung greift durch Spielerwechsel-Button ODER IR-Sensor nach 3 Darts
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]:
             raw_data = None
             bot_activated = True
