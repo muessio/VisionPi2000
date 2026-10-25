@@ -26,7 +26,7 @@ except ImportError: game_aroundclock = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.1.6"       
+VERSION = "1.2.3"       
 BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
@@ -182,7 +182,25 @@ def main():
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
     combo_press_start = 0
 
-    display.clear_all() 
+    def update_menu_hardware_display():
+        g_name = game_registry[sel_game]["name"] if game_registry else "301"
+        is_berry = "Bullseye-Berry" in modes[sel_mode]
+        tot_pl = min(8, players + 1 if is_berry else players)
+        preview_score = int(g_name) if g_name in ["301", "501", "701"] else (40 if g_name == "Split Score" else (1 if g_name == "Around the Clock" else 0))
+        for i in range(8):
+            if i < tot_pl:
+                display.set_score(i, preview_score)
+                display.set_pl_lamp(i + 1, True)
+            else:
+                display.set_score(i, None)
+                display.set_pl_lamp(i + 1, False)
+        display.set_temp_score(None)
+        display.set_turn(tot_pl)
+        display.set_dart_arrows(0)
+        display.update()
+
+    display.clear_all()
+    update_menu_hardware_display()
 
     while running:
         g_list = [g["name"] for g in game_registry]
@@ -264,12 +282,14 @@ def main():
                 elif raw_data == "BTN:PLAYER": 
                     players = players + 1 if players < 8 else 1
                     if players == 8 and "Berry" in modes[sel_mode]: sel_mode = 0
+                update_menu_hardware_display()
             elif raw_data == "BTN:START":
                 if sound_start: sound_start.play()
                 mod = game_registry[sel_game]["module"]
                 if mod: 
                     mod.run_game(screen, ser, display, players, g_list[sel_game], c_opts[sel_option], modes[sel_mode])
                     display.clear_all() 
+                    update_menu_hardware_display()
                     screensaver.reset_timer()
 
         if screensaver.check():
