@@ -353,4 +353,3 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             screen.blit(hint_txt, ((screen.get_width() - hint_txt.get_width()) // 2, 420))
 
         pygame.display.flip(); clock.tick(30)
-    
