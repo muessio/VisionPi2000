@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.3"
+VERSION = "1.3.0"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -103,6 +103,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
     sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
+    sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
     big_font = pygame.font.SysFont("arial", 38, bold=True)
@@ -209,6 +210,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     round_points = 0
                     if active_player == total_players: round_num += 1
                     active_player = (active_player % total_players) + 1
+                    if sound_switch: sound_switch.play()
                     round_start_score = player_scores[active_player - 1]
                     round_start_in_checked = player_in_checked[active_player - 1]
                     sync_hw_display()
@@ -218,6 +220,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if raw_data:
             if current_state == "GAME":
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
+                    if sound_switch: sound_switch.play()
                     darts_thrown = 0
                     round_points = 0
                     if active_player == total_players: round_num += 1
@@ -229,16 +232,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     
-                    if hit_segment != "-" and hit_segment != "MISS":
+                    is_special_hit = hit_segment in ["t16", "t17", "t18", "t19", "t20", "b", "db"]
+                    if is_special_hit:
+                        champ_display_until = pygame.time.get_ticks() + 2000
+                        if sound_champ: sound_champ.play()
+                    elif hit_segment != "-" and hit_segment != "MISS":
                         if hit_segment.startswith("t") and sound_triple: sound_triple.play()
                         elif (hit_segment.startswith("d") or hit_segment == "db") and sound_double: sound_double.play()
                         elif sound_single: sound_single.play()
                     elif hit_segment == "MISS" and sound_single:
                         sound_single.play()
-
-                    if hit_segment in ["t18", "t19", "t20", "b", "db"]:
-                        champ_display_until = pygame.time.get_ticks() + 2000
-                        if sound_champ: sound_champ.play()
                     
                     p_idx = active_player - 1
                     if darts_thrown == 0:
