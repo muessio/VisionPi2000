@@ -4,8 +4,9 @@ import time
 class LoewenDisplay:
     def __init__(self, ser):
         self.ser = ser
-        self.buffer = [[0 for _ in range(8)] for _ in range(10)]
-        self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
+        # Korrigiert auf 9 Chips (U1 bis U9) statt 10
+        self.buffer = [[0 for _ in range(8)] for _ in range(9)]
+        self.last_sent = [[-1 for _ in range(8)] for _ in range(9)]
         self.light_state = True
 
         self.FONT = {
@@ -206,22 +207,19 @@ class LoewenDisplay:
             self.set_light(True)
 
     def test_single_chip(self, chip_idx, digit_idx, bit_val=0xFF):
-        self.buffer = [[0 for _ in range(8)] for _ in range(10)]
-        if 0 <= chip_idx < 10 and 0 <= digit_idx < 8:
+        self.buffer = [[0 for _ in range(8)] for _ in range(9)]
+        if 0 <= chip_idx < 9 and 0 <= digit_idx < 8:
             self.buffer[chip_idx][digit_idx] = bit_val
-            if chip_idx == 8:
-                self.buffer[9][digit_idx] = bit_val
         self.update()
 
     def set_led(self, chip, col_letter, row_num, state):
+        if not (0 <= chip < 9): return
         digit_idx = self.COL_TO_DIGIT[col_letter]
         bit_pos = self.ROW_TO_BIT[row_num]
         if state:
             self.buffer[chip][digit_idx] |= (1 << bit_pos)
         else:
             self.buffer[chip][digit_idx] &= ~(1 << bit_pos)
-        if chip == 8:
-            self.buffer[9][digit_idx] = self.buffer[8][digit_idx]
 
     def set_pl_lamp(self, lamp_num, state):
         self.check_light_auto_on()
@@ -248,8 +246,6 @@ class LoewenDisplay:
                 byte_val |= (1 << bit_pos)
 
         self.buffer[chip][digit_idx] = byte_val
-        if chip == 8:
-            self.buffer[9][digit_idx] = byte_val
 
     def set_score(self, player_idx, score):
         if player_idx not in self.PLAYER_DISP:
@@ -293,8 +289,8 @@ class LoewenDisplay:
                 self.set_led(chip, col, row, i < marks)
 
     def clear_all(self):
-        self.buffer = [[0 for _ in range(8)] for _ in range(10)]
-        self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
+        self.buffer = [[0 for _ in range(8)] for _ in range(9)]
+        self.last_sent = [[-1 for _ in range(8)] for _ in range(9)]
         if not self.ser: return
         try:
             self.ser.write(b"CLEAR\n")
@@ -311,14 +307,15 @@ class LoewenDisplay:
                 try:
                     self.ser.write(b"FILL\n")
                     self.ser.flush()
-                    for c in range(10):
+                    for c in range(9):
                         for d in range(8):
                             self.last_sent[c][d] = 255
                     time.sleep(0.02)
                 except: pass
             return
 
-        for chip in range(10):
+        # Exakte Iteration über alle 9 realen Chips (U1 bis U9)
+        for chip in range(9):
             for digit in range(8):
                 val = self.buffer[chip][digit]
                 if val != self.last_sent[chip][digit]:
@@ -326,6 +323,6 @@ class LoewenDisplay:
                         self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
                         self.ser.flush()
                         self.last_sent[chip][digit] = val
-                        time.sleep(0.004)
+                        # Erhöhte Pause (8ms) zum Schutz vor Takt-Drift in den Kaskaden
+                        time.sleep(0.008)
                     except: pass
-                        
