@@ -3,10 +3,9 @@ import struct
 import math
 import os
 
-# Revisionsindex: v1.1.0 (Erweiterter Miss-Ton & Revisionsverwaltung)
-VERSION = "1.1.0"
-
 os.makedirs("sounds", exist_ok=True)
+
+VERSION = "1.2.0"
 
 def save_wav(filename, audio_data, sample_rate=44100):
     with wave.open(filename, 'w') as f:
@@ -18,7 +17,7 @@ def save_wav(filename, audio_data, sample_rate=44100):
             f.writeframesraw(struct.pack('<h', val))
 
 def generate_arcade_sounds():
-    print("Generiere Sounds (mit knackigerem Fehlwurf-Ton)...")
+    print(f"Generiere Sounds (VisionPi2000 Generator v{VERSION}) - Harter Miss-Ton...")
     
     # 1. CLICK (Menü)
     click = []
@@ -54,14 +53,24 @@ def generate_arcade_sounds():
         bust.append(val)
     save_wav("sounds/bust.wav", bust)
 
-    # 5. MISS / FEHLWURF (Jetzt markanter, etwas höher und kerniger)
+    # 5. MISS / FEHLWURF (Richtig fies, dissonant und hart)
     miss = []
-    for i in range(int(44100 * 0.12)):
+    for i in range(int(44100 * 0.25)):  # Etwas länger für mehr Wirkung
         t = i / 44100.0
-        freq = 240 - t * 120  # Leichter Abwärtstrend, aber kerniger
-        # Etwas härtere Charakteristik für mehr Präsenz
-        val = math.copysign(0.3, math.sin(2 * math.pi * freq * t)) * math.exp(-t * 35)
-        miss.append(val)
+        # Zwei tiefe, dissonante Frequenzen stürzen stark ab (Tritonus-Intervall)
+        freq1 = max(50, 150 - (t * 400))
+        freq2 = max(40, 105 - (t * 300)) 
+        
+        # Harte Rechteckwellen für den typischen "Buzzer"-Effekt
+        v1 = math.copysign(1.0, math.sin(2 * math.pi * freq1 * t))
+        v2 = math.copysign(1.0, math.sin(2 * math.pi * freq2 * t))
+        
+        # Mischen und Lautstärke regulieren
+        val = (v1 + v2) * 0.2
+        
+        # Hüllkurve: Fällt weniger schnell ab als vorher, um präsenter zu sein
+        envelope = math.exp(-t * 8)
+        miss.append(val * envelope)
     save_wav("sounds/miss.wav", miss)
 
     # 6. CHAMP / BULLSEYE FANFARE
@@ -99,7 +108,7 @@ def generate_arcade_sounds():
         hit_t.append(val)
     save_wav("sounds/hit_triple.wav", hit_t)
 
-    print("\nAlle Sounds (mit knackigerem Miss-Ton) erfolgreich generiert!")
+    print("\nAlle Sounds erfolgreich generiert!")
 
 if __name__ == "__main__":
     generate_arcade_sounds()
