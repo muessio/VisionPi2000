@@ -22,10 +22,10 @@ try: import game_shanghai
 except ImportError: game_shanghai = None
 try: import game_aroundclock
 except ImportError: game_aroundclock = None
-try: import game_service
+try: import game_service_2 as game_service
 except ImportError: game_service = None
 
-VERSION = "1.1.3"       
+VERSION = "1.1.4"       
 BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
@@ -113,12 +113,20 @@ def main():
     ser = init_serial()
     display = LoewenDisplay(ser) 
     display.set_light(True)     
-    
-    # WICHTIG: Display direkt beim Start komplett leeren, 
-    # damit im Hauptmenü (und während Start.jpg) alles dunkel bleibt!
     display.clear_all()
 
     screensaver = ScreenSaver(SCREEN_WIDTH, SCREEN_HEIGHT)
+
+    bg_img = None
+    if os.path.exists("background.png"):
+        try:
+            raw_bg = pygame.image.load("background.png").convert()
+            bg_img = pygame.transform.scale(raw_bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
+            darker_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            darker_overlay.set_alpha(120)
+            darker_overlay.fill((0, 0, 0))
+            bg_img.blit(darker_overlay, (0, 0))
+        except: pass
 
     if os.path.exists("Start.jpg"):
         try:
@@ -217,7 +225,9 @@ def main():
                 except: pass
                 
             while showing_info:
-                screen.fill(BG_COLOR)
+                if bg_img: screen.blit(bg_img, (0, 0))
+                else: screen.fill(BG_COLOR)
+                
                 screen.blit(title_font.render("SYSTEM-INFORMATIONEN (Revisionsindex)", True, HIGHLIGHT), (120, 60))
                 screen.blit(font.render("Gründer & Hauptentwickler – VisionPi2000 (Open Source)", True, (100, 220, 100)), (150, 105))
                 screen.blit(font.render("Oliver Müssig", True, WHITE), (150, 130))
@@ -267,7 +277,9 @@ def main():
             clock.tick(30)
             continue
 
-        screen.fill(BG_COLOR)
+        if bg_img: screen.blit(bg_img, (0, 0))
+        else: screen.fill(BG_COLOR)
+        
         if header_img: screen.blit(header_img, ((SCREEN_WIDTH - header_img.get_width()) // 2, HEADER_START_Y))
         else:
             hx = (SCREEN_WIDTH - big_font.render("VISION PI 2000", True, HIGHLIGHT).get_width()) // 2
