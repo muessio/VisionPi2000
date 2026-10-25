@@ -1,3 +1,4 @@
+# Datei: visionpi.py
 import pygame
 import serial
 import sys
@@ -22,10 +23,10 @@ try: import game_shanghai
 except ImportError: game_shanghai = None
 try: import game_aroundclock
 except ImportError: game_aroundclock = None
-try: import game_service_2 as game_service
+try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.1.4"       
+VERSION = "1.1.6"       
 BOX_WIDTH = 290         
 BOX_HEIGHT = 420        
 BOX_SPACING = 30        
@@ -42,7 +43,7 @@ HIGHLIGHT, WHITE = (255, 215, 0), (255, 255, 255)
 class ScreenSaver:
     def __init__(self, width, height):
         self.width, self.height = width, height
-        self.timeout = 10 * 60 * 1000 
+        self.timeout = 10 * 60 * 1000  
         self.last_activity = pygame.time.get_ticks()
         self.active = False
         self.avatars = []
