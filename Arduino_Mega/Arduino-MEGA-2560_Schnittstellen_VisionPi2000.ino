@@ -1,5 +1,5 @@
 // =================================================================================
-// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (STRANG 4 / U9 FIX)
+// VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (KORRIGIERTES SPI-PROTOKOLL)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -15,8 +15,9 @@ const int piezoPin    = A0;
 
 const int clkPin   = 4;   
 const int loadPin  = 5;   
-const int dPins[5] = {6, 7, 8, 9, 10}; 
+const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
+// [Strang 0..4][Chip 0 (vorn/DIN: U1,U2,U5,U7,U9) oder Chip 1 (hinten/DOUT: U3,U4,U6,U8)][Digit 0..7]
 byte displayMem[5][2][8] = {0};
 
 const String dartBoard[4][16] = {
@@ -62,6 +63,7 @@ void sendCommandToAll(byte addr, byte data) {
     }
   }
   digitalWrite(loadPin, HIGH);
+  delayMicroseconds(3);
 }
 
 void updateDigitForAllStrands(int digitIndex) {
@@ -70,6 +72,8 @@ void updateDigitForAllStrands(int digitIndex) {
 
   byte addr = digitIndex + 1;
 
+  // --- PAKET 1 (Erste 16 Takte): Für den HINTEREN Chip (Chip 1: U3, U4, U6, U8) ---
+  // 1a. Adresse für Chip 1 (Strang 4 bekommt No-Op 0x00)
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
@@ -78,16 +82,7 @@ void updateDigitForAllStrands(int digitIndex) {
     digitalWrite(clkPin, HIGH);
     delayMicroseconds(1);
   }
-
-  for (int i = 7; i >= 0; i--) {
-    digitalWrite(clkPin, LOW);
-    for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
-    digitalWrite(dPins[4], (addr >> i) & 1); 
-    delayMicroseconds(1);
-    digitalWrite(clkPin, HIGH);
-    delayMicroseconds(1);
-  }
-
+  // 1b. Daten für Chip 1 (Direkt hinter der ersten Adresse!)
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (displayMem[c][1][digitIndex] >> i) & 1); }
@@ -97,6 +92,17 @@ void updateDigitForAllStrands(int digitIndex) {
     delayMicroseconds(1);
   }
 
+  // --- PAKET 2 (Zweite 16 Takte): Für den VORDEREN Chip (Chip 0: U1, U2, U5, U7, U9) ---
+  // 2a. Adresse für Chip 0 (und U9 auf Strang 4)
+  for (int i = 7; i >= 0; i--) {
+    digitalWrite(clkPin, LOW);
+    for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (addr >> i) & 1); }
+    digitalWrite(dPins[4], (addr >> i) & 1); 
+    delayMicroseconds(1);
+    digitalWrite(clkPin, HIGH);
+    delayMicroseconds(1);
+  }
+  // 2b. Daten für Chip 0 (und U9 auf Strang 4)
   for (int i = 7; i >= 0; i--) {
     digitalWrite(clkPin, LOW);
     for (int c = 0; c < 4; c++) { digitalWrite(dPins[c], (displayMem[c][0][digitIndex] >> i) & 1); }
@@ -127,14 +133,14 @@ void setup() {
   digitalWrite(clkPin, HIGH); digitalWrite(loadPin, HIGH);
   delay(500);
 
-  sendCommandToAll(0x09, 0x00); 
-  sendCommandToAll(0x0B, 0x07); 
-  sendCommandToAll(0x0A, 0x0F); 
-  sendCommandToAll(0x0C, 0x01); 
+  sendCommandToAll(0x09, 0x00); // Keine BCD-Decodierung
+  sendCommandToAll(0x0B, 0x07); // Scan Limit: Alle 8 Digits
+  sendCommandToAll(0x0A, 0x0F); // Helligkeit: Maximum
+  sendCommandToAll(0x0C, 0x01); // Normal Operation (Kein Shutdown)
 
-  sendCommandToAll(0x0F, 0x01); 
-  delay(1500);                    
-  sendCommandToAll(0x0F, 0x00);   
+  sendCommandToAll(0x0F, 0x01); // Display-Test kurz an
+  delay(1000);                    
+  sendCommandToAll(0x0F, 0x00); // Display-Test aus
 
   for (int i = 0; i < 8; i++) {
     for (int c = 0; c < 5; c++) {
@@ -167,7 +173,6 @@ void loop() {
           int chain = chip / 2;      
           int chipIdx = chip % 2;    
           
-          // WICHTIG: Strang 4 (Chips 8 & 9) steuert physikalisch nur U9
           if (chain == 4) {
             displayMem[4][0][digit] = (byte)value; 
           } else {
