@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 GAMES = ["301 Elimination"]
 OPTIONS = ["Standard", "Schnell"]
 
@@ -70,7 +70,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     bg_img = None
     if os.path.exists("background.png"):
-        try: bg_img = pygame.transform.scale(pygame.image.load("background.png").convert(), (screen.get_width(), screen.get_height()))
+        try:
+            raw_bg = pygame.image.load("background.png").convert()
+            bg_img = pygame.transform.scale(raw_bg, (screen.get_width(), screen.get_height()))
+            darker_overlay = pygame.Surface((screen.get_width(), screen.get_height()))
+            darker_overlay.set_alpha(120)
+            darker_overlay.fill((0, 0, 0))
+            bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
     berry_images = {"Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"}
@@ -150,7 +156,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
         if is_berrys_turn and raw_data in ["BTN:PLAYER", "IR:DETECT"]: raw_data = None
 
-        # === BOT LOGIK (INKL. AUTOMATISCHEM WEITERSCHALTEN NACH 3 PFEILEN) ===
         if is_berrys_turn and current_state == "GAME" and raw_data is None:
             if darts_thrown < 3:
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
@@ -177,7 +182,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     
                     if hit_seg != "-" and hit_seg != "MISS":
                         if hit_seg.startswith("t") and sound_triple: sound_triple.play()
-                        elif (hit_seg.startswith("d") or hit_seg == "db") and sound_double: sound_double.play()
+                        elif (hit_seg.startswith("d") or hit_segment == "db") and sound_double: sound_double.play()
                         elif sound_single: sound_single.play()
                     elif hit_seg == "MISS" and sound_single:
                         sound_single.play()
