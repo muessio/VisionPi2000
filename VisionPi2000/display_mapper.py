@@ -6,7 +6,7 @@ class LoewenDisplay:
         self.ser = ser
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
         self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
-        self.light_state = True  # Start-Status für den Lampentreiber
+        self.light_state = True
 
         self.FONT = {
             "0": ["A", "B", "C", "D", "E", "F"],
@@ -188,9 +188,17 @@ class LoewenDisplay:
         except: pass
 
     def check_light_auto_on(self):
-        """Reaktiviert den Lampentreiber automatisch, sobald ein Spiel ein Signal sendet."""
         if not self.light_state:
             self.set_light(True)
+
+    def test_single_chip(self, chip_idx, digit_idx, bit_val=0xFF):
+        """NEU: Testet einen spezifischen Chip (0-8) und eine Spalte (0-7) direkt."""
+        self.buffer = [[0 for _ in range(8)] for _ in range(10)]
+        if 0 <= chip_idx < 10 and 0 <= digit_idx < 8:
+            self.buffer[chip_idx][digit_idx] = bit_val
+            if chip_idx == 8:
+                self.buffer[9][digit_idx] = bit_val
+        self.update()
 
     def set_led(self, chip, col_letter, row_num, state):
         digit_idx = self.COL_TO_DIGIT[col_letter]
