@@ -4,7 +4,6 @@ import time
 class LoewenDisplay:
     def __init__(self, ser):
         self.ser = ser
-        # 9 physische MAX7219 Chips (Index 0 bis 8)
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
         self.last_sent = [[-1 for _ in range(8)] for _ in range(10)]
 
@@ -23,83 +22,67 @@ class LoewenDisplay:
             "-": ["G"]
         }
 
-        # Spalten A-H auf MAX7219 Digit-Register (0-7) laut Schaltplan Blatt 1 & 2
-        # A(8)=DIG2, B(5)=DIG6, C(10)=DIG5, D(3)=DIG4, E(7)=DIG3, F(6)=DIG7, G(11)=DIG1, H(2)=DIG0
         self.COL_TO_DIGIT = {
             "A": 2, "B": 6, "C": 5, "D": 4, "E": 3, "F": 7, "G": 1, "H": 0
         }
 
-        # Zeilen 1-8 auf MAX7219 Segment-Bits (D7=DP bis D0=SEGG) laut Schaltplan Blatt 1 & 2
-        # 1(22)=SEGDP(Bit7), 2(17)=SEGG(Bit0), 3(15)=SEGB(Bit5), 4(21)=SEGE(Bit2),
-        # 5(23)=SEGD(Bit3), 6(20)=SEGC(Bit4), 7(16)=SEGF(Bit1), 8(14)=SEGA(Bit6)
         self.ROW_TO_BIT = {
             1: 7, 2: 0, 3: 5, 4: 2, 5: 3, 6: 4, 7: 1, 8: 6
         }
 
-        # Segment-Reihenfolgen laut Schaltplan Blatt 3
-        SEG_U1    = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
-        SEG_U2    = { "C": 1, "B": 2, "F": 3, "E": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
-        SEG_U3    = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
-        SEG_U4    = { "B": 1, "DP": 2, "E": 3, "F": 4, "A": 5, "G": 6, "C": 7, "D": 8 }
-        SEG_U5_U6 = { "B": 1, "DP": 2, "D": 3, "F": 4, "A": 5, "G": 6, "C": 7, "E": 8 }
-        SEG_U7    = { "E": 1, "C": 2, "B": 3, "F": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
-        SEG_U8    = { "F": 1, "C": 2, "DP": 3, "E": 4, "A": 5, "B": 6, "D": 7, "G": 8 }
-        SEG_U9    = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "DP": 7, "B": 8 }
+        # Segment-Tabellen (inklusive Hardware-Fixes für DISP3, U2 und U9)
+        SEG_U1       = { "F": 1, "G": 2, "D": 3, "E": 4, "A": 5, "B": 6, "C": 7, "DP": 8 }
+        SEG_U1_DISP3 = { "F": 1, "G": 2, "B": 3, "E": 4, "A": 5, "C": 6, "D": 7, "DP": 8 }
+        SEG_U2       = { "C": 1, "B": 2, "G": 3, "D": 4, "A": 5, "F": 6, "E": 7, "DP": 8 }
+        SEG_U3       = { "E": 1, "B": 2, "C": 3, "A": 4, "D": 5, "F": 6, "G": 7, "DP": 8 }
+        SEG_U4       = { "B": 1, "DP": 2, "E": 3, "F": 4, "A": 5, "G": 6, "C": 7, "D": 8 }
+        SEG_U5_U6    = { "B": 1, "DP": 2, "D": 3, "F": 4, "A": 5, "G": 6, "C": 7, "E": 8 }
+        SEG_U7       = { "E": 1, "C": 2, "B": 3, "F": 4, "A": 5, "G": 6, "D": 7, "DP": 8 }
+        SEG_U8       = { "F": 1, "C": 2, "DP": 3, "E": 4, "A": 5, "B": 6, "D": 7, "G": 8 }
+        # U9 Fix: B liegt physisch auf Zeile 7, DP auf Zeile 8!
+        SEG_U9       = { "A": 1, "C": 2, "D": 3, "F": 4, "E": 5, "G": 6, "B": 7, "DP": 8 }
 
-        # =========================================================================
-        # CHIP-INDEX-ZUORDNUNG (exakt synchron zum Arduino Daisy-Chain-Protokoll):
-        # Strang 0 (D0): Chip 0 = U1 (DIN), Chip 1 = U3 (DOUT)
-        # Strang 1 (D1): Chip 2 = U2 (DIN), Chip 3 = U4 (DOUT)
-        # Strang 2 (D2): Chip 4 = U5 (DIN), Chip 5 = U6 (DOUT)
-        # Strang 3 (D3): Chip 6 = U7 (DIN), Chip 7 = U8 (DOUT)
-        # Strang 4 (D4): Chip 8 = U9 (Einzelchip)
-        # =========================================================================
         self.DISP_TABLE = {
-            # U1 (Chip 0)
-            1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1),
+            # Strang D0: U1 (Chip 0), U3 (Chip 1)
+            1: (0, "H", SEG_U1), 2: (0, "D", SEG_U1), 3: (0, "B", SEG_U1_DISP3),
             7: (0, "F", SEG_U1), 8: (0, "E", SEG_U1), 9: (0, "A", SEG_U1),
-            # U3 (Chip 1)
             10: (1, "H", SEG_U3), 11: (1, "D", SEG_U3), 12: (1, "B", SEG_U3),
             13: (1, "E", SEG_U3), 14: (1, "A", SEG_U3),
-            # U2 (Chip 2)
+            
+            # Strang D1: U2 (Chip 2), U4 (Chip 3)
             4: (2, "F", SEG_U2), 5: (2, "A", SEG_U2), 6: (2, "C", SEG_U2), 15: (2, "G", SEG_U2),
-            # U4 (Chip 3)
             16: (3, "D", SEG_U4), 17: (3, "A", SEG_U4), 18: (3, "E", SEG_U4),
-            # U5 (Chip 4)
+            
+            # Strang D2: U5 (Chip 4), U6 (Chip 5)
             19: (4, "B", SEG_U5_U6), 20: (4, "F", SEG_U5_U6), 21: (4, "E", SEG_U5_U6),
-            # U6 (Chip 5)
             22: (5, "B", SEG_U5_U6), 23: (5, "F", SEG_U5_U6), 24: (5, "E", SEG_U5_U6),
-            # U7 (Chip 6)
+            
+            # Strang D3: U7 (Chip 6), U8 (Chip 7)
             25: (6, "H", SEG_U7), 26: (6, "B", SEG_U7), 27: (6, "E", SEG_U7), 30: (6, "A", SEG_U7),
-            # U8 (Chip 7)
             31: (7, "D", SEG_U8), 32: (7, "B", SEG_U8),
             36: (7, "E", SEG_U8), 37: (7, "F", SEG_U8), 38: (7, "G", SEG_U8),
-            # U9 (Chip 8)
+            
+            # Strang D4: U9 (Chip 8)
             28: (8, "E", SEG_U9), 29: (8, "F", SEG_U9),
             33: (8, "C", SEG_U9), 34: (8, "D", SEG_U9), 35: (8, "B", SEG_U9),
             39: (8, "H", SEG_U9), 40: (8, "G", SEG_U9), 41: (8, "A", SEG_U9),
         }
 
-        # =========================================================================
-        # PHYSISCHE SPIELER-BLÖCKE LAUT BESTÜCKUNGSPLAN AA2-2-00-00:
-        # Tupel: (Hunderter-DISP, Zehner-DISP, Einer-DISP)
-        # =========================================================================
+        # Physische Ziffern-Reihenfolge (Hunderter, Zehner, Einer) für Block 1 bis 8
         self.PLAYER_DISP = {
-            0: (1, 2, 3),     # Spieler 1 -> Block 1 (oben links, rot)
-            1: (4, 5, 6),     # Spieler 2 -> Block 2 (oben rechts daneben, gelb)
-            2: (7, 8, 9),     # Spieler 3 -> Block 3 (unten links, rot)
-            3: (10, 11, 12),  # Spieler 4 -> Block 4 (unten rechts daneben, gelb)
-            4: (30, 31, 32),  # Spieler 5 -> Block 5 (rechte Seite Mitte links, rot)
-            5: (33, 34, 35),  # Spieler 6 -> Block 6 (rechte Seite Mitte rechts, gelb)
-            6: (36, 37, 38),  # Spieler 7 -> Block 7 (rechte Seite unten links, rot)
-            7: (39, 40, 41),  # Spieler 8 -> Block 8 (rechte Seite unten rechts, gelb)
+            0: (1, 2, 3),     # Spieler 1 -> Block 1 (DISP 1=H, 2=Z, 3=E)
+            1: (6, 5, 4),     # Spieler 2 -> Block 2 (DISP 6=H, 5=Z, 4=E)
+            2: (9, 8, 7),     # Spieler 3 -> Block 3 (DISP 9=H, 8=Z, 7=E)
+            3: (12, 11, 10),  # Spieler 4 -> Block 4 (DISP 12=H, 11=Z, 10=E)
+            4: (30, 31, 32),  # Spieler 5 -> Block 5 (DISP 30=H, 31=Z, 32=E)
+            5: (33, 34, 35),  # Spieler 6 -> Block 6 (DISP 33=H, 34=Z, 35=E)
+            6: (36, 37, 38),  # Spieler 7 -> Block 7 (DISP 36=H, 37=Z, 38=E)
+            7: (39, 40, 41),  # Spieler 8 -> Block 8 (DISP 39=H, 40=Z, 41=E)
         }
 
-        # Zusatz-Anzeigen oben rechts (Grün)
-        self.TEMP_SCORE_DISP = (25, 26, 27)  # 3-stellige Temp-Score Anzeige
-        self.TURN_DISP       = (28, 29)      # 2-stellige Runden-Anzeige daneben
+        self.TEMP_SCORE_DISP = (25, 26, 27)
+        self.TURN_DISP       = (28, 29)
 
-        # Grüne 2-stellige Ziel-Anzeigen in der Mitte (DISP13 bis DISP24)
         self.CRICKET_TARGET_DISP = {
             20: (13, 14),
             19: (15, 16),
@@ -109,10 +92,6 @@ class LoewenDisplay:
             15: (23, 24),
         }
 
-        # =========================================================================
-        # CRICKET-TREFFER-LEDS (PL1 bis PL8 für Ziele 20, 19, 18, 17, 16, 15, Bull)
-        # Format: self.CRICKET_LEDS[player_idx][target] = [(chip, col, row_A), (chip, col, row_B), (chip, col, row_C)]
-        # =========================================================================
         self.CRICKET_LEDS = {
             0: { # Spieler 1 (PL1)
                 20: [(2, "H", 5), (2, "G", 2), (2, "G", 3)],
@@ -188,39 +167,35 @@ class LoewenDisplay:
             }
         }
 
-        # =========================================================================
-        # WEITERE EINZEL-LEDS AUF DEM BOARD (laut Blatt 3)
-        # =========================================================================
-        # Spieler-Aktiv-Lampen neben den 8 Score-Blöcken (A und B je Spieler)
         self.PLAYER_ACTIVE_LEDS = {
-            0: [(0, "C", 6), (0, "C", 2)], # PLYR 1A, 1B
-            1: [(0, "C", 7), (0, "C", 3)], # PLYR 2A, 2B
-            2: [(0, "C", 5), (0, "C", 1)], # PLYR 3A, 3B
-            3: [(0, "C", 4), (0, "C", 8)], # PLYR 4A, 4B
-            4: [(7, "A", 4), (7, "A", 8)], # PLYR 5A, 5B
-            5: [(7, "A", 1), (7, "A", 5)], # PLYR 6A, 6B
-            6: [(7, "A", 6), (7, "A", 2)], # PLYR 7A, 7B
-            7: [(7, "A", 7), (7, "A", 3)], # PLYR 8A, 8B
+            0: [(0, "C", 6), (0, "C", 2)],
+            1: [(0, "C", 7), (0, "C", 3)],
+            2: [(0, "C", 5), (0, "C", 1)],
+            3: [(0, "C", 4), (0, "C", 8)],
+            4: [(7, "A", 4), (7, "A", 8)],
+            5: [(7, "A", 1), (7, "A", 5)],
+            6: [(7, "A", 6), (7, "A", 2)],
+            7: [(7, "A", 7), (7, "A", 3)],
         }
 
-        # Grüne Pfeile oben links (DART 1 bis 3)
         self.DART_ARROW_LEDS = {
-            1: [(2, "B", 5), (2, "B", 2), (2, "B", 6)], # DART 1A, 1B, 1C
-            2: [(0, "G", 5), (0, "G", 1), (2, "B", 1)], # DART 2A, 2B, 2C
-            3: [(0, "G", 4), (0, "G", 8), (2, "B", 7)], # DART 3A, 3B, 3C
+            1: [(2, "B", 5), (2, "B", 2), (2, "B", 6)],
+            2: [(0, "G", 5), (0, "G", 1), (2, "B", 1)],
+            3: [(0, "G", 4), (0, "G", 8), (2, "B", 7)],
         }
 
     def set_light(self, state):
         if not self.ser: return
         try:
+            # Kurze Pause vorab, damit der serielle Puffer garantiert frei ist
+            time.sleep(0.02)
             cmd = b"LIGHT:ON\n" if state else b"LIGHT:OFF\n"
             self.ser.write(cmd)
             self.ser.flush()
-            time.sleep(0.01)
+            time.sleep(0.02)
         except: pass
 
     def set_led(self, chip, col_letter, row_num, state):
-        """Schaltet eine einzelne Matrix-LED gezielt ein oder aus, ohne andere Bits zu löschen."""
         digit_idx = self.COL_TO_DIGIT[col_letter]
         bit_pos = self.ROW_TO_BIT[row_num]
         if state:
@@ -269,7 +244,6 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_temp_score(self, score):
-        """Zeigt den Wurf-Score im grünen 3-stelligen TEMP SCORE Fenster oben rechts an."""
         d_hund, d_ten, d_unit = self.TEMP_SCORE_DISP
         if score is None or score == "":
             for d in (d_hund, d_ten, d_unit): self.set_disp_char(d, " ")
@@ -280,8 +254,6 @@ class LoewenDisplay:
         self.set_disp_char(d_unit, score_str[2])
 
     def set_cricket_marks(self, player_idx, target, marks):
-        """Schaltet die 3 Cricket-Treffer-LEDs (A, B, C) für den jeweiligen Spieler und das Ziel."""
-        # Grüne Ziel-Zahlen (20 bis 15) in der Mittelzeile aktiv halten
         if target in self.CRICKET_TARGET_DISP:
             d_ten, d_unit = self.CRICKET_TARGET_DISP[target]
             t_str = f"{target:2d}"
@@ -295,15 +267,14 @@ class LoewenDisplay:
 
     def clear_all(self):
         self.buffer = [[0 for _ in range(8)] for _ in range(10)]
+        self.last_sent = [[0 for _ in range(8)] for _ in range(10)]
         if not self.ser: return
-        for chip in range(9):
-            for digit in range(8):
-                try:
-                    self.ser.write(f"RAW:{chip}:{digit}:0\n".encode('ascii'))
-                    self.ser.flush()
-                    self.last_sent[chip][digit] = 0
-                    time.sleep(0.004)
-                except: pass
+        try:
+            # Nutzt das neue Schnell-Kommando im Arduino (verhindert Puffer-Überlauf!)
+            self.ser.write(b"CLEAR\n")
+            self.ser.flush()
+            time.sleep(0.03)
+        except: pass
 
     def update(self):
         if not self.ser: return
@@ -315,5 +286,5 @@ class LoewenDisplay:
                         self.ser.write(f"RAW:{chip}:{digit}:{val}\n".encode('ascii'))
                         self.ser.flush()
                         self.last_sent[chip][digit] = val
-                        time.sleep(0.005)
+                        time.sleep(0.008)
                     except: pass
