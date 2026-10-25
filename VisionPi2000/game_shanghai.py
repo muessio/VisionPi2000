@@ -5,19 +5,24 @@ import random
 import time
 
 VERSION = "1.3.0"
-GAMES = ["Around the Clock"]
-OPTIONS = ["Standard", "Mit Bull"]
-TARGETS = list(range(1, 21)) + [25]
+GAMES = ["Shanghai"]
+OPTIONS = ["Standard"]
+ROUNDS = [1, 2, 3, 4, 5, 6, 7]
 
-def parse_hit_clock(hit_str, current_target):
-    if hit_str in ["-", "WIN_CHEAT", "MISS"]: return 0
+def parse_hit_shanghai(hit_str, target):
+    if hit_str in ["-", "WIN_CHEAT", "MISS"]: return (0, 0)
+    is_double, is_triple = hit_str.startswith("d") or hit_str == "db", hit_str.startswith("t")
     try: val = int(hit_str.replace("d", "").replace("t", "").replace("b", "25"))
-    except: return 0
-    return 1 if val == current_target else 0
+    except: return (0, 0)
+    if val == target:
+        if is_triple: return (target * 3, 3)
+        if is_double: return (target * 2, 2)
+        return (target, 1)
+    return (0, 0)
 
-def get_bot_hit(current_target, diff):
-    if random.random() < {1: 0.40, 2: 0.70, 3: 0.95}[diff]:
-        return str(current_target if current_target != 25 else "b")
+def get_bot_hit(target, diff):
+    if random.random() < {1: 0.35, 2: 0.65, 3: 0.90}[diff]:
+        return f"t{target}" if (diff == 3 and random.random() < 0.25) else (f"d{target}" if diff >= 2 and random.random() < 0.55 else str(target))
     return str(random.choice([1, 5, 20]))
 
 class ScreenSaver:
@@ -81,23 +86,21 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     title_font = pygame.font.SysFont("arial", 28, bold=True)
     big_font = pygame.font.SysFont("arial", 38, bold=True)
-    giant_font = pygame.font.SysFont("arial", 120, bold=True)
+    giant_font = pygame.font.SysFont("arial", 90, bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
-    active_targets = TARGETS if option == "Mit Bull" else TARGETS[:-1]
-    player_target_indices, darts_thrown, active_player = [0] * total_players, 0, 1
-    round_num = 1
+    player_scores, player_multipliers = [0] * total_players, [{t: set() for t in ROUNDS} for _ in range(total_players)]
+    darts_thrown, active_player, current_round_idx = 0, 1, 0
+    round_points = 0
     switch_delay_timer, combo_press_start = 0, 0
 
     def sync_hw_display():
         for i in range(total_players):
-            idx = min(player_target_indices[i], len(active_targets) - 1)
-            display.set_score(i, active_targets[idx])
-        curr_idx = min(player_target_indices[active_player - 1], len(active_targets) - 1)
+            display.set_score(i, max(0, player_scores[i]))
         display.set_active_player(active_player - 1)
         display.set_dart_arrows(3 - darts_thrown)
-        display.set_temp_score(active_targets[curr_idx])
-        display.set_turn(round_num)
+        display.set_temp_score(round_points)
+        display.set_turn(min(current_round_idx + 1, len(ROUNDS)))
         display.update()
 
     sync_hw_display()
@@ -164,8 +167,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
             switch_delay_timer = 0
             darts_thrown = 0
-            if active_player == total_players: round_num += 1
-            active_player = (active_player % total_players) + 1
+            round_points = 0
+            active_player += 1
+            if active_player > total_players:
+                active_player, current_round_idx = 1, current_round_idx + 1
+                if current_round_idx >= len(ROUNDS): current_state = "WIN"
             if sound_switch is not None: sound_switch.play()
             sync_hw_display()
 
@@ -177,8 +183,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800)
                 elif pygame.time.get_ticks() > bot_timer:
                     diff = 1 if "Leicht" in mode else (3 if "Schwer" in mode else 2)
-                    curr_t = active_targets[player_target_indices[active_player - 1]]
-                    raw_data = f"HIT:{get_bot_hit(curr_t, diff)}"
+                    raw_data = f"HIT:{get_bot_hit(ROUNDS[current_round_idx], diff)}"
                     bot_timer = 0
             else:
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
@@ -193,27 +198,32 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     if sound_switch is not None: sound_switch.play()
                     switch_delay_timer = 0
                     darts_thrown = 0
-                    if active_player == total_players: round_num += 1
-                    active_player = (active_player % total_players) + 1
+                    round_points = 0
+                    active_player += 1
+                    if active_player > total_players:
+                        active_player, current_round_idx = 1, current_round_idx + 1
+                        if current_round_idx >= len(ROUNDS): current_state = "WIN"
                     sync_hw_display()
                 
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_seg = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     
-                    p_idx = active_player - 1
-                    curr_target_val = active_targets[player_target_indices[p_idx]]
+                    target = ROUNDS[current_round_idx]
+                    points, mult = parse_hit_shanghai(hit_seg, target) if hit_seg != "MISS" else (0, 0)
                     
-                    is_correct_hit = (parse_hit_clock(hit_seg, curr_target_val) > 0)
-                    if is_correct_hit:
+                    if points > 0:
                         if hit_seg.startswith("t") and sound_triple is not None: sound_triple.play()
                         elif (hit_seg.startswith("d") or hit_seg == "db") and sound_double is not None: sound_double.play()
                         elif sound_single is not None: sound_single.play()
                     else:
                         if sound_miss is not None: sound_miss.play()
 
-                    if is_correct_hit:
-                        player_target_indices[p_idx] += 1
-                        if player_target_indices[p_idx] >= len(active_targets):
+                    p_idx = active_player - 1
+                    if points > 0:
+                        player_scores[p_idx] += points
+                        round_points += points
+                        player_multipliers[p_idx][target].add(mult)
+                        if player_multipliers[p_idx][target] == {1, 2, 3}:
                             current_state, winner_name = "WIN", (mode if is_berrys_turn else f"Spieler {active_player}")
                     
                     darts_thrown += 1
@@ -237,13 +247,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         if current_state == "GAME":
-            p_idx = active_player - 1
-            curr_target_val = active_targets[player_target_indices[p_idx]] if player_target_indices[p_idx] < len(active_targets) else 0
-            
-            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}  |  Runde {round_num}", True, HIGHLIGHT), (40, 60))
-            screen.blit(giant_font.render(f"ZIEL: {'BULL' if curr_target_val == 25 else curr_target_val}", True, (50, 255, 50)), (150, 120))
+            target = ROUNDS[current_round_idx] if current_round_idx < len(ROUNDS) else ROUNDS[-1]
+            screen.blit(title_font.render(f"SPIEL: {game_name}  |  Runde {min(current_round_idx+1, 7)}/7", True, HIGHLIGHT), (40, 60))
+            screen.blit(giant_font.render(f"ZIEL: {target}", True, (50, 255, 50)), (200, 120))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
-            screen.blit(big_font.render(f"AM ZUG: {p_name} | Fortschritt: {player_target_indices[p_idx]}/{len(active_targets)}", True, RED_COL if is_berrys_turn else WHITE), (150, 300))
+            screen.blit(big_font.render(f"AM ZUG: {p_name} | Score: {player_scores[active_player-1]}", True, RED_COL if is_berrys_turn else WHITE), (200, 300))
             
             if darts_thrown >= 3 and not is_berrys_turn:
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
@@ -254,12 +262,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             y_base = 660
             for i in range(total_players):
                 p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
-                if player_target_indices[i] < len(active_targets):
-                    t_val = active_targets[player_target_indices[i]]
-                    s_val = "BULL" if t_val == 25 else str(t_val)
-                else: s_val = "WIN"
                 c = HIGHLIGHT if i == (active_player - 1) else WHITE
-                surf = title_font.render(f"{p_n}: {s_val}", True, c)
+                surf = title_font.render(f"{p_n}: {player_scores[i]}", True, c)
                 row, col = i % 2, i // 2
                 items_in_row = (total_players + 1) // 2 if row == 0 else total_players // 2
                 spacing = screen.get_width() // (items_in_row + 1)
@@ -269,7 +273,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 anim_size = int(220 + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
                 screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (800, 500))
         elif current_state == "WIN":
-            screen.blit(giant_font.render(f"{winner_name} GEWINNT!" if winner_name else "SPIELENDE!", True, (50, 255, 50)), (100, 180))
+            screen.blit(giant_font.render(f"{winner_name} GEWINNT!" if winner_name else "SPIELENDE!", True, (50, 255, 50)), (150, 200))
             hint_txt = title_font.render("Drücke Taste 'Spielerwechsel' für das Hauptmenü", True, HIGHLIGHT)
             screen.blit(hint_txt, ((screen.get_width() - hint_txt.get_width()) // 2, 380))
             
