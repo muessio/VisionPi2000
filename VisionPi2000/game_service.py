@@ -2,9 +2,9 @@ import pygame
 import time
 import os
 
-VERSION = "1.0.5"
+VERSION = "1.0.6"
 GAMES = ["Service Menu"]
-OPTIONS = ["Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]  # NEU: "Chip-Test" hinzugefügt!
+OPTIONS = ["Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
 class ScreenSaver:
     def __init__(self, w, h): self.active = False
@@ -24,7 +24,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     clock = pygame.time.Clock()
     last_hit = "Warte auf Eingabe..."
     
-    # Variablen für den neuen Chip-Einzeltest
     test_chip = 0
     test_digit = 0
 
@@ -43,7 +42,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if display:
             try:
                 display.set_light(True)
-                # Sauberes, fehlerfreies Füllen über den Mapper (Chips 0 bis 8)
                 for c in range(9):
                     for d in range(8):
                         display.buffer[c][d] = 255
@@ -66,30 +64,23 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         for e in pygame.event.get():
             if e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_ESCAPE: running = False
-                elif e.key == pygame.K_p: raw_data = "BTN:PLAYER"
-                elif e.key == pygame.K_s: raw_data = "BTN:START"
-                elif e.key == pygame.K_1: raw_data = "HIT:t20"
-                elif e.key == pygame.K_2: raw_data = "HIT:-"
-                elif option == "Chip-Test":
-                    if e.key == pygame.K_UP:
-                        test_chip = (test_chip + 1) % 9
-                        display.test_single_chip(test_chip, test_digit, 0xFF)
-                    elif e.key == pygame.K_DOWN:
-                        test_chip = (test_chip - 1) % 9
-                        display.test_single_chip(test_chip, test_digit, 0xFF)
-                    elif e.key == pygame.K_RIGHT:
-                        test_digit = (test_digit + 1) % 8
-                        display.test_single_chip(test_chip, test_digit, 0xFF)
-                    elif e.key == pygame.K_LEFT:
-                        test_digit = (test_digit - 1) % 8
-                        display.test_single_chip(test_chip, test_digit, 0xFF)
 
         if raw_data:
             if option == "Matrix" and raw_data.startswith("HIT:"):
                 last_hit = raw_data.split(":")[1]
                 if last_hit == "-": last_hit = "LEERES FELD (-)"
 
-            if option == "Sensoren":
+            elif option == "Chip-Test":
+                if raw_data == "BTN:BLUE":
+                    test_chip = (test_chip + 1) % 9
+                    if display: display.test_single_chip(test_chip, test_digit, 0xFF)
+                elif raw_data == "BTN:GREY":
+                    test_digit = (test_digit + 1) % 8
+                    if display: display.test_single_chip(test_chip, test_digit, 0xFF)
+                elif raw_data == "BTN:PLAYER":
+                    running = False
+
+            elif option == "Sensoren":
                 if raw_data in sensor_timers:
                     sensor_timers[raw_data] = pygame.time.get_ticks() + 1000
                 if raw_data == "BTN:COMBO": running = False
@@ -107,7 +98,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         elif option == "Chip-Test":
             draw_centered(big_font.render(f"Teste MAX7219 Chip: U{test_chip+1} (Index {test_chip})", True, GREEN), 150)
             draw_centered(big_font.render(f"Spalte / Digit: {test_digit} (0-7)", True, WHITE), 220)
-            draw_centered(small_font.render("Nutze PFEIL HOCH/RUNTER für Chip, RECHTS/LINKS für Spalte", True, HIGHLIGHT), 320)
+            draw_centered(small_font.render("Blauer Taster: Chip wechseln | Grauer Taster: Spalte wechseln", True, HIGHLIGHT), 320)
             draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), 550)
 
         elif option == "Matrix":
@@ -115,11 +106,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             draw_centered(title_font.render("So findest du tote Felder oder falsche Belegungen.", True, (150,150,150)), 200)
             
             c = WHITE if last_hit == "Warte auf Eingabe..." else GREEN
-            draw_centered(giant_font.giant_font.render(last_hit, True, c) if hasattr(giant_font, 'giant_font') else giant_font.render(last_hit, True, c), 350)
+            draw_centered(giant_font.render(last_hit, True, c), 350)
             draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), 600)
 
         elif option == "Sensoren":
-            draw_centered(big_font.render("Drücke Tasten oder löse Sensoren aus:", True, WHITE), 120)
+            draw_centered(big_font.render("Drücke Taster oder löse Sensoren aus:", True, WHITE), 120)
             y = 220
             for key, name in sensor_names.items():
                 is_active = pygame.time.get_ticks() < sensor_timers[key]
@@ -132,7 +123,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         pygame.display.flip()
         clock.tick(30)
 
-    # Sauberes Cleanup beim Verlassen des Service-Menüs
     if ser:
         try:
             display.set_light(False)
