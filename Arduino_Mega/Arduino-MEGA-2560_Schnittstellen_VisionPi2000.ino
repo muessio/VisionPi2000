@@ -46,7 +46,6 @@ bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300;
 
-// Hilfsfunktion: Taktet exakt 1 Bit auf allen 5 Strängen nach MAX7219-Spezifikation
 inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
   digitalWrite(clkPin, LOW);
   digitalWrite(dPins[0], b0);
@@ -66,7 +65,6 @@ void sendCommandToAll(byte addr, byte data) {
   digitalWrite(loadPin, LOW);
   delayMicroseconds(5);
 
-  // 2x 16 Bit = 32 Takte für alle 5 Stränge
   for (int repeat = 0; repeat < 2; repeat++) {
     for (int i = 7; i >= 0; i--) {
       byte b = (addr >> i) & 1;
@@ -90,7 +88,7 @@ void updateDigitForAllStrands(int digitIndex) {
 
   byte addr = digitIndex + 1;
 
-  // --- PAKET 1 (Takte 1..16): Geht durch Chip 0 hindurch in den HINTEREN Chip (Chip 1: U3, U4, U6, U8) ---
+  // Paket 1: Geht durch Chip 0 hindurch in den HINTEREN Chip (Chip 1: U3, U4, U6, U8)
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
     clockBit(b, b, b, b, 0);
@@ -105,7 +103,7 @@ void updateDigitForAllStrands(int digitIndex) {
     );
   }
 
-  // --- PAKET 2 (Takte 17..32): Bleibt im VORDEREN Chip (Chip 0: U1, U2, U5, U7, U9) stehen ---
+  // Paket 2: Bleibt im VORDEREN Chip (Chip 0: U1, U2, U5, U7, U9) stehen
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
     clockBit(b, b, b, b, b);
@@ -177,15 +175,12 @@ void processSerialCommand(String command) {
       
       if (chip >= 0 && chip < 10 && digit >= 0 && digit < 8) {
         int chain = chip / 2;      
-        int rawChipIdx = chip % 2;    
-        
-        // Korrektur: Invertierung der Chip-Reihenfolge (Vorderer/Hinterer Chip getauscht)
-        int correctedChipIdx = (chain == 4) ? 0 : (1 - rawChipIdx);
+        int chipIdx = chip % 2; // Korrekt: Gerade Chips = 0 (vorderer Chip), Ungerade Chips = 1 (hinterer Chip)   
         
         if (chain == 4) {
           displayMem[4][0][digit] = (byte)value; 
         } else {
-          displayMem[chain][correctedChipIdx][digit] = (byte)value; 
+          displayMem[chain][chipIdx][digit] = (byte)value; 
         }
         
         updateDigitForAllStrands(digit);
