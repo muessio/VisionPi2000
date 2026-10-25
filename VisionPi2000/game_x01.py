@@ -4,7 +4,7 @@ import os
 import random
 import time
 
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -78,10 +78,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     total_players = players + 1 if is_berry_game else players
     screensaver = ScreenSaver(screen.get_width(), screen.get_height())
 
-    def update_score_display(player_idx, score):
-        display.set_score(player_idx, max(0, score))
-        display.update()
-
     display.clear_all()
 
     bg_img = None
@@ -122,7 +118,21 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     player_in_checked = [not has_double_in for _ in range(total_players)]
     
     darts_thrown, active_player = 0, 1
-    for i in range(total_players): update_score_display(i, player_scores[i])
+    round_num = 1
+    round_points = 0
+    round_start_score = start_score
+    round_start_in_checked = player_in_checked[0]
+
+    def sync_hw_display():
+        for i in range(total_players):
+            display.set_score(i, max(0, player_scores[i]))
+        display.set_active_player(active_player - 1)
+        display.set_dart_arrows(3 - darts_thrown)
+        display.set_temp_score(round_points)
+        display.set_turn(round_num)
+        display.update()
+
+    sync_hw_display()
 
     running, clock, current_state = True, pygame.time.Clock(), "GAME"
     champ_display_until, bot_timer, combo_press_start = 0, 0, 0
@@ -196,8 +206,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + 1500
                 elif pygame.time.get_ticks() > bot_timer:
                     darts_thrown = 0
+                    round_points = 0
+                    if active_player == total_players: round_num += 1
                     active_player = (active_player % total_players) + 1
-                    update_score_display(active_player-1, player_scores[active_player-1])
+                    round_start_score = player_scores[active_player - 1]
+                    round_start_in_checked = player_in_checked[active_player - 1]
+                    sync_hw_display()
                     bot_timer = 0
         elif not is_berrys_turn: bot_timer = 0
 
@@ -205,8 +219,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if current_state == "GAME":
                 if raw_data in ["BTN:PLAYER", "IR:DETECT"]:
                     darts_thrown = 0
+                    round_points = 0
+                    if active_player == total_players: round_num += 1
                     active_player = (active_player % total_players) + 1
-                    update_score_display(active_player-1, player_scores[active_player-1])
+                    round_start_score = player_scores[active_player - 1]
+                    round_start_in_checked = player_in_checked[active_player - 1]
+                    sync_hw_display()
                 
                 elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
@@ -223,6 +241,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         if sound_champ: sound_champ.play()
                     
                     p_idx = active_player - 1
+                    if darts_thrown == 0:
+                        round_start_score = player_scores[p_idx]
+                        round_start_in_checked = player_in_checked[p_idx]
+                        round_points = 0
+
                     points = 0
                     if hit_segment != "MISS" and hit_segment != "-":
                         points = player_scores[p_idx] if hit_segment == "WIN_CHEAT" else parse_hit(hit_segment)
@@ -245,11 +268,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             elif has_double_out and not is_double and hit_segment != "WIN_CHEAT": bust = True
 
                     if bust: 
+                        player_scores[p_idx] = round_start_score
+                        player_in_checked[p_idx] = round_start_in_checked
+                        round_points = 0
                         darts_thrown = 3 
+                        sync_hw_display()
                     else:
                         player_scores[p_idx] = new_score
+                        round_points += points
                         darts_thrown += 1
-                        update_score_display(p_idx, new_score)
+                        sync_hw_display()
                         if new_score == 0: current_state = "WIN"
 
             elif current_state == "WIN" and raw_data == "BTN:START": running = False
@@ -264,9 +292,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         if current_state == "GAME":
-            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}", True, HIGHLIGHT), (40, 60))
+            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}  |  Runde {round_num}", True, HIGHLIGHT), (40, 60))
             p_name = mode if is_berrys_turn else f"Spieler {active_player}"
-            screen.blit(big_font.render(f"AM ZUG: {p_name}", True, RED_COL if is_berrys_turn else WHITE), ((screen.get_width() - 300)//2, 120))
+            screen.blit(big_font.render(f"AM ZUG: {p_name}  (Aufnahme: {round_points})", True, RED_COL if is_berrys_turn else WHITE), ((screen.get_width() - 450)//2, 120))
             screen.blit(giant_font.render(str(player_scores[active_player-1]), True, WHITE), ((screen.get_width() - 400)//2, 220))
             
             if has_double_in and not player_in_checked[active_player-1]:
