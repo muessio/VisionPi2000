@@ -37,7 +37,9 @@ rm -rf /tmp/VisionPiRepoUpdate
 
 # Sicherstellen, dass die settings.json erhalten bleibt / verlinkt ist
 SETTINGS_BOOT="/boot/firmware/settings.json"
-if [ ! -d "/boot/firmware" ]; { SETTINGS_BOOT="/boot/settings.json"; fi
+if [ ! -d "/boot/firmware" ]; then
+    SETTINGS_BOOT="/boot/settings.json"
+fi
 
 if [ ! -f "$SETTINGS_BOOT" ]; then
     echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$SETTINGS_BOOT" > /dev/null
