@@ -5,17 +5,22 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.5.1"
+VERSION = "1.5.2"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
-SETTINGS_FILE = "settings.json"
 DEFAULT_SETTINGS = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
 
+def get_settings_path():
+    if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
+    if os.path.exists("/boot/settings.json"): return "/boot/settings.json"
+    return "settings.json"
+
 def load_settings():
-    if not os.path.exists(SETTINGS_FILE): return DEFAULT_SETTINGS.copy()
+    path = get_settings_path()
+    if not os.path.exists(path): return DEFAULT_SETTINGS.copy()
     try:
-        with open(SETTINGS_FILE, "r") as f:
+        with open(path, "r") as f:
             data = json.load(f)
             for k, v in DEFAULT_SETTINGS.items():
                 if k not in data: data[k] = v
@@ -23,8 +28,9 @@ def load_settings():
     except: return DEFAULT_SETTINGS.copy()
 
 def save_settings(settings):
+    path = get_settings_path()
     try:
-        with open(SETTINGS_FILE, "w") as f: json.dump(settings, f, indent=4)
+        with open(path, "w") as f: json.dump(settings, f, indent=4)
     except: pass
 
 def get_available_mappers():
@@ -46,8 +52,6 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Dateisystem auf read-write setzen, Update ausführen, dann wieder auf read-only setzen
-    # Das Passwort wird per "echo ... | sudo -S" an jeden Befehl übergeben, der Root-Rechte braucht.
     cmd = (
         f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw / && '
         'curl -H "Authorization: token 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" '
@@ -100,7 +104,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
     
     is_16_9 = False
     try:
-        with open("settings.json", "r") as f: is_16_9 = json.load(f).get("format", "4:3") == "16:9"
+        with open(get_settings_path(), "r") as f: is_16_9 = json.load(f).get("format", "4:3") == "16:9"
     except: pass
     bg_file = "background_16_9.png" if is_16_9 else "background.png"
     bg_img = None
@@ -288,3 +292,4 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.set_light(False)
                 display.clear_all()
             except: pass
+                
