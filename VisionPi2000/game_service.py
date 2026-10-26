@@ -38,6 +38,7 @@ def get_available_mappers():
     return sorted(files) if files else ["display_mapper_Vision_Dart.py"]
 
 def do_online_update(screen, font, sw, sh, ser):
+    # Das Passwort, das per Pipeline an sudo -S übergeben wird
     USER_PASSWORD = "VisionPi2000"
     
     screen.fill((15, 15, 30))
@@ -52,11 +53,12 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
+    # Die Ausgabe des Updates wird jetzt in eine Log-Datei geschrieben
     cmd = (
         'curl -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o private_Update.sh '
         '&& chmod +x private_Update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S ./private_Update.sh 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'
+        f'&& echo "{USER_PASSWORD}" | sudo -S ./private_Update.sh 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 > /home/visionpi2000/update_log.txt 2>&1'
     )
 
     screen.fill((15, 15, 30))
@@ -65,7 +67,7 @@ def do_online_update(screen, font, sw, sh, ser):
     pygame.display.flip()
 
     try:
-        # Popen startet den Prozess im Hintergrund, da das Skript selbst den Reboot auslöst
+        # Popen startet den Prozess im Hintergrund, das Skript löst den Reboot selbst aus
         subprocess.Popen(cmd, shell=True)
     except Exception as e:
         print("Update Error:", e)
@@ -74,7 +76,6 @@ def do_online_update(screen, font, sw, sh, ser):
     while True:
         pygame.time.Clock().tick(10)
         if ser:
-            # Lampen blinken lassen als visuelles Feedback während dem Update
             try:
                 ser.write(b"LAMP:START:2\n")
             except: pass
