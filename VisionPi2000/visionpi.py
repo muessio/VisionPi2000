@@ -190,10 +190,15 @@ def main():
     title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.026), bold=True)
     big_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.04), bold=True)
     
+    # --- KUGELSICHERES LADEN DER SPIELE ---
     game_registry = []
     for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service]:
-        if m:
-            for g in m.GAMES: game_registry.append({"name": g, "options": m.OPTIONS, "module": m})
+        if m and hasattr(m, 'GAMES') and hasattr(m, 'OPTIONS'):
+            for g in m.GAMES: 
+                game_registry.append({"name": g, "options": m.OPTIONS, "module": m})
+        elif m:
+            print(f"Warnung: Modul {m.__name__} übersprungen (GAMES oder OPTIONS fehlt)")
+    # --------------------------------------
 
     modes = ["Normales Spiel", "Bullseye-Berry (Leicht)", "Bullseye-Berry (Mittel)", "Bullseye-Berry (Schwer)", "Team-Modus"]
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
