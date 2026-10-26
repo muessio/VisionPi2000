@@ -1,144 +1,148 @@
-# Datei: game_service.py
 import pygame
-import time
+import json
 import os
+import glob
+import subprocess
 
-VERSION = "1.0.8"
-GAMES = ["Service Menu"]
-OPTIONS = ["Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
+VERSION = "1.3.0"
+GAMES = ["Service-Menü"]
+OPTIONS = ["Starten"]
 
-class ScreenSaver:
-    def __init__(self, w, h): self.active = False
-    def reset_timer(self): return False
-    def check(self): return False
-    def update_and_draw(self, screen, font): pass
+SETTINGS_FILE = "settings.json"
+DEFAULT_SETTINGS = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
 
-def run_game(screen, ser, display, players, game_name, option, mode):
-    screensaver = ScreenSaver(screen.get_width(), screen.get_height())
-    title_font = pygame.font.SysFont("arial", 28, bold=True)
-    big_font = pygame.font.SysFont("arial", 38, bold=True)
-    small_font = pygame.font.SysFont("arial", 22, bold=True)
-    giant_font = pygame.font.SysFont("arial", 90, bold=True)
-    WHITE, HIGHLIGHT, RED_COL, GREEN = (255, 255, 255), (255, 215, 0), (180, 30, 30), (50, 255, 50)
+def load_settings():
+    if not os.path.exists(SETTINGS_FILE): return DEFAULT_SETTINGS.copy()
+    try:
+        with open(SETTINGS_FILE, "r") as f:
+            data = json.load(f)
+            for k, v in DEFAULT_SETTINGS.items():
+                if k not in data: data[k] = v
+            return data
+    except: return DEFAULT_SETTINGS.copy()
 
-    running = True
-    clock = pygame.time.Clock()
-    last_hit = "Warte auf Eingabe..."
-    
-    test_chip = 0
-    test_digit = 0
+def save_settings(settings):
+    try:
+        with open(SETTINGS_FILE, "w") as f: json.dump(settings, f, indent=4)
+    except: pass
 
-    bg_img = None
-    if os.path.exists("background.png"):
-        try:
-            raw_bg = pygame.image.load("background.png").convert()
-            bg_img = pygame.transform.scale(raw_bg, (screen.get_width(), screen.get_height()))
-            darker_overlay = pygame.Surface((screen.get_width(), screen.get_height()))
-            darker_overlay.set_alpha(120)
-            darker_overlay.fill((0, 0, 0))
-            bg_img.blit(darker_overlay, (0, 0))
-        except: pass
+def get_available_mappers():
+    files = glob.glob("display_mapper*.py")
+    return sorted(files) if files else ["display_mapper_Vision_Dart.py"]
 
-    sensor_timers = {"BTN:RED": 0, "BTN:BLUE": 0, "BTN:GREY": 0, "BTN:START": 0, "BTN:PLAYER": 0, "MISS:1": 0, "IR:DETECT": 0}
-    sensor_names = {
-        "BTN:RED": "Roter Taster", 
-        "BTN:BLUE": "Blauer Taster", 
-        "BTN:GREY": "Grauer Taster", 
-        "BTN:START": "Start Taster", 
-        "BTN:PLAYER": "Spielerwechsel", 
-        "MISS:1": "Fehlwurf (Piezo)", 
-        "IR:DETECT": "Infrarot-Sensor"
-    }
-
-    if option == "Display & Lampen":
-        if display:
-            try:
-                display.set_light(True)
-                for c in range(9):
-                    for d in range(8):
-                        display.buffer[c][d] = 255
-                display.update()
-            except: pass
-    elif option == "Chip-Test":
-        if display:
-            display.clear_all()
-            display.test_single_chip(test_chip, test_digit, 0xFF)
-
-    def draw_centered(surf, y):
-        screen.blit(surf, ((screen.get_width() - surf.get_width()) // 2, y))
-
-    while running:
-        raw_data = None
-        if ser and ser.in_waiting > 0:
-            try: raw_data = ser.readline().decode('utf-8', 'ignore').strip()
-            except: pass
-
-        for e in pygame.event.get():
-            if e.type == pygame.KEYDOWN:
-                if e.key == pygame.K_ESCAPE: running = False
-
-        if raw_data:
-            if option == "Matrix" and raw_data.startswith("HIT:"):
-                last_hit = raw_data.split(":")[1]
-                if last_hit == "-": last_hit = "LEERES FELD (-)"
-
-            elif option == "Chip-Test":
-                if raw_data == "BTN:BLUE":
-                    test_chip = (test_chip + 1) % 9
-                    if display: display.test_single_chip(test_chip, test_digit, 0xFF)
-                elif raw_data == "BTN:GREY":
-                    test_digit = (test_digit + 1) % 8
-                    if display: display.test_single_chip(test_chip, test_digit, 0xFF)
-                elif raw_data == "BTN:PLAYER":
-                    running = False
-
-            elif option == "Sensoren":
-                if raw_data in sensor_timers:
-                    sensor_timers[raw_data] = pygame.time.get_ticks() + 1000
-                if raw_data == "BTN:COMBO": running = False
-            else:
-                if raw_data == "BTN:PLAYER" or raw_data == "BTN:COMBO": running = False
-
-        if bg_img: screen.blit(bg_img, (0, 0))
-        else: screen.fill((0, 0, 0))
-        
-        draw_centered(title_font.render(f"SERVICE-MODUS: {option}", True, HIGHLIGHT), 40)
-
-        if option == "Display & Lampen":
-            draw_centered(big_font.render("Alle Segmente des Boards leuchten auf.", True, WHITE), 200)
-            draw_centered(big_font.render("Beleuchtung (Relais) ist EINGESCHALTET.", True, WHITE), 280)
-            draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), 500)
-
-        elif option == "Chip-Test":
-            draw_centered(big_font.render(f"Teste MAX7219 Chip: U{test_chip+1} (Index {test_chip})", True, GREEN), 150)
-            draw_centered(big_font.render(f"Spalte / Digit: {test_digit} (0-7)", True, WHITE), 220)
-            draw_centered(small_font.render("Blauer Taster: Chip wechseln | Grauer Taster: Spalte wechseln", True, HIGHLIGHT), 320)
-            draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), 550)
-
-        elif option == "Matrix":
-            draw_centered(big_font.render("Drücke Segmente auf der Scheibe mit dem Finger.", True, WHITE), 150)
-            draw_centered(title_font.render("So findest du tote Felder oder falsche Belegungen.", True, (150,150,150)), 200)
-            
-            c = WHITE if last_hit == "Warte auf Eingabe..." else GREEN
-            draw_centered(giant_font.render(last_hit, True, c), 350)
-            draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), 600)
-
-        elif option == "Sensoren":
-            draw_centered(big_font.render("Drücke Taster oder löse Sensoren aus:", True, WHITE), 120)
-            y = 220
-            for key, name in sensor_names.items():
-                is_active = pygame.time.get_ticks() < sensor_timers[key]
-                c = GREEN if is_active else (100, 100, 100)
-                state_text = "AKTIV" if is_active else "Inaktiv"
-                draw_centered(big_font.render(f"{name}: {state_text}", True, c), y)
-                y += 45
-            draw_centered(title_font.render("Zum Beenden: COMBO (Rot+Blau+Grau) halten", True, RED_COL), y + 40)
-
-        pygame.display.flip()
-        clock.tick(30)
+def do_online_update(screen, font, sw, sh, ser):
+    USER_PASSWORD = "VisionPi2000"
+    screen.fill((15, 15, 30))
+    info_surf = font.render("Online-Update läuft... Bitte warten.", True, (255, 255, 255))
+    screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2))
+    pygame.display.flip()
 
     if ser:
         try:
-            display.set_light(False)
-            display.clear_all()
+            ser.write(b"LAMP:START:2\n")
+            ser.write(b"LAMP:PLAYER:2\n")
+            ser.flush()
         except: pass
+
+    cmd = (
+        'curl -H "Authorization: token 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" '
+        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o update.sh '
+        '&& chmod +x update.sh '
+        f'&& echo "{USER_PASSWORD}" | sudo -S ./update.sh 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'
+    )
+
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
+        msg = "Update erfolgreich! Neustart wird empfohlen."
+    except subprocess.CalledProcessError as e:
+        msg = "Fehler beim Update! Keine Internetverbindung?"
+        print("Update Error:", e.stderr)
+
+    screen.fill((15, 15, 30))
+    result_surf = font.render(msg, True, (255, 215, 0))
+    screen.blit(result_surf, ((sw - result_surf.get_width()) // 2, sh // 2))
+    hint_surf = font.render("Beliebige Taste drücken...", True, (150, 150, 150))
+    screen.blit(hint_surf, ((sw - hint_surf.get_width()) // 2, (sh // 2) + 60))
+    pygame.display.flip()
+
+    waiting = True
+    while waiting:
+        raw_data = ser.readline().decode('utf-8', 'ignore').strip() if ser and ser.in_waiting > 0 else None
+        for ev in pygame.event.get():
+            if ev.type == pygame.KEYDOWN: waiting = False
+        if raw_data and raw_data.startswith("BTN:"): waiting = False
+        pygame.time.Clock().tick(10)
+
+    if ser:
+        try: 
+            ser.write(b"LAMP:START:1\n")
+            ser.write(b"LAMP:PLAYER:0\n")
+            ser.flush()
+        except: pass
+
+def run_game(screen, ser, display, players, game_name, option_name, mode_name):
+    clock = pygame.time.Clock()
+    sw, sh = screen.get_width(), screen.get_height()
+    font = pygame.font.SysFont("arial", int(sh * 0.03), bold=True)
+    title_font = pygame.font.SysFont("arial", int(sh * 0.04), bold=True)
+    small_font = pygame.font.SysFont("arial", int(sh * 0.02), bold=True)
+    
+    settings = load_settings()
+    available_formats = ["4:3", "16:9"]
+    available_mappers = get_available_mappers()
+    if not settings["mapper"].endswith(".py"): settings["mapper"] += ".py"
+    
+    if settings["format"] not in available_formats: settings["format"] = available_formats[0]
+    if settings["mapper"] not in available_mappers: settings["mapper"] = available_mappers[0] if available_mappers else "display_mapper_Vision_Dart.py"
+        
+    menu_items = ["Bildschirmformat", "Hardware-Mapper", "System-Update (Online)"]
+    sel_item = 0
+    display.clear_all()
+    
+    if ser:
+        try: 
+            ser.write(b"LAMP:START:1\n")
+            ser.write(b"LAMP:PLAYER:0\n")
+            ser.flush()
+        except: pass
+
+    running = True
+    while running:
+        raw_data = ser.readline().decode('utf-8', 'ignore').strip() if ser and ser.in_waiting > 0 else None
+                
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE): running = False
+            elif ev.type == pygame.KEYDOWN:
+                if ev.key == pygame.K_r: raw_data = "BTN:RED"
+                elif ev.key == pygame.K_b: raw_data = "BTN:BLUE"
+                elif ev.key == pygame.K_SPACE: raw_data = "BTN:START"
+
+        if raw_data:
+            if raw_data == "BTN:START": running = False
+            elif raw_data == "BTN:RED": sel_item = (sel_item + 1) % len(menu_items)
+            elif raw_data == "BTN:BLUE":
+                if sel_item == 0: settings["format"] = available_formats[(available_formats.index(settings["format"]) + 1) % len(available_formats)]
+                elif sel_item == 1: settings["mapper"] = available_mappers[(available_mappers.index(settings["mapper"]) + 1) % len(available_mappers)]
+                elif sel_item == 2: do_online_update(screen, font, sw, sh, ser)
+        
+        screen.fill((15, 15, 30))
+        t_surf = title_font.render("SERVICE-MENÜ & EINSTELLUNGEN", True, (255, 215, 0))
+        screen.blit(t_surf, ((sw - t_surf.get_width()) // 2, int(sh * 0.1)))
+        
+        y_pos = int(sh * 0.3)
+        for i, item in enumerate(menu_items):
+            color = (255, 215, 0) if i == sel_item else (255, 255, 255)
+            prefix = "> " if i == sel_item else "  "
+            if i == 0: value = settings["format"]
+            elif i == 1: value = settings["mapper"]
+            else: value = "[ BLAU drücken zum Starten ]"
+            screen.blit(font.render(f"{prefix}{item}: {value}", True, color), (int(sw * 0.15), y_pos))
+            y_pos += int(sh * 0.08)
+            
+        h_surf = small_font.render("ROT: Auswählen | BLAU: Wert ändern/Aktion | START: Speichern & Zurück", True, (150, 150, 150))
+        screen.blit(h_surf, ((sw - h_surf.get_width()) // 2, int(sh * 0.8)))
+        pygame.display.flip(); clock.tick(30)
+        
+    settings["mapper"] = settings["mapper"].replace(".py", "")
+    save_settings(settings)
+    
