@@ -1,11 +1,9 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Permanentes Update über die beschreibbare Boot-Partition
-# Hauptnutzer: visionpi2000
+# VisionPi2000 - Update-Skript
 # =====================================================================
 
 if [ -z "$1" ]; then
-  echo "Fehler: Kein GitHub-Token übergeben!"
   exit 1
 fi
 
@@ -20,33 +18,27 @@ rm -rf /tmp/VisionPiRepoUpdate
 echo "Lade neueste Dateien von GitHub herunter..."
 git clone https://${1}@github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
 
-# Prüfen, ob der Projekt-Unterordner existiert
-if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
-    echo "FEHLER: Download fehlgeschlagen oder VisionPi2000-Ordner nicht gefunden!"
-    exit 1
+# Automatisch erkennen, ob die Dateien im Unterordner liegen
+if [ -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
+    SRC_DIR="/tmp/VisionPiRepoUpdate/VisionPi2000"
+else
+    SRC_DIR="/tmp/VisionPiRepoUpdate"
 fi
 
-echo "Aktualisiere den VisionPi2000 Ordner auf der Boot-Partition..."
+echo "Aktualisiere den Zielordner..."
 sudo mkdir -p "$BOOT_DIR"
 sudo rm -rf "$BOOT_DIR"/*
-
-# Inhalt aus dem Unterordner direkt in den Zielordner kopieren
-sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$BOOT_DIR"/
+sudo cp -r "$SRC_DIR"/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepoUpdate
 
-# Sounds im neuen Ordner generieren und Verzeichnis absichern
+# Sounds generieren
 echo "Generiere Sounds..."
 cd "$BOOT_DIR"
 mkdir -p sounds
 if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
-else
-    echo "Warnung: generate_sounds.py nicht gefunden!"
 fi
 
-echo "========================================================================="
-echo "Update erfolgreich! Permanent auf SD-Karte gespeichert."
-echo "Das System wird in 5 Sekunden neu gestartet..."
-echo "========================================================================="
-sleep 5
+echo "Update erfolgreich! Neustart..."
+sleep 3
 sudo reboot
