@@ -42,13 +42,19 @@ if [ ! -f "$SETTINGS_BOOT" ]; then
 fi
 sudo ln -sf "$SETTINGS_BOOT" "$BOOT_DIR/settings.json"
 
-# Sounds im neuen Ordner generieren
+# Sounds im neuen Ordner generieren und Verzeichnis absichern
 echo "Generiere Sounds..."
 cd "$BOOT_DIR"
-python3 generate_sounds.py
+mkdir -p sounds
+if [ -f "generate_sounds.py" ]; then
+    python3 generate_sounds.py
+else
+    echo "Warnung: generate_sounds.py nicht gefunden!"
+fi
 
-# Berechtigungen setzen
+# Berechtigungen für den gesamten Ordner und alle Unterordner/Dateien explizit setzen
 sudo chown -R visionpi2000:visionpi2000 "$BOOT_DIR"
+sudo chmod -R 755 "$BOOT_DIR"
 
 echo "========================================================================="
 echo "Update erfolgreich! Permanent auf SD-Karte gespeichert."
