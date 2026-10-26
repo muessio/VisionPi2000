@@ -41,8 +41,8 @@ def do_online_update(screen, font, sw, sh, ser):
     USER_PASSWORD = "VisionPi2000"
     
     screen.fill((15, 15, 30))
-    info_surf = font.render("Online-Update läuft... Bitte warten.", True, (255, 255, 255))
-    screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2))
+    info_surf = font.render("Online-Update wird geladen...", True, (255, 255, 255))
+    screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
 
     if ser:
@@ -52,7 +52,6 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Aktualisierter Aufruf auf private_Update.sh
     cmd = (
         'curl -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o private_Update.sh '
@@ -60,34 +59,25 @@ def do_online_update(screen, font, sw, sh, ser):
         f'&& echo "{USER_PASSWORD}" | sudo -S ./private_Update.sh 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'
     )
 
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
-        msg = "Update erfolgreich! Neustart wird empfohlen."
-    except subprocess.CalledProcessError as e:
-        msg = "Fehler beim Update!"
-        print("Update Error:", e.stderr)
-
     screen.fill((15, 15, 30))
-    result_surf = font.render(msg, True, (255, 215, 0))
+    result_surf = font.render("Update läuft! System startet gleich automatisch neu...", True, (255, 215, 0))
     screen.blit(result_surf, ((sw - result_surf.get_width()) // 2, sh // 2))
-    hint_surf = font.render("Beliebige Taste drücken...", True, (150, 150, 150))
-    screen.blit(hint_surf, ((sw - hint_surf.get_width()) // 2, (sh // 2) + 60))
     pygame.display.flip()
 
-    waiting = True
-    while waiting:
-        raw_data = ser.readline().decode('utf-8', 'ignore').strip() if ser and ser.in_waiting > 0 else None
-        for ev in pygame.event.get():
-            if ev.type == pygame.KEYDOWN: waiting = False
-        if raw_data and raw_data.startswith("BTN:"): waiting = False
-        pygame.time.Clock().tick(10)
+    try:
+        # Popen startet den Prozess im Hintergrund, da das Skript selbst den Reboot auslöst
+        subprocess.Popen(cmd, shell=True)
+    except Exception as e:
+        print("Update Error:", e)
 
-    if ser:
-        try: 
-            ser.write(b"LAMP:START:1\n")
-            ser.write(b"LAMP:PLAYER:0\n")
-            ser.flush()
-        except: pass
+    # Endlosschleife, bis der Raspberry Pi vom Update-Skript neu gestartet wird
+    while True:
+        pygame.time.Clock().tick(10)
+        if ser:
+            # Lampen blinken lassen als visuelles Feedback während dem Update
+            try:
+                ser.write(b"LAMP:START:2\n")
+            except: pass
 
 def run_game(screen, ser, display, players, game_name, option_name, mode_name):
     clock = pygame.time.Clock()
