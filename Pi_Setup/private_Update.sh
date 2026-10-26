@@ -23,19 +23,21 @@ git clone https://${1}@github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpda
 
 # Prüfen, ob der Projekt-Unterordner existiert
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
-    echo "FEHLER: Download fehlgeschlagen oder Visionpi2000-Ordner nicht gefunden!"
+    echo "FEHLER: Download fehlgeschlagen oder VisionPi2000-Ordner nicht gefunden!"
     exit 1
 fi
 
 echo "Aktualisiere den VisionPi2000 Ordner auf der Boot-Partition..."
 sudo mkdir -p "$BOOT_DIR"
 sudo rm -rf "$BOOT_DIR"/*
+
+# Inhalt aus dem Unterordner direkt in den Zielordner kopieren
 sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepoUpdate
 
 # Sicherstellen, dass die settings.json erhalten bleibt / verlinkt ist
 SETTINGS_BOOT="/boot/firmware/settings.json"
-if [ ! -d "/boot/firmware" ]; then SETTINGS_BOOT="/boot/settings.json"; fi
+if [ ! -d "/boot/firmware" ]; { SETTINGS_BOOT="/boot/settings.json"; fi
 
 if [ ! -f "$SETTINGS_BOOT" ]; then
     echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$SETTINGS_BOOT" > /dev/null
