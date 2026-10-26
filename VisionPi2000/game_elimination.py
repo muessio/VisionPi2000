@@ -3,7 +3,7 @@ import os
 import json
 import time
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 GAMES = ["Elimination"]
 OPTIONS = ["Standard", "3 Leben"]
 
@@ -35,6 +35,8 @@ def run_game(screen, ser, display, players_count, game_name, option_name, mode_n
     lives = [3] * players_count if "Leben" in option_name else [1] * players_count
     current_player = 0
     darts_thrown = 0
+    round_points = 0
+    switch_delay_timer = 0
     running = True
 
     if ser:
@@ -50,6 +52,7 @@ def run_game(screen, ser, display, players_count, game_name, option_name, mode_n
         for i in range(8): 
             if i < players_count: display.set_score(i, scores[i])
             else: display.set_score(i, None)
+        display.set_temp_score(round_points)
         display.set_dart_arrows(darts_thrown)
         display.update()
 
@@ -61,34 +64,46 @@ def run_game(screen, ser, display, players_count, game_name, option_name, mode_n
             if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE): running = False
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_p: raw_data = "BTN:PLAYER"
+                elif ev.key == pygame.K_i: raw_data = "IR:DETECT"
                 
-        if raw_data:
-            if raw_data == "BTN:PLAYER" and darts_thrown >= 3:
-                current_player = (current_player + 1) % players_count
-                while lives[current_player] <= 0: current_player = (current_player + 1) % players_count
-                darts_thrown = 0
-                if ser:
-                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.flush()
+        if raw_data == "BTN:PLAYER":
+            switch_delay_timer = pygame.time.get_ticks()
+            raw_data = None
+        elif raw_data == "IR:DETECT":
+            if darts_thrown >= 3 and switch_delay_timer == 0:
+                switch_delay_timer = pygame.time.get_ticks() + 1000
+            raw_data = None
+            
+        if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
+            switch_delay_timer = 0
+            current_player = (current_player + 1) % players_count
+            while lives[current_player] <= 0: current_player = (current_player + 1) % players_count
+            darts_thrown = 0
+            round_points = 0
+            if ser:
+                try: ser.write(b"LAMP:PLAYER:1\n"); ser.flush()
+                except: pass
+            update_hardware()
+
+        if raw_data and raw_data.startswith("HIT:") and darts_thrown < 3:
+            scores[current_player] += 15 
+            round_points += 15
+            darts_thrown += 1
+            if scores[current_player] >= 300:
+                update_hardware()
+                trigger_victory(ser)
+                running = False
+            else:
+                if darts_thrown == 3 and ser:
+                    try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
                     except: pass
                 update_hardware()
-            elif raw_data.startswith("HIT:") and darts_thrown < 3:
-                scores[current_player] += 15 
-                darts_thrown += 1
-                if scores[current_player] >= 300:
-                    update_hardware()
-                    trigger_victory(ser)
-                    running = False
-                else:
-                    if darts_thrown == 3 and ser:
-                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                        except: pass
-                    update_hardware()
 
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0, 0, 0))
         
         screen.blit(font.render(f"Spiel: {game_name} | {option_name}", True, (255,215,0)), (int(sw*0.05), int(sh*0.05)))
-        screen.blit(font.render(f"Spieler {current_player+1} ist am Zug", True, (255,255,255)), (int(sw*0.05), int(sh*0.15)))
+        screen.blit(font.render(f"Spieler {current_player+1} ist am Zug (Runde: {round_points})", True, (255,255,255)), (int(sw*0.05), int(sh*0.15)))
         screen.blit(font.render(f"Pfeile geworfen: {darts_thrown}/3", True, (255,255,255)), (int(sw*0.05), int(sh*0.25)))
         
         y_pos = int(sh * 0.85)
@@ -98,3 +113,4 @@ def run_game(screen, ser, display, players_count, game_name, option_name, mode_n
             screen.blit(font.render(status, True, c), (int(sw * (0.05 + (i%4)*0.2)), y_pos if i < 4 else y_pos + int(sh*0.06)))
 
         pygame.display.flip(); clock.tick(30)
+        
