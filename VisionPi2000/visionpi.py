@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 def load_settings():
     default_settings = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
@@ -119,26 +119,31 @@ def main():
     sound_click = pygame.mixer.Sound("sounds/click.wav") if os.path.exists("sounds/click.wav") else None
     sound_start = pygame.mixer.Sound("sounds/start.wav") if os.path.exists("sounds/start.wav") else None
         
-    info = pygame.display.Info()
-    SCREEN_WIDTH, SCREEN_HEIGHT = info.current_w, info.current_h
-    if SCREEN_WIDTH < 800: SCREEN_WIDTH, SCREEN_HEIGHT = (1920, 1080) if is_16_9 else (1024, 768)
-    
-    screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
+    # --- SEITENVERHÄLTNIS ERZWINGEN (SCALED + Letterboxing) ---
+    if is_16_9:
+        TARGET_WIDTH, TARGET_HEIGHT = 1920, 1080
+    else:
+        TARGET_WIDTH, TARGET_HEIGHT = 1024, 768
+
+    # SCALED sorgt nun dafür, dass Pygame die Zielauflösung auf den echten Monitor hoch/runterskaliert 
+    # und automatisch schwarze Balken an den Rändern hinzufügt, wenn die Monitormaße abweichen!
+    screen = pygame.display.set_mode((TARGET_WIDTH, TARGET_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
+    # ----------------------------------------------------------
     
     ser = init_serial()
     display = LoewenDisplay(ser) 
     display.set_light(True)     
     display.clear_all()
 
-    screensaver = ScreenSaver(SCREEN_WIDTH, SCREEN_HEIGHT)
+    screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT)
 
     bg_file = "background_16_9.png" if is_16_9 else "background.png"
     bg_img = None
     if os.path.exists(bg_file):
         try:
             raw_bg = pygame.image.load(bg_file).convert()
-            bg_img = pygame.transform.scale(raw_bg, (SCREEN_WIDTH, SCREEN_HEIGHT))
-            darker_overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            bg_img = pygame.transform.scale(raw_bg, (TARGET_WIDTH, TARGET_HEIGHT))
+            darker_overlay = pygame.Surface((TARGET_WIDTH, TARGET_HEIGHT))
             darker_overlay.set_alpha(120); darker_overlay.fill((0, 0, 0))
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
@@ -146,7 +151,7 @@ def main():
     start_file = "Start_16_9.jpg" if is_16_9 else "Start.jpg"
     if os.path.exists(start_file):
         try:
-            screen.blit(pygame.transform.scale(pygame.image.load(start_file).convert(), (SCREEN_WIDTH, SCREEN_HEIGHT)), (0, 0))
+            screen.blit(pygame.transform.scale(pygame.image.load(start_file).convert(), (TARGET_WIDTH, TARGET_HEIGHT)), (0, 0))
             pygame.display.flip()
             if ser:
                 try: ser.reset_input_buffer()
@@ -164,9 +169,9 @@ def main():
         except: pass
 
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont("arial", int(SCREEN_HEIGHT * 0.02), bold=True)
-    title_font = pygame.font.SysFont("arial", int(SCREEN_HEIGHT * 0.026), bold=True)
-    big_font = pygame.font.SysFont("arial", int(SCREEN_HEIGHT * 0.04), bold=True)
+    font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.02), bold=True)
+    title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.026), bold=True)
+    big_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.04), bold=True)
     
     game_registry = []
     for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service]:
@@ -230,8 +235,8 @@ def main():
             while showing_info:
                 if bg_img: screen.blit(bg_img, (0, 0))
                 else: screen.fill((0,0,0))
-                screen.blit(title_font.render("SYSTEM-INFORMATIONEN", True, (255,215,0)), (SCREEN_WIDTH*0.1, SCREEN_HEIGHT*0.1))
-                screen.blit(font.render(f"Vision Pi 2000: v{VERSION}", True, (255,255,255)), (SCREEN_WIDTH*0.15, SCREEN_HEIGHT*0.2))
+                screen.blit(title_font.render("SYSTEM-INFORMATIONEN", True, (255,215,0)), (TARGET_WIDTH*0.1, TARGET_HEIGHT*0.1))
+                screen.blit(font.render(f"Vision Pi 2000: v{VERSION}", True, (255,255,255)), (TARGET_WIDTH*0.15, TARGET_HEIGHT*0.2))
                 pygame.display.flip()
                 for ev in pygame.event.get():
                     if ev.type == pygame.KEYDOWN and ev.key in [pygame.K_p, pygame.K_ESCAPE]: showing_info = False
@@ -276,24 +281,25 @@ def main():
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
         
-        hx = (SCREEN_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
-        screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, SCREEN_HEIGHT * 0.05))
+        # --- DER HEADER IST WIEDER DA ---
+        hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
+        screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, TARGET_HEIGHT * 0.05))
+        # ---------------------------------
         
-        cw = int(SCREEN_WIDTH * 0.28)
-        ch = int(SCREEN_HEIGHT * 0.55)
-        pad = int(SCREEN_WIDTH * 0.03)
-        sx = (SCREEN_WIDTH - (3 * cw + 2 * pad)) // 2
-        sy = int(SCREEN_HEIGHT * 0.25)
+        cw = int(TARGET_WIDTH * 0.28)
+        ch = int(TARGET_HEIGHT * 0.55)
+        pad = int(TARGET_WIDTH * 0.03)
+        sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
+        sy = int(TARGET_HEIGHT * 0.25)
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
-        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(SCREEN_HEIGHT*0.04)))
+        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT*0.04)))
         pygame.display.flip(); clock.tick(30)
 
     display.set_light(False) 
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-    
