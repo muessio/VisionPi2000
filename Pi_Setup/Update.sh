@@ -1,7 +1,6 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Öffentliches Update-Skript (Boot-Partition-Modus)
-# Hauptnutzer: visionpi2000
+# VisionPi2000 - Öffentliches Update-Skript (FAT32 Boot-Partition-Modus)
 # =====================================================================
 
 if ! command -v git &> /dev/null; then
@@ -27,22 +26,24 @@ sudo rm -rf "$BOOT_DIR"/*
 sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepoUpdate
 
-# Sicherstellen, dass die settings.json erhalten bleibt / verlinkt ist
+# settings.json direkt sichern (ohne fehlerhafte Symlinks auf FAT32)
 SETTINGS_BOOT="/boot/firmware/settings.json"
 if [ ! -d "/boot/firmware" ]; then SETTINGS_BOOT="/boot/settings.json"; fi
 
 if [ ! -f "$SETTINGS_BOOT" ]; then
     echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$SETTINGS_BOOT" > /dev/null
 fi
-sudo ln -sf "$SETTINGS_BOOT" "$BOOT_DIR/settings.json"
+sudo cp "$SETTINGS_BOOT" "$BOOT_DIR/settings.json"
 
 # Sounds im neuen Ordner generieren (direkt am Zielort)
 echo "Generiere Sounds..."
 cd "$BOOT_DIR"
-python3 generate_sounds.py
+mkdir -p sounds
+if [ -f "generate_sounds.py" ]; then
+    python3 generate_sounds.py
+fi
 
-# Berechtigungen setzen
-sudo chown -R visionpi2000:visionpi2000 "$BOOT_DIR"
+# Hinweis: chown auf der FAT32-Boot-Partition entfernt (verursacht keine Fehler mehr)
 
 echo "========================================================================="
 echo "Update erfolgreich! Permanent auf SD-Karte gespeichert."
