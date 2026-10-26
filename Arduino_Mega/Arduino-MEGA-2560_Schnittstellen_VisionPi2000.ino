@@ -1,5 +1,6 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
+// INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -12,6 +13,13 @@ const int btnPlayer   = 50;
 const int irSensorPin = 2;  
 const int lightRelayPin = 3;  
 const int piezoPin    = A0; 
+
+// --- NEU: Pins für die Tasten-Leuchtmelder ---
+const int lampStartPin  = 11; // Pin für die Lampe der Start-Taste
+const int lampPlayerPin = 12; // Pin für die Lampe der Spielerwechsel-Taste
+int modeLampStart  = 0;       // 0=Aus, 1=An, 2=Blinken
+int modeLampPlayer = 0;       // 0=Aus, 1=An, 2=Blinken
+// ---------------------------------------------
 
 const int clkPin   = 4;   
 const int loadPin  = 5;   
@@ -60,14 +68,11 @@ inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
   delayMicroseconds(2);
 }
 
-// Sendet einen Befehl an alle Chips (berücksichtigt Kaskadierung durch Wiederholung)
 void sendCommandToAll(byte addr, byte data) {
   digitalWrite(clkPin, LOW);
   digitalWrite(loadPin, LOW);
   delayMicroseconds(5);
 
-  // Da wir max 2 Chips in Kette haben, senden wir das Paket 2x hintereinander, 
-  // damit es durch den vorderen in den hinteren Chip durchgereicht wird.
   for (int repeat = 0; repeat < 2; repeat++) {
     for (int i = 7; i >= 0; i--) {
       byte b = (addr >> i) & 1;
@@ -91,18 +96,10 @@ void updateDigitForAllStrands(int digitIndex) {
 
   byte addr = digitIndex + 1;
 
-  // Für kaskadierte Stränge (D0-D3): 
-  // Chip 1 (Hinterer Chip, z.B. U3) bekommt die echten Daten.
-  // Chip 0 (Vorderer Chip, z.B. U1) muss währenddessen ein NO-OP (Adresse 0x00, Daten 0x00) erhalten,
-  // damit er seine Anzeige nicht überschreibt oder blockiert, während die Daten durch ihn hindurchwandern!
-  
-  // 1. Paket für den HINTEREN Chip (DOUT: U3, U4, U6, U8)
-  // Adresse schicken
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
-    clockBit(b, b, b, b, 0); // D4 hat keinen hinteren Chip -> 0
+    clockBit(b, b, b, b, 0); 
   }
-  // Daten für hinteren Chip schicken
   for (int i = 7; i >= 0; i--) {
     clockBit(
       (displayMem[0][1][digitIndex] >> i) & 1,
@@ -113,13 +110,10 @@ void updateDigitForAllStrands(int digitIndex) {
     );
   }
 
-  // 2. Paket für den VORDEREN Chip (DIN: U1, U2, U5, U7) sowie U9 auf Strang D4
-  // Adresse schicken
   for (int i = 7; i >= 0; i--) {
     byte b = (addr >> i) & 1;
     clockBit(b, b, b, b, b);
   }
-  // Daten für vorderen Chip schicken
   for (int i = 7; i >= 0; i--) {
     clockBit(
       (displayMem[0][0][digitIndex] >> i) & 1,
@@ -166,6 +160,14 @@ void processSerialCommand(String command) {
   else if (command == "LIGHT:OFF") {
     digitalWrite(lightRelayPin, LOW);
   }
+  // --- NEU: Leuchtmelder Kommandos ---
+  else if (command.startsWith("LAMP:START:")) {
+    modeLampStart = command.substring(11).toInt();
+  }
+  else if (command.startsWith("LAMP:PLAYER:")) {
+    modeLampPlayer = command.substring(12).toInt();
+  }
+  // -----------------------------------
   else if (command == "CLEAR") {
     clearAllDisplays();
   }
@@ -212,6 +214,13 @@ void setup() {
   
   pinMode(lightRelayPin, OUTPUT); 
   digitalWrite(lightRelayPin, LOW); 
+
+  // --- NEU: Leuchtmelder Setup ---
+  pinMode(lampStartPin, OUTPUT);
+  pinMode(lampPlayerPin, OUTPUT);
+  digitalWrite(lampStartPin, LOW);
+  digitalWrite(lampPlayerPin, LOW);
+  // -------------------------------
   
   pinMode(clkPin, OUTPUT); pinMode(loadPin, OUTPUT);
   for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
@@ -230,6 +239,21 @@ void setup() {
 }
 
 void loop() {
+  unsigned long currentMillis = millis();
+
+  // --- NEU: Leuchtmelder autonome Steuerung ---
+  // Ein 2-Hz-Blinktakt bedeutet 500ms Periode (250ms an, 250ms aus)
+  bool blinkState2Hz = (currentMillis / 250) % 2;
+
+  if (modeLampStart == 0) digitalWrite(lampStartPin, LOW);
+  else if (modeLampStart == 1) digitalWrite(lampStartPin, HIGH);
+  else if (modeLampStart == 2) digitalWrite(lampStartPin, blinkState2Hz);
+
+  if (modeLampPlayer == 0) digitalWrite(lampPlayerPin, LOW);
+  else if (modeLampPlayer == 1) digitalWrite(lampPlayerPin, HIGH);
+  else if (modeLampPlayer == 2) digitalWrite(lampPlayerPin, blinkState2Hz);
+  // --------------------------------------------
+
   while (Serial.available() > 0) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
@@ -242,8 +266,6 @@ void loop() {
       cmdBuffer[cmdIndex++] = c;
     }
   }
-
-  unsigned long currentMillis = millis();
 
   if (currentMillis - lastHitTime > debounceDelay) {
     for (int r = 0; r < 4; r++) {
