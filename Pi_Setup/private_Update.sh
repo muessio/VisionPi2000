@@ -13,11 +13,8 @@ if ! command -v git &> /dev/null; then
     sudo apt update && sudo apt install git -y
 fi
 
-# Zielverzeichnis auf der dauerhaft beschreibbaren Boot-Partition ermitteln
-BOOT_DIR="/boot/firmware/VisionPi2000"
-if [ ! -d "/boot/firmware" ]; then 
-    BOOT_DIR="/boot/VisionPi2000" 
-fi
+# Zielverzeichnis auf der dauerhaft beschreibbaren Boot-Partition ermitteln (als fehlerfreier Einzeiler)
+if [ -d "/boot/firmware" ]; then BOOT_DIR="/boot/firmware/VisionPi2000"; else BOOT_DIR="/boot/VisionPi2000"; fi
 
 rm -rf /tmp/VisionPiRepoUpdate
 echo "Lade neueste Dateien von GitHub herunter..."
@@ -37,11 +34,8 @@ sudo rm -rf "$BOOT_DIR"/*
 sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepoUpdate
 
-# Sicherstellen, dass die settings.json erhalten bleibt / verlinkt ist
-SETTINGS_BOOT="/boot/firmware/settings.json"
-if [ ! -d "/boot/firmware" ]; then
-    SETTINGS_BOOT="/boot/settings.json"
-fi
+# Sicherstellen, dass die settings.json erhalten bleibt / verlinkt ist (als fehlerfreier Einzeiler)
+if [ -d "/boot/firmware" ]; then SETTINGS_BOOT="/boot/firmware/settings.json"; else SETTINGS_BOOT="/boot/settings.json"; fi
 
 if [ ! -f "$SETTINGS_BOOT" ]; then
     echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$SETTINGS_BOOT" > /dev/null
