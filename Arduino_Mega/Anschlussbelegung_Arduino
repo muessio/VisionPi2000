@@ -1,5 +1,5 @@
 VERKABELUNGSPLAN:
-DIY DARTAUTOMAT V5 (INKL. TASTER, IR, LICHT & LÖWEN-DISPLAY)
+DIY DARTAUTOMAT V6 (INKL. TASTER, LEUCHTMELDER, IR, LICHT & LÖWEN-DISPLAY)
 ============================================================================
 
 HINWEIS:
@@ -29,7 +29,7 @@ Matrix Pin 3 bis 18 fortlaufend an die Arduino Pins D30 bis D45 schrauben.
 (Pin 3 -> D30, Pin 4 -> D31, ..., Pin 18 -> D45).
 
 ----------------------------------------------------------------------------
-4. DIE 5 BEDIEN-TASTER (ARCADE BUTTONS)
+4. DIE 5 BEDIEN-TASTER (ARCADE BUTTONS - SCHALTER)
 ----------------------------------------------------------------------------
 (Jeweils Schließer-Kontakt "NO" und Masse "COM" anschließen)
 
@@ -38,6 +38,16 @@ TASTER BLAU (Optionen)      NO -> Pin D47  | COM -> GND
 TASTER GRAU (Spielmodus)    NO -> Pin D48  | COM -> GND
 TASTER START (Bestätigen)   NO -> Pin D49  | COM -> GND
 TASTER SPIELER (Wechsel)    NO -> Pin D50  | COM -> GND
+
+----------------------------------------------------------------------------
+4.1 TASTEN-LEUCHTMELDER (LEDs FÜR START & SPIELERWECHSEL)
+----------------------------------------------------------------------------
+(Stromversorgung für die integrierten LEDs der Buttons. Falls es sich um 
+nackte LEDs ohne integrierten 5V-Vorwiderstand handelt, bitte Widerstand 
+zwischenschalten!)
+
+LED TASTER START            [+] -> Pin D11  | [-] -> GND
+LED TASTER SPIELER          [+] -> Pin D12  | [-] -> GND
 
 ----------------------------------------------------------------------------
 5. INFRAROT-SENSOR (IR-MODUL FÜR SPIELERWECHSEL/PFEILE ZIEHEN)
@@ -77,4 +87,3 @@ ST1 Pin 1  [D4 - Datenstrang 5] ---> an Arduino Pin D10
 
 NC (NOT CONNECTED):
 ST1 Pin 5, 9, 10, 12 und 14 bleiben komplett frei!
-Damit ist das Ding jetzt kugelsicher. Stecke die drei Arduino-Kabel (D4, D5, D6) jetzt auf die Pins 20, 18 und 16. Bleiben die 5 Volt beim statischen Dauer-HIGH-Test jetzt endlich stabil am Stecker anliegen?
