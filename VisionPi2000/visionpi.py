@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.4.1"
+VERSION = "1.4.2"
 
 def load_settings():
     default_settings = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
@@ -119,16 +119,14 @@ def main():
     sound_click = pygame.mixer.Sound("sounds/click.wav") if os.path.exists("sounds/click.wav") else None
     sound_start = pygame.mixer.Sound("sounds/start.wav") if os.path.exists("sounds/start.wav") else None
         
-    # --- SEITENVERHÄLTNIS ERZWINGEN (SCALED + Letterboxing) ---
+    # --- SEITENVERHÄLTNIS ERZWINGEN ---
     if is_16_9:
         TARGET_WIDTH, TARGET_HEIGHT = 1920, 1080
     else:
         TARGET_WIDTH, TARGET_HEIGHT = 1024, 768
 
-    # SCALED sorgt nun dafür, dass Pygame die Zielauflösung auf den echten Monitor hoch/runterskaliert 
-    # und automatisch schwarze Balken an den Rändern hinzufügt, wenn die Monitormaße abweichen!
     screen = pygame.display.set_mode((TARGET_WIDTH, TARGET_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
-    # ----------------------------------------------------------
+    # ----------------------------------
     
     ser = init_serial()
     display = LoewenDisplay(ser) 
@@ -137,6 +135,7 @@ def main():
 
     screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT)
 
+    # --- HINTERGRUND LÄDT ---
     bg_file = "background_16_9.png" if is_16_9 else "background.png"
     bg_img = None
     if os.path.exists(bg_file):
@@ -148,6 +147,18 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
+    # --- HEADER BILD LÄDT ---
+    header_img = None
+    if os.path.exists("header.png"):
+        try:
+            raw_h = pygame.image.load("header.png").convert_alpha()
+            # Dynamische Größe: Das Logo nimmt 48% der Bildschirmbreite ein (wie die alten 500px auf 1024px)
+            header_w = int(TARGET_WIDTH * 0.48)
+            header_h = int(raw_h.get_height() * (header_w / raw_h.get_width()))
+            header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
+        except: pass
+
+    # --- START BILD LÄDT ---
     start_file = "Start_16_9.jpg" if is_16_9 else "Start.jpg"
     if os.path.exists(start_file):
         try:
@@ -281,10 +292,14 @@ def main():
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
         
-        # --- DER HEADER IST WIEDER DA ---
-        hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
-        screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, TARGET_HEIGHT * 0.05))
-        # ---------------------------------
+        # --- DER HEADER WIRD GEZEICHNET ---
+        header_y_pos = int(TARGET_HEIGHT * 0.01) # Entspricht dem alten HEADER_START_Y = 2
+        if header_img: 
+            screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
+        else:
+            hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
+            screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 15))
+        # ----------------------------------
         
         cw = int(TARGET_WIDTH * 0.28)
         ch = int(TARGET_HEIGHT * 0.55)
@@ -296,7 +311,10 @@ def main():
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
-        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT*0.04)))
+        # --- SPIELERANZAHL UND INFO-TEXT (FOOTER) ---
+        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.04)))
+        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.1)))
+
         pygame.display.flip(); clock.tick(30)
 
     display.set_light(False) 
