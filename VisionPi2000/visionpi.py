@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.4.5"
+VERSION = "1.4.6"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -153,12 +153,13 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    # --- HEADER BILD LÄDT (NEUE HÖHEN-LOGIK) ---
+    # --- HEADER BILD LÄDT (GRÖSSER GEMACHT) ---
     header_img = None
     if os.path.exists("header.png"):
         try:
             raw_h = pygame.image.load("header.png").convert_alpha()
-            header_h = int(TARGET_HEIGHT * 0.26)
+            # Header-Größe von 26% auf 31% angehoben
+            header_h = int(TARGET_HEIGHT * 0.31)
             header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
         except: pass
@@ -311,7 +312,8 @@ def main():
         pad = int(TARGET_WIDTH * 0.03)
         sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
         
-        sy = int(TARGET_HEIGHT * 0.32) 
+        # Boxen weiter nach unten gerutscht (von 32% auf 34%), um Platz für den größeren Header zu machen
+        sy = int(TARGET_HEIGHT * 0.34) 
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
