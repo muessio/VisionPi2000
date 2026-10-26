@@ -1,13 +1,43 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Öffentliches Master Installations- und Setup-Skript 
-# (Boot-Partition-Modus & OverlayFS)
+# (Inkl. automatischer 2/3-Partitionierung für die Boot-Partition)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
 sudo apt update
+sudo apt install parted -y
 
-# 1. USB-Stromlimit auf Maximum setzen
+# --- AUTOMATISCHE PARTITIONS-VERGRÖßERUNG (2/3 für Boot) ---
+echo "Passe Partitionsgröße für die Boot-Partition an..."
+ROOT_PART=$(findmnt / -o SOURCE -n)
+DISK_DEV=$(echo "$ROOT_PART" | sed 's/[0-9p]*$//')
+
+if [ -b "$DISK_DEV" ]; then
+    TOTAL_MB=$(sudo blockdev --getsz "$DISK_DEV" 2>/dev/null | awk '{print $1 / 2048}')
+    if [ -z "$TOTAL_MB" ] || [ "$TOTAL_MB" -eq 0 ]; then
+        TOTAL_MB=$(sudo parted -s "$DISK_DEV" print | grep "Disk" | awk '{print $3}' | sed 's/MB//')
+    fi
+    
+    if [ -n "$TOTAL_MB" ] && [ "$TOTAL_MB" -gt 1000 ]; then
+        TARGET_MB=$(( (TOTAL_MB * 2) / 3 ))
+        echo "SD-Gesamtgröße: ${TOTAL_MB} MB. Vergrößere Boot-Partition auf ${TARGET_MB} MB..."
+        
+        sudo parted -s "$DISK_DEV" resizepart 1 "${TARGET_MB}MB" 2>/dev/null
+        
+        BOOT_PART="${DISK_DEV}p1"
+        if [ ! -b "$BOOT_PART" ]; then BOOT_PART="${DISK_DEV}1"; fi
+        sudo resize2fs "$BOOT_PART" 2>/dev/null || true
+        if command -v fatresize &> /dev/null; then
+            sudo fatresize -s max "$BOOT_PART" 2>/dev/null
+        else
+            sudo apt install fatresize -y && sudo fatresize -s max "$BOOT_PART" 2>/dev/null
+        fi
+    fi
+fi
+# -------------------------------------------------------------
+
+# 1.5. USB-Stromlimit auf Maximum setzen
 CONFIG_FILE="/boot/firmware/config.txt"
 if [ ! -f "$CONFIG_FILE" ]; then CONFIG_FILE="/boot/config.txt"; fi
 if [ -f "$CONFIG_FILE" ]; then
@@ -109,7 +139,7 @@ sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro
 
 echo "========================================================================="
-echo "Öffentliche Erstinstallation erfolgreich abgeschlossen!"
+echo "Öffentliche Erstinstallation mit dynamischer Speicheraufteilung fertig!"
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
