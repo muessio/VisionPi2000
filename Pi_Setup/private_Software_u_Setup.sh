@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Privates Erstinstallations- und Setup-Skript 
-# (Inkl. automatischer 2/3-Partitionierung für die Boot-Partition)
+# (Inkl. automatischer Speicher- und Partitionsanpassung)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -14,7 +14,7 @@ fi
 sudo apt update
 sudo apt install parted -y
 
-# --- AUTOMATISCHE PARTITIONS-VERGRÖßERUNG (2/3 für Boot) ---
+# --- AUTOMATISCHE PARTITIONS-ANPASSUNG ---
 echo "Passe Partitionsgröße für die Boot-Partition an..."
 ROOT_PART=$(findmnt / -o SOURCE -n)
 DISK_DEV=$(echo "$ROOT_PART" | sed 's/[0-9p]*$//')
@@ -27,17 +27,19 @@ if [ -b "$DISK_DEV" ]; then
     
     if [ -n "$TOTAL_MB" ] && [ "$TOTAL_MB" -gt 1000 ]; then
         TARGET_MB=$(( (TOTAL_MB * 2) / 3 ))
-        echo "SD-Gesamtgröße: ${TOTAL_MB} MB. Vergrößere Boot-Partition auf ${TARGET_MB} MB..."
+        echo "SD-Gesamtgröße: ${TOTAL_MB} MB. Erweitere Boot-Partition auf ${TARGET_MB} MB..."
         
+        # Partition 1 per parted anpassen
         sudo parted -s "$DISK_DEV" resizepart 1 "${TARGET_MB}MB" 2>/dev/null
         
         BOOT_PART="${DISK_DEV}p1"
         if [ ! -b "$BOOT_PART" ]; then BOOT_PART="${DISK_DEV}1"; fi
-        sudo resize2fs "$BOOT_PART" 2>/dev/null || true
+        
+        # Dateisystem-Größe automatisch beim nächsten Start/Resize anfordern
         if command -v fatresize &> /dev/null; then
-            sudo fatresize -s max "$BOOT_PART" 2>/dev/null
+            sudo fatresize -s max "$BOOT_PART" 2>/dev/null || true
         else
-            sudo apt install fatresize -y && sudo fatresize -s max "$BOOT_PART" 2>/dev/null
+            sudo apt install fatresize -y && sudo fatresize -s max "$BOOT_PART" 2>/dev/null || true
         fi
     fi
 fi
@@ -90,7 +92,7 @@ sudo rm -rf "$BOOT_DIR"/*
 sudo cp -r "$SRC_DIR"/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepo
 
-# 4. Symlink vom Home-Ordner auf die Boot-Partition erstellen (im Linux-FS erlaubt)
+# 4. Symlink vom Home-Ordner auf die Boot-Partition erstellen
 sudo rm -rf /home/visionpi2000/VisionPi2000
 ln -s "$BOOT_DIR" /home/visionpi2000/VisionPi2000
 
@@ -115,7 +117,7 @@ cd /home/visionpi2000/VisionPi2000
 python3 visionpi.py &
 EOF
 
-# Settings.json direkt auf der Boot-Partition anlegen (ohne ungültigen FAT32-Symlink)
+# Settings.json direkt auf der Boot-Partition anlegen
 SETTINGS_BOOT="$BOOT_DIR/settings.json"
 if [ ! -f "$SETTINGS_BOOT" ]; then
     echo "Erstelle settings.json auf der Boot-Partition..."
@@ -135,7 +137,7 @@ if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
 fi
 
-# 8. Dateiberechtigungen nur im Home-Ordner setzen (chown auf Boot entfernt)
+# 8. Dateiberechtigungen im Home-Ordner sicherstellen
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/.config
 
 # 9. Sound einmalig auf 100% einstellen
@@ -147,7 +149,7 @@ sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro
 
 echo "========================================================================="
-echo "Erstinstallation mit dynamischer Speicheraufteilung erfolgreich!"
+echo "Erstinstallation mit automatischer Speicheraufteilung erfolgreich!"
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
