@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Privates Erstinstallations- und Setup-Skript 
-# (Inkl. automatischer Speicher- und Partitionsanpassung)
+# (Inkl. nativer automatischer Partitions- und Speicheranpassung)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -12,36 +12,12 @@ if [ -z "$1" ]; then
 fi
 
 sudo apt update
-sudo apt install parted -y
 
-# --- AUTOMATISCHE PARTITIONS-ANPASSUNG ---
-echo "Passe Partitionsgröße für die Boot-Partition an..."
-ROOT_PART=$(findmnt / -o SOURCE -n)
-DISK_DEV=$(echo "$ROOT_PART" | sed 's/[0-9p]*$//')
-
-if [ -b "$DISK_DEV" ]; then
-    TOTAL_MB=$(sudo blockdev --getsz "$DISK_DEV" 2>/dev/null | awk '{print $1 / 2048}')
-    if [ -z "$TOTAL_MB" ] || [ "$TOTAL_MB" -eq 0 ]; then
-        TOTAL_MB=$(sudo parted -s "$DISK_DEV" print | grep "Disk" | awk '{print $3}' | sed 's/MB//')
-    fi
-    
-    if [ -n "$TOTAL_MB" ] && [ "$TOTAL_MB" -gt 1000 ]; then
-        TARGET_MB=$(( (TOTAL_MB * 2) / 3 ))
-        echo "SD-Gesamtgröße: ${TOTAL_MB} MB. Erweitere Boot-Partition auf ${TARGET_MB} MB..."
-        
-        # Partition 1 per parted anpassen
-        sudo parted -s "$DISK_DEV" resizepart 1 "${TARGET_MB}MB" 2>/dev/null
-        
-        BOOT_PART="${DISK_DEV}p1"
-        if [ ! -b "$BOOT_PART" ]; then BOOT_PART="${DISK_DEV}1"; fi
-        
-        # Dateisystem-Größe automatisch beim nächsten Start/Resize anfordern
-        if command -v fatresize &> /dev/null; then
-            sudo fatresize -s max "$BOOT_PART" 2>/dev/null || true
-        else
-            sudo apt install fatresize -y && sudo fatresize -s max "$BOOT_PART" 2>/dev/null || true
-        fi
-    fi
+# --- NATIVE AUTOMATISCHE PARTITIONS-ERWEITERUNG ---
+echo "Aktiviere automatische Partitions- und Dateisystem-Erweiterung..."
+# Über raspi-config wird die Root-/Boot-Erweiterung für den nächsten Start getriggert
+if command -v raspi-config &> /dev/null; then
+    sudo raspi-config nonint do_expand_rootfs
 fi
 # -------------------------------------------------------------
 
@@ -149,7 +125,7 @@ sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro
 
 echo "========================================================================="
-echo "Erstinstallation mit automatischer Speicheraufteilung erfolgreich!"
+echo "Erstinstallation erfolgreich abgeschlossen!"
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
