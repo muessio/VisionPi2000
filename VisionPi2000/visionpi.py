@@ -27,13 +27,19 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.4.4"
+VERSION = "1.4.5"
+
+def get_settings_path():
+    if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
+    if os.path.exists("/boot/settings.json"): return "/boot/settings.json"
+    return "settings.json"
 
 def load_settings():
     default_settings = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
-    if not os.path.exists("settings.json"): return default_settings
+    path = get_settings_path()
+    if not os.path.exists(path): return default_settings
     try:
-        with open("settings.json", "r") as f:
+        with open(path, "r") as f:
             data = json.load(f)
             for k, v in default_settings.items():
                 if k not in data: data[k] = v
@@ -152,8 +158,6 @@ def main():
     if os.path.exists("header.png"):
         try:
             raw_h = pygame.image.load("header.png").convert_alpha()
-            # Wir berechnen das Logo jetzt so, dass es exakt 26% der Bildschirm-HÖHE ausmacht. 
-            # Dadurch wird es bei breiten 16:9 Monitoren nicht mehr zu riesig!
             header_h = int(TARGET_HEIGHT * 0.26)
             header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
@@ -307,7 +311,6 @@ def main():
         pad = int(TARGET_WIDTH * 0.03)
         sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
         
-        # Die Boxen beginnen dynamisch immer erst UNTER dem Header (bei 32% der Höhe)
         sy = int(TARGET_HEIGHT * 0.32) 
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
@@ -324,4 +327,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-            
+    
