@@ -2,7 +2,6 @@
 # =====================================================================
 # VisionPi2000 - Öffentliches Master Installations- und Setup-Skript 
 # (Inkl. automatischer 2/3-Partitionierung für die Boot-Partition)
-# Hauptnutzer: visionpi2000
 # =====================================================================
 
 sudo apt update
@@ -47,7 +46,7 @@ if [ -f "$CONFIG_FILE" ]; then
     fi
 fi
 
-# USB Energiesparmodus für Pi 3B komplett deaktivieren
+# USB Energiesparmodus für Pi komplett deaktivieren
 CMDLINE_FILE="/boot/firmware/cmdline.txt"
 if [ ! -f "$CMDLINE_FILE" ]; then CMDLINE_FILE="/boot/cmdline.txt"; fi
 if [ -f "$CMDLINE_FILE" ]; then
@@ -64,7 +63,7 @@ sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils
 sudo systemctl set-default graphical.target
 sudo systemctl enable lightdm
 
-# 3. GitHub-Repository klonen (öffentlich) und direkt auf der Boot-Partition ablegen
+# 3. GitHub-Repository klonen und direkt auf der Boot-Partition ablegen
 echo "Lade Dateien von GitHub herunter..."
 BOOT_DIR="/boot/firmware/VisionPi2000"
 if [ ! -d "/boot/firmware" ]; then BOOT_DIR="/boot/VisionPi2000"; fi
@@ -82,7 +81,7 @@ sudo rm -rf "$BOOT_DIR"/*
 sudo cp -r /tmp/VisionPiRepo/VisionPi2000/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepo
 
-# 4. Symlink vom Home-Ordner auf die Boot-Partition erstellen
+# 4. Symlink vom Home-Ordner auf die Boot-Partition erstellen (im Linux-Dateisystem /home ist das erlaubt)
 sudo rm -rf /home/visionpi2000/VisionPi2000
 ln -s "$BOOT_DIR" /home/visionpi2000/VisionPi2000
 
@@ -107,14 +106,12 @@ cd /home/visionpi2000/VisionPi2000
 python3 visionpi.py &
 EOF
 
-# Settings.json direkt auf der Boot-Partition anlegen & verlinken
+# Settings.json direkt auf der Boot-Partition anlegen (ohne fehlerhaften Symlink auf FAT32)
 SETTINGS_BOOT="$BOOT_DIR/settings.json"
 if [ ! -f "$SETTINGS_BOOT" ]; then
     echo "Erstelle settings.json auf der Boot-Partition..."
     echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$SETTINGS_BOOT" > /dev/null
 fi
-sudo rm -f "$BOOT_DIR/settings.json"
-sudo ln -sf "$SETTINGS_BOOT" "$BOOT_DIR/settings.json"
 
 if ! grep -q "umask=000" /etc/fstab; then
     echo "Passe fstab an..."
@@ -124,10 +121,12 @@ fi
 # 7. Sounds generieren
 echo "Generiere Sounds..."
 cd "$BOOT_DIR"
-python3 generate_sounds.py
+mkdir -p sounds
+if [ -f "generate_sounds.py" ]; then
+    python3 generate_sounds.py
+fi
 
-# 8. Dateiberechtigungen sicherstellen
-sudo chown -R visionpi2000:visionpi2000 "$BOOT_DIR"
+# 8. Dateiberechtigungen nur dort setzen, wo es erlaubt ist (Home-Ordner)
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/.config
 
 # 9. Sound einmalig auf 100% einstellen
