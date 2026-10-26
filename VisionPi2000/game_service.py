@@ -5,9 +5,8 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 GAMES = ["Service-Menü"]
-# Hier sind jetzt sowohl die neuen Einstellungen als auch die alten Hardware-Tests vereint!
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
 SETTINGS_FILE = "settings.json"
@@ -34,6 +33,7 @@ def get_available_mappers():
 
 def do_online_update(screen, font, sw, sh, ser):
     USER_PASSWORD = "VisionPi2000"
+    
     screen.fill((15, 15, 30))
     info_surf = font.render("Online-Update läuft... Bitte warten.", True, (255, 255, 255))
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2))
@@ -46,18 +46,22 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
+    # Dateisystem auf read-write setzen, Update ausführen, dann wieder auf read-only setzen
+    # Das Passwort wird per "echo ... | sudo -S" an jeden Befehl übergeben, der Root-Rechte braucht.
     cmd = (
+        f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw / && '
         'curl -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o update.sh '
         '&& chmod +x update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S ./update.sh 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'
+        f'&& echo "{USER_PASSWORD}" | sudo -S ./update.sh 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 '
+        f'&& echo "{USER_PASSWORD}" | sudo -S mount -o remount,ro /'
     )
 
     try:
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=True)
         msg = "Update erfolgreich! Neustart wird empfohlen."
     except subprocess.CalledProcessError as e:
-        msg = "Fehler beim Update! Keine Internetverbindung?"
+        msg = "Fehler beim Update!"
         print("Update Error:", e.stderr)
 
     screen.fill((15, 15, 30))
