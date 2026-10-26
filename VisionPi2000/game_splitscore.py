@@ -19,6 +19,10 @@ def trigger_victory(ser):
                 ser.write(b"TEST:ON\n"); ser.flush(); time.sleep(0.25)
                 ser.write(b"TEST:OFF\n"); ser.flush(); time.sleep(0.25)
             ser.write(b"CLEAR\n"); ser.flush()
+            # --- Spielerwechsel-Taste zum Verlassen blinken lassen ---
+            ser.write(b"LAMP:PLAYER:2\n")
+            ser.write(b"LAMP:START:0\n")
+            ser.flush()
         except: pass
 
 def get_bot_hit(target, mode):
