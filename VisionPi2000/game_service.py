@@ -5,7 +5,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.5.2"
+VERSION = "1.5.3"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -52,13 +52,13 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
+    # Wir laden das Skript in den (flüchtigen) Overlay-Speicher und starten es.
+    # Das Bash-Skript selbst kümmert sich um das Einhängen der physischen SD-Karte!
     cmd = (
-        f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw / && '
         'curl -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o update.sh '
         '&& chmod +x update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S ./update.sh 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 '
-        f'&& echo "{USER_PASSWORD}" | sudo -S mount -o remount,ro /'
+        f'&& echo "{USER_PASSWORD}" | sudo -S ./update.sh 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'
     )
 
     try:
@@ -123,9 +123,6 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
 
     running = True
 
-    # ---------------------------------------------------------
-    # MODUS: EINSTELLUNGEN & UPDATE
-    # ---------------------------------------------------------
     if option_name == "Einstellungen & Update":
         settings = load_settings()
         available_formats = ["4:3", "16:9"]
@@ -185,9 +182,6 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
         settings["mapper"] = settings["mapper"].replace(".py", "")
         save_settings(settings)
 
-    # ---------------------------------------------------------
-    # MODUS: HARDWARE-TESTS (Display, Matrix, Sensoren, Chip)
-    # ---------------------------------------------------------
     else:
         last_hit = "Warte auf Eingabe..."
         test_chip = 0
