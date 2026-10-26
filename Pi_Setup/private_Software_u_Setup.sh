@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Privates Erstinstallations- und Setup-Skript 
-# (Inkl. automatischer Erstellung einer schreibbaren FAT32-Datenpartition)
+# (Inkl. fehlerfreier Erstellung einer FAT32-Datenpartition)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -17,13 +17,14 @@ sudo apt install dosfstools -y
 # --- AUTOMATISCHE DATEN-PARTITION (FAT32) ERSTELLEN ---
 echo "Erstelle schreibbare FAT32-Datenpartition aus dem restlichen Speicher..."
 ROOT_PART=$(findmnt / -o SOURCE -n)
-DISK_DEV=$(echo "$ROOT_PART" | sed 's/[0-9p]*$//')
+
+# Korrekte Extraktion für SD-Karten (schneidet nur "p2" etc. ab)
+DISK_DEV=$(echo "$ROOT_PART" | sed 's/p[0-9]*$//')
 DATA_PART="${DISK_DEV}p3"
-if [ ! -b "$DATA_PART" ]; then DATA_PART="${DISK_DEV}3"; fi
 
 # Prüfen, ob Partition 3 schon existiert, falls nicht -> erstellen
 if [ ! -b "$DATA_PART" ]; then
-    echo "Lege Partition 3 an..."
+    echo "Lege Partition 3 ($DATA_PART) auf $DISK_DEV an..."
     # fdisk: Neue Partition (n), Primär (p), Nummer 3, Default Start, Default Ende, Schreiben (w)
     echo -e "n\np\n3\n\n\nw" | sudo fdisk "$DISK_DEV" > /dev/null 2>&1
     sudo partprobe "$DISK_DEV"
