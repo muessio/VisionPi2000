@@ -52,13 +52,12 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Wir laden das Skript in den (flüchtigen) Overlay-Speicher und starten es.
-    # Das Bash-Skript selbst kümmert sich um das Einhängen der physischen SD-Karte!
+    # Aktualisierter Aufruf auf private_Update.sh
     cmd = (
         'curl -H "Authorization: token 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" '
-        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o update.sh '
-        '&& chmod +x update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S ./update.sh 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'
+        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o private_Update.sh '
+        '&& chmod +x private_Update.sh '
+        f'&& echo "{USER_PASSWORD}" | sudo -S ./private_Update.sh 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'
     )
 
     try:
