@@ -1,6 +1,7 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Private Installations- und Setup-Skript (Boot-Partition-Modus)
+# VisionPi2000 - Privates Erstinstallations- und Setup-Skript 
+# (Boot-Partition-Modus & OverlayFS)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -12,8 +13,9 @@ fi
 
 sudo apt update
 
-# 1.5. USB-Stromlimit auf Maximum setzen
+# 1. USB-Stromlimit auf Maximum setzen
 CONFIG_FILE="/boot/firmware/config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then CONFIG_FILE="/boot/config.txt"; fi
 if [ -f "$CONFIG_FILE" ]; then
     if ! grep -q "max_usb_current=1" "$CONFIG_FILE"; then
         echo "Füge max_usb_current=1 zur $CONFIG_FILE hinzu..."
@@ -56,7 +58,7 @@ sudo rm -rf "$BOOT_DIR"/*
 sudo cp -r /tmp/VisionPiRepo/VisionPi2000/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepo
 
-# Symlink vom Home-Ordner auf die Boot-Partition erstellen
+# 4. Symlink vom Home-Ordner auf die Boot-Partition erstellen
 sudo rm -rf /home/visionpi2000/VisionPi2000
 ln -s "$BOOT_DIR" /home/visionpi2000/VisionPi2000
 
@@ -91,7 +93,7 @@ sudo rm -f "$BOOT_DIR/settings.json"
 sudo ln -sf "$SETTINGS_BOOT" "$BOOT_DIR/settings.json"
 
 if ! grep -q "umask=000" /etc/fstab; then
-    echo "Passe fstab an, um Schreibrechte zu garantieren..."
+    echo "Passe fstab an..."
     sudo sed -i -E 's/(vfat\s+defaults)/\1,umask=000/' /etc/fstab
 fi
 
@@ -113,7 +115,7 @@ sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro
 
 echo "========================================================================="
-echo "Private Software-Installation erfolgreich abgeschlossen!"
+echo "Erstinstallation erfolgreich abgeschlossen!"
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
