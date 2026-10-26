@@ -1,8 +1,9 @@
 import pygame
 import os
 import random
+import json
 
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 GAMES = ["Spieleanleitung"]
 OPTIONS = [
     "301 / 501 / 701 (X01)", 
@@ -28,7 +29,7 @@ EXPLANATIONS = {
     ],
     "Split Score": [
         "Ein Disziplin-Test über 9 Runden (15, 16, Double, 17, 18,",
-        "Triple, 19, 20, Bull). Man startet mit 40 Punkten. Tritt man das",
+        "Triple, 19, 20, Bull). Man startet mit 40 Punkten. Trifft man das",
         "Vorgabeziel der Runde nicht, halbiert sich der aktuelle Punktestand!",
         "Wer am Ende die meisten Punkte hat, gewinnt."
     ],
@@ -83,25 +84,41 @@ class ScreenSaver:
         screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
 def run_game(screen, ser, display, players, game_name, option, mode):
-    screensaver = ScreenSaver(screen.get_width(), screen.get_height())
+    sw, sh = screen.get_width(), screen.get_height()
+    screensaver = ScreenSaver(sw, sh)
     try: display.clear_all()
     except: pass
-
+    
+    # --- 16:9 und 4:3 Erkennung ---
+    is_16_9 = False
+    try:
+        with open("settings.json", "r") as f: is_16_9 = json.load(f).get("format", "4:3") == "16:9"
+    except: pass
+    
+    bg_file = "background_16_9.png" if is_16_9 else "background.png"
     bg_img = None
-    if os.path.exists("background.png"):
+    if os.path.exists(bg_file):
         try:
-            raw_bg = pygame.image.load("background.png").convert()
-            bg_img = pygame.transform.scale(raw_bg, (screen.get_width(), screen.get_height()))
-            darker_overlay = pygame.Surface((screen.get_width(), screen.get_height()))
+            raw_bg = pygame.image.load(bg_file).convert()
+            bg_img = pygame.transform.scale(raw_bg, (sw, sh))
+            darker_overlay = pygame.Surface((sw, sh))
             darker_overlay.set_alpha(150)
             darker_overlay.fill((0, 0, 0))
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    title_font = pygame.font.SysFont("arial", 32, bold=True)
-    text_font = pygame.font.SysFont("arial", 24, bold=True)
-    hint_font = pygame.font.SysFont("arial", 20, bold=True)
+    title_font = pygame.font.SysFont("arial", int(sh * 0.05), bold=True)
+    text_font = pygame.font.SysFont("arial", int(sh * 0.035), bold=True)
+    hint_font = pygame.font.SysFont("arial", int(sh * 0.025), bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
+
+    # --- Signal für Spielerwechsel-Taste (Zurück-Funktion) ---
+    if ser:
+        try: 
+            ser.write(b"LAMP:PLAYER:1\n")
+            ser.write(b"LAMP:START:0\n")
+            ser.flush()
+        except: pass
 
     running = True
     clock = pygame.time.Clock()
@@ -133,17 +150,31 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0, 0, 0))
 
-        screen.blit(title_font.render(f"SPIELEANLEITUNG & REGELN", True, HIGHLIGHT), (80, 50))
-        screen.blit(text_font.render(f"Ausgewähltes Spiel: {option}", True, (100, 220, 100)), (80, 110))
+        # --- Dynamische Positionierung ---
+        t_surf = title_font.render(f"SPIELEANLEITUNG & REGELN", True, HIGHLIGHT)
+        screen.blit(t_surf, ((sw - t_surf.get_width()) // 2, int(sh * 0.1)))
+        
+        opt_surf = text_font.render(f"Ausgewähltes Spiel: {option}", True, (100, 220, 100))
+        screen.blit(opt_surf, ((sw - opt_surf.get_width()) // 2, int(sh * 0.18)))
 
         lines = EXPLANATIONS.get(option, ["Keine Beschreibung verfügbar."])
-        y_text = 180
+        y_text = int(sh * 0.35)
         for line in lines:
-            screen.blit(text_font.render(line, True, WHITE), (80, y_text))
-            y_text += 40
+            line_surf = text_font.render(line, True, WHITE)
+            screen.blit(line_surf, ((sw - line_surf.get_width()) // 2, y_text))
+            y_text += int(sh * 0.06)
 
         back_hint = hint_font.render("Drücke Taste 'Spielerwechsel' (oder ESC), um ins Hauptmenü zurückzukehren.", True, HIGHLIGHT)
-        screen.blit(back_hint, (80, screen.get_height() - 70))
+        screen.blit(back_hint, ((sw - back_hint.get_width()) // 2, sh - int(sh * 0.1)))
 
         pygame.display.flip()
         clock.tick(30)
+        
+    # --- Reset Lampen beim Verlassen ---
+    if ser:
+        try: 
+            ser.write(b"LAMP:PLAYER:2\n") # Zurück in den Blinkmodus für das Hauptmenü
+            ser.write(b"LAMP:START:2\n")
+            ser.flush()
+        except: pass
+            
