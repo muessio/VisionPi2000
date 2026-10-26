@@ -22,14 +22,22 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 
 ## ⚙️ Technische Besonderheiten des Systems
 
-* **Präzises Hardware-Mapping (Display-Mapper):** Die mitgelieferte `display_mapper.py` wurde speziell für das originale Display-Layout des **Turnierdart 2000 / Vision Dart** entwickelt. Sie berücksichtigt exakt die platinenspezifischen Segment- und Zeilen-Zuordnungen der **klassischen Ausführung mit bedrahteten THT-LEDs** (keine SMD-Bestückung).
-* **Vollständige 5-Tasten-Bedienung:** Die Software ist kompromisslos auf die Bedienung über die originalen Gehäusetasten (Rot, Blau, Grau, Start, Spielerwechsel) optimiert, sodass kein externer Computer-Bildschirm oder Maus/Tastatur im Normalbetrieb notwendig ist.
-* **Moderne Software-Architektur:** Geschrieben in Python und Pygame (Host-System wie Raspberry Pi) in Kombination mit einer hardwarenahen Echtzeit-Steuerung über einen Arduino Mega als Schnittstelle.
+* **Präzises Hardware-Mapping (Display-Mapper):** Die mitgelieferte `display_mapper_Vision_Dart.py` wurde speziell für das originale Display-Layout des **Turnierdart 2000 / Vision Dart** entwickelt. Sie berücksichtigt exakt die platinenspezifischen Segment- und Zeilen-Zuordnungen der **klassischen Ausführung mit bedrahteten THT-LEDs** (keine SMD-Bestückung).
+* **Vollständige 5-Tasten-Bedienung:** Die Software ist kompromisslos auf die Bedienung über die originalen Gehäusetasten optimiert, sodass kein externer Computer-Bildschirm oder Maus/Tastatur im Normalbetrieb notwendig ist.
 * **Umfangreicher Spielekatalog:** Inklusive X01 (301, 501, 701 mit diversen In/Out-Optionen), Cricket, Shanghai, Split Score, Around the Clock, Elimination sowie einem integrierten Solo-/Bot-Modus (*Bullseye-Berry*).
+* **Dynamische Bildschirmskalierung (Letterboxing):** Automatische Skalierung der GUI. Das System zwingt moderne 16:9-Monitore durch intelligente Skalierung (Letterboxing) in ein klassisches 4:3-Format, ohne dass runde Elemente (wie die virtuelle Dartscheibe oder Grafiken) verzerrt oder gestreckt werden.
 
 ---
 
-## 🛠️ Benötigte Hardware & Stückliste
+## 🛠️ Neue Funktionen (ab Version 1.5)
+
+* **Ausfallsicheres Betriebssystem (Read-Only OS):** Das System ist dafür ausgelegt, auf einem schreibgeschützten (Read-Only) Raspberry Pi Image betrieben zu werden. Dies verhindert korrupte SD-Karten, wenn der Automat "hart" über den Hauptschalter ausgeschaltet wird. Einstellungen werden auf einer separaten Partition (`settings.json`) gespeichert.
+* **Integriertes Service-Menü & Hardware-Diagnose:** Ein direkt über die Gehäusetasten erreichbares Menü ermöglicht tiefgreifende Hardware-Tests (Matrix-Drucktest, Sensor-Prüfung, Chip- und Segment-Tests für die MAX7219-Kaskaden) sowie das Umschalten von Bildschirmformaten.
+* **Online-Update (OTA) am Automaten:** Über das Service-Menü kann das System auf Knopfdruck per Shell-Skript aktualisiert werden. Das Skript entsperrt das Read-Only-Dateisystem automatisch (`remount,rw`), zieht die neuesten Updates aus dem Repository und schützt das System anschließend sofort wieder (`remount,ro`).
+
+---
+
+## 🧰 Benötigte Hardware & Stückliste
 
 *(Eine detaillierte Stückliste mit exakten Bauteilbezeichnungen, Pin-Belegungen und Bezugsquellen wird in Kürze in diesem Repository ergänzt.)*
 
@@ -43,7 +51,7 @@ Grob-Übersicht des Setups:
 ## 🚀 Installation & Schnellstart
 
 1. **Arduino vorbereiten:** Flashe den bereitgestellten Arduino-Sketch (`Arduino-MEGA-2560_Schnittstellen_VisionPi2000.ino`) auf den Arduino Mega.
-2. **Abhängigkeiten installieren (Python):**
+2. **Abhängigkeiten installieren (Python):** Auf dem Raspberry Pi (oder einem Test-Rechner) müssen Pygame und PySerial installiert werden.
    ```bash
    pip install pygame pyserial
    
