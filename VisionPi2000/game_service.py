@@ -53,12 +53,12 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Die Ausgabe des Updates wird jetzt in eine Log-Datei geschrieben
+    # FIX: Das Skript wird nach /tmp/ geladen und per 'bash' ausgeführt, um FAT32-Blockaden zu umgehen.
+    # Die Ausgabe landet dauerhaft auf der Boot-Partition, falls wir ein Log brauchen.
     cmd = (
         'curl -H "Authorization: token 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" '
-        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o private_Update.sh '
-        '&& chmod +x private_Update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S ./private_Update.sh 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 > /home/visionpi2000/update_log.txt 2>&1'
+        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
+        f'&& echo "{USER_PASSWORD}" | sudo -S bash /tmp/private_Update.sh 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 > /boot/firmware/update_log.txt 2>&1'
     )
 
     screen.fill((15, 15, 30))
@@ -67,7 +67,7 @@ def do_online_update(screen, font, sw, sh, ser):
     pygame.display.flip()
 
     try:
-        # Popen startet den Prozess im Hintergrund, das Skript löst den Reboot selbst aus
+        # Popen startet den Prozess im Hintergrund
         subprocess.Popen(cmd, shell=True)
     except Exception as e:
         print("Update Error:", e)
@@ -75,6 +75,8 @@ def do_online_update(screen, font, sw, sh, ser):
     # Endlosschleife, bis der Raspberry Pi vom Update-Skript neu gestartet wird
     while True:
         pygame.time.Clock().tick(10)
+        # Hält die Pygame-Oberfläche ansprechbar (verhindert 'Programm reagiert nicht')
+        pygame.event.pump() 
         if ser:
             try:
                 ser.write(b"LAMP:START:2\n")
