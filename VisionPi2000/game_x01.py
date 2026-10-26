@@ -11,10 +11,8 @@ OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Ou
 
 def trigger_victory(ser):
     if os.path.exists("sounds/victory.wav"):
-        try: 
-            pygame.mixer.Sound("sounds/victory.wav").play()
-        except: 
-            pass
+        try: pygame.mixer.Sound("sounds/victory.wav").play()
+        except: pass
     if ser:
         try:
             for _ in range(6):
@@ -30,8 +28,7 @@ def trigger_victory(ser):
             ser.write(b"LAMP:PLAYER:2\n")
             ser.write(b"LAMP:START:0\n")
             ser.flush()
-        except: 
-            pass
+        except: pass
 
 def parse_hit(hit_str):
     if hit_str == "-": return 0
@@ -293,7 +290,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     round_points += points
                     darts_thrown += 1
                     
-                    # Spiele Sound, wenn es kein Miss und kein Bust war
                     if points > 0 or (player_in_checked[p_idx] and not round_start_in_checked):
                         if hit_segment in ["t18", "t19", "t20", "b", "db"]:
                             champ_display_until = pygame.time.get_ticks() + 2000
