@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Privates Erstinstallations- und Setup-Skript 
-# (Stabile Version: Nutzt die vorhandene /boot/firmware FAT32-Partition)
+# (Stabile Version für /boot/firmware inkl. Crash-Logging)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -69,7 +69,7 @@ autologin-user=visionpi2000
 user-session=openbox
 EOF'
 
-# 6. Autostart-Skript für Openbox erstellen
+# 6. Autostart-Skript für Openbox (MIT CRASH-LOGGING)
 mkdir -p /home/visionpi2000/.config/openbox
 cat << 'EOF' > /home/visionpi2000/.config/openbox/autostart
 unclutter -idle 0.1 -root &
@@ -77,7 +77,8 @@ xset s off
 xset -dpms
 xset s noblank
 cd /home/visionpi2000/VisionPi2000
-python3 visionpi.py &
+# Die Ausgabe und Fehler von Python werden jetzt in eine Log-Datei geschrieben!
+python3 visionpi.py > /home/visionpi2000/visionpi_crash.log 2>&1 &
 EOF
 
 # Settings.json auf der Boot-Partition anlegen
