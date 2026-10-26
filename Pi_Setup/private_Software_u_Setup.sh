@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Privates Erstinstallations- und Setup-Skript 
-# (Inkl. nativer automatischer Partitions- und Speicheranpassung)
+# (Inkl. erzwungener 2/3-Partitionierung für die Boot-Partition)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -12,12 +12,27 @@ if [ -z "$1" ]; then
 fi
 
 sudo apt update
+sudo apt install parted fatresize -y
 
-# --- NATIVE AUTOMATISCHE PARTITIONS-ERWEITERUNG ---
-echo "Aktiviere automatische Partitions- und Dateisystem-Erweiterung..."
-# Über raspi-config wird die Root-/Boot-Erweiterung für den nächsten Start getriggert
-if command -v raspi-config &> /dev/null; then
-    sudo raspi-config nonint do_expand_rootfs
+# --- ERSCHWUNGENE 2/3-PARTITIONS-VERGRÖßERUNG ---
+echo "Erzwinge 2/3-Speicheraufteilung für die Boot-Partition..."
+ROOT_PART=$(findmnt / -o SOURCE -n)
+DISK_DEV=$(echo "$ROOT_PART" | sed 's/[0-9p]*$//')
+
+if [ -b "$DISK_DEV" ]; then
+    TOTAL_MB=$(sudo parted -s "$DISK_DEV" unit MB print | grep "Disk" | awk '{print $2}' | sed 's/MB//' | cut -d'.' -f1)
+    
+    if [ -n "$TOTAL_MB" ] && [ "$TOTAL_MB" -gt 1000 ]; then
+        TARGET_MB=$(( (TOTAL_MB * 2) / 3 ))
+        echo "SD-Gesamtgröße: ${TOTAL_MB} MB. Setze Boot-Partition fest auf ${TARGET_MB} MB..."
+        
+        sudo parted -s "$DISK_DEV" resizepart 1 "${TARGET_MB}MB"
+        
+        BOOT_PART="${DISK_DEV}p1"
+        if [ ! -b "$BOOT_PART" ]; then BOOT_PART="${DISK_DEV}1"; fi
+        
+        sudo fatresize -s max "$BOOT_PART" || true
+    fi
 fi
 # -------------------------------------------------------------
 
@@ -125,7 +140,7 @@ sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro
 
 echo "========================================================================="
-echo "Erstinstallation erfolgreich abgeschlossen!"
+echo "Erstinstallation mit 2/3-Speicheraufteilung erfolgreich abgeschlossen!"
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
