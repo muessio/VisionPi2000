@@ -1,13 +1,15 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Master Installations- und Setup-Skript (Boot-Partition-Modus)
+# VisionPi2000 - Öffentliches Master Installations- und Setup-Skript 
+# (Boot-Partition-Modus & OverlayFS)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
 sudo apt update
 
-# 1.5. USB-Stromlimit auf Maximum setzen
+# 1. USB-Stromlimit auf Maximum setzen
 CONFIG_FILE="/boot/firmware/config.txt"
+if [ ! -f "$CONFIG_FILE" ]; then CONFIG_FILE="/boot/config.txt"; fi
 if [ -f "$CONFIG_FILE" ]; then
     if ! grep -q "max_usb_current=1" "$CONFIG_FILE"; then
         echo "Füge max_usb_current=1 zur $CONFIG_FILE hinzu..."
@@ -32,7 +34,7 @@ sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils
 sudo systemctl set-default graphical.target
 sudo systemctl enable lightdm
 
-# 3. GitHub-Repository klonen und direkt auf der Boot-Partition ablegen
+# 3. GitHub-Repository klonen (öffentlich) und direkt auf der Boot-Partition ablegen
 echo "Lade Dateien von GitHub herunter..."
 BOOT_DIR="/boot/firmware/VisionPi2000"
 if [ ! -d "/boot/firmware" ]; then BOOT_DIR="/boot/VisionPi2000"; fi
@@ -50,7 +52,7 @@ sudo rm -rf "$BOOT_DIR"/*
 sudo cp -r /tmp/VisionPiRepo/VisionPi2000/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepo
 
-# Symlink vom Home-Ordner auf die Boot-Partition erstellen
+# 4. Symlink vom Home-Ordner auf die Boot-Partition erstellen
 sudo rm -rf /home/visionpi2000/VisionPi2000
 ln -s "$BOOT_DIR" /home/visionpi2000/VisionPi2000
 
@@ -85,7 +87,7 @@ sudo rm -f "$BOOT_DIR/settings.json"
 sudo ln -sf "$SETTINGS_BOOT" "$BOOT_DIR/settings.json"
 
 if ! grep -q "umask=000" /etc/fstab; then
-    echo "Passe fstab an, um Schreibrechte zu garantieren..."
+    echo "Passe fstab an..."
     sudo sed -i -E 's/(vfat\s+defaults)/\1,umask=000/' /etc/fstab
 fi
 
@@ -107,7 +109,7 @@ sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro
 
 echo "========================================================================="
-echo "Software-Installation erfolgreich abgeschlossen!"
+echo "Öffentliche Erstinstallation erfolgreich abgeschlossen!"
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
