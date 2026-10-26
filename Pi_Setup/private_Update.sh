@@ -1,7 +1,6 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Permanentes Update über die beschreibbare Boot-Partition
-# Hauptnutzer: visionpi2000
+# VisionPi2000 - Update-Skript für FAT32 Boot-Partition
 # =====================================================================
 
 if [ -z "$1" ]; then
@@ -13,36 +12,31 @@ if ! command -v git &> /dev/null; then
     sudo apt update && sudo apt install git -y
 fi
 
-# Zielverzeichnis auf der dauerhaft beschreibbaren Boot-Partition ermitteln (als fehlerfreier Einzeiler)
-if [ -d "/boot/firmware" ]; then BOOT_DIR="/boot/firmware/VisionPi2000"; else BOOT_DIR="/boot/VisionPi2000"; fi
+# Zielverzeichnis auf der Boot-Partition ermitteln
+if [ -d "/boot/firmware" ]; then 
+    BOOT_DIR="/boot/firmware/VisionPi2000" 
+else 
+    BOOT_DIR="/boot/VisionPi2000" 
+fi
 
 rm -rf /tmp/VisionPiRepoUpdate
 echo "Lade neueste Dateien von GitHub herunter..."
 git clone https://${1}@github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
 
 # Prüfen, ob der Projekt-Unterordner existiert
-if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
-    echo "FEHLER: Download fehlgeschlagen oder VisionPi2000-Ordner nicht gefunden!"
-    exit 1
+if [ -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
+    SRC_DIR="/tmp/VisionPiRepoUpdate/VisionPi2000"
+else
+    SRC_DIR="/tmp/VisionPiRepoUpdate"
 fi
 
-echo "Aktualisiere den VisionPi2000 Ordner auf der Boot-Partition..."
+echo "Aktualisiere den Zielordner..."
 sudo mkdir -p "$BOOT_DIR"
 sudo rm -rf "$BOOT_DIR"/*
-
-# Inhalt aus dem Unterordner direkt in den Zielordner kopieren
-sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$BOOT_DIR"/
+sudo cp -r "$SRC_DIR"/* "$BOOT_DIR"/
 rm -rf /tmp/VisionPiRepoUpdate
 
-# Sicherstellen, dass die settings.json erhalten bleibt / verlinkt ist (als fehlerfreier Einzeiler)
-if [ -d "/boot/firmware" ]; then SETTINGS_BOOT="/boot/firmware/settings.json"; else SETTINGS_BOOT="/boot/settings.json"; fi
-
-if [ ! -f "$SETTINGS_BOOT" ]; then
-    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$SETTINGS_BOOT" > /dev/null
-fi
-sudo ln -sf "$SETTINGS_BOOT" "$BOOT_DIR/settings.json"
-
-# Sounds im neuen Ordner generieren und Verzeichnis absichern
+# Sounds direkt im Zielverzeichnis generieren
 echo "Generiere Sounds..."
 cd "$BOOT_DIR"
 mkdir -p sounds
@@ -52,13 +46,8 @@ else
     echo "Warnung: generate_sounds.py nicht gefunden!"
 fi
 
-# Berechtigungen für den gesamten Ordner und alle Unterordner/Dateien explizit setzen
-sudo chown -R visionpi2000:visionpi2000 "$BOOT_DIR"
-sudo chmod -R 755 "$BOOT_DIR"
-
 echo "========================================================================="
-echo "Update erfolgreich! Permanent auf SD-Karte gespeichert."
-echo "Das System wird in 5 Sekunden neu gestartet..."
+echo "Update erfolgreich! Das System wird in 3 Sekunden neu gestartet..."
 echo "========================================================================="
-sleep 5
+sleep 3
 sudo reboot
