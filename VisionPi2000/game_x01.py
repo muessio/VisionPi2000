@@ -10,21 +10,28 @@ GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
 def trigger_victory(ser):
-def trigger_victory(ser):
     if os.path.exists("sounds/victory.wav"):
-        try: pygame.mixer.Sound("sounds/victory.wav").play()
-        except: pass
+        try: 
+            pygame.mixer.Sound("sounds/victory.wav").play()
+        except: 
+            pass
     if ser:
         try:
             for _ in range(6):
-                ser.write(b"TEST:ON\n"); ser.flush(); time.sleep(0.25)
-                ser.write(b"TEST:OFF\n"); ser.flush(); time.sleep(0.25)
-            ser.write(b"CLEAR\n"); ser.flush()
+                ser.write(b"TEST:ON\n")
+                ser.flush()
+                time.sleep(0.25)
+                ser.write(b"TEST:OFF\n")
+                ser.flush()
+                time.sleep(0.25)
+            ser.write(b"CLEAR\n")
+            ser.flush()
             # --- Spielerwechsel-Taste zum Verlassen blinken lassen ---
             ser.write(b"LAMP:PLAYER:2\n")
             ser.write(b"LAMP:START:0\n")
             ser.flush()
-        except: pass
+        except: 
+            pass
 
 def parse_hit(hit_str):
     if hit_str == "-": return 0
@@ -355,4 +362,3 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             hint_txt = title_font.render("Drücke Taste 'Spielerwechsel' für das Hauptmenü", True, HIGHLIGHT)
             screen.blit(hint_txt, ((sw - hint_txt.get_width()) // 2, int(sh*0.55)))
         pygame.display.flip(); clock.tick(30)
-        
