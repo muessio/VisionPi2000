@@ -5,7 +5,7 @@ import os
 
 os.makedirs("sounds", exist_ok=True)
 
-VERSION = "1.3.0"
+VERSION = "1.4.0"
 
 def save_wav(filename, audio_data, sample_rate=44100):
     with wave.open(filename, 'w') as f:
@@ -112,7 +112,22 @@ def generate_arcade_sounds():
         hit_t.append(val)
     save_wav("sounds/hit_triple.wav", hit_t)
 
-    print("\nAlle Sounds (laut & brachial) erfolgreich generiert!")
+    # 10. VICTORY / SIEGERMELODIE (Neu hinzugefügt)
+    victory = []
+    # Schnelles, aufsteigendes C-Dur Arpeggio (C5, E5, G5)
+    for freq in [523.25, 659.25, 783.99]:
+        for i in range(int(44100 * 0.12)):
+            t = i / 44100.0
+            victory.append(math.copysign(0.3, math.sin(2 * math.pi * freq * t)))
+    # Langer, gehaltener C6 Schluss-Akkord
+    for i in range(int(44100 * 1.2)):
+        t = i / 44100.0
+        val = math.copysign(0.3, math.sin(2 * math.pi * 1046.50 * t)) * math.exp(-t * 1.5)
+        victory.append(val)
+    save_wav("sounds/victory.wav", victory)
+
+    print("\nAlle 10 Sounds (inklusive Siegermelodie) erfolgreich generiert!")
 
 if __name__ == "__main__":
     generate_arcade_sounds()
+    
