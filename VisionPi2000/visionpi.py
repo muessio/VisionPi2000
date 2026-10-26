@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.4.3"
+VERSION = "1.4.4"
 
 def load_settings():
     default_settings = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
@@ -147,13 +147,15 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    # --- HEADER BILD LÄDT ---
+    # --- HEADER BILD LÄDT (NEUE HÖHEN-LOGIK) ---
     header_img = None
     if os.path.exists("header.png"):
         try:
             raw_h = pygame.image.load("header.png").convert_alpha()
-            header_w = int(TARGET_WIDTH * 0.48)
-            header_h = int(raw_h.get_height() * (header_w / raw_h.get_width()))
+            # Wir berechnen das Logo jetzt so, dass es exakt 26% der Bildschirm-HÖHE ausmacht. 
+            # Dadurch wird es bei breiten 16:9 Monitoren nicht mehr zu riesig!
+            header_h = int(TARGET_HEIGHT * 0.26)
+            header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
         except: pass
 
@@ -291,26 +293,28 @@ def main():
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
         
-        # --- HEADER GANZ NACH OBEN ---
-        header_y_pos = 0 
+        # --- HEADER POSITIONS-LOGIK ---
+        header_y_pos = int(TARGET_HEIGHT * 0.01) 
         if header_img: 
             screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
         else:
             hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
             screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 15))
         
-        # --- BOXEN ETWAS KLEINER UND WEITER NACH UNTEN ---
+        # --- MENÜBOXEN POSITIONS-LOGIK ---
         cw = int(TARGET_WIDTH * 0.28)
-        ch = int(TARGET_HEIGHT * 0.48) # Höhe der Boxen reduziert (von 0.55 auf 0.48)
+        ch = int(TARGET_HEIGHT * 0.48)
         pad = int(TARGET_WIDTH * 0.03)
         sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
-        sy = int(TARGET_HEIGHT * 0.34) # Boxen tiefer angesetzt (von 0.25 auf 0.34)
+        
+        # Die Boxen beginnen dynamisch immer erst UNTER dem Header (bei 32% der Höhe)
+        sy = int(TARGET_HEIGHT * 0.32) 
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
-        # --- SPIELERANZAHL UND INFO-TEXT WANDERN MIT NACH UNTEN ---
+        # --- FOOTER TEXT POSITIONS-LOGIK ---
         screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.04)))
         screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.1)))
 
@@ -320,4 +324,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-    
+            
