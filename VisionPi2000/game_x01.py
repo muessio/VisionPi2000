@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.7.4"
+VERSION = "1.7.5"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -24,7 +24,6 @@ def trigger_victory(ser):
                 time.sleep(0.25)
             ser.write(b"CLEAR\n")
             ser.flush()
-            # --- Spielerwechsel-Taste zum Verlassen blinken lassen ---
             ser.write(b"LAMP:PLAYER:2\n")
             ser.write(b"LAMP:START:0\n")
             ser.flush()
@@ -171,42 +170,32 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
+        # --- ABBRUCH-MENÜ LOGIK ---
         keys = pygame.key.get_pressed()
-        trigger_abort = False
-        if raw_data == "BTN:COMBO": trigger_abort = True
+        if raw_data == "BTN:COMBO": 
+            current_state = "ABORT_MENU"
+            raw_data = None
         elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
-            if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
-            elif pygame.time.get_ticks() - combo_press_start >= 2000: trigger_abort = True
-        else: combo_press_start = 0
+            if combo_press_start == 0: 
+                combo_press_start = pygame.time.get_ticks()
+            elif pygame.time.get_ticks() - combo_press_start >= 3000: 
+                current_state = "ABORT_MENU"
+                combo_press_start = 0
+                raw_data = None
+        else: 
+            combo_press_start = 0
 
-        if trigger_abort:
-            confirming = True
-            if ser:
-                try: ser.reset_input_buffer()
-                except: pass
-            while confirming:
-                if bg_img: screen.blit(bg_img, (0, 0))
-                else: screen.fill((0, 0, 0))
-                screen.blit(big_font.render("SPIEL ABBRECHEN?", True, RED_COL), (int(sw*0.3), int(sh*0.25)))
-                screen.blit(title_font.render("Spiel abbrechen mit Taste Spielerwechsel", True, WHITE), (int(sw*0.25), int(sh*0.35)))
-                screen.blit(title_font.render("Weiterspielen mit Taste Start", True, HIGHLIGHT), (int(sw*0.3), int(sh*0.45)))
-                pygame.display.flip()
-                cancel_action = None
-                for ev in pygame.event.get():
-                    if ev.type == pygame.KEYDOWN:
-                        if ev.key in [pygame.K_p, pygame.K_ESCAPE]: cancel_action = "YES" 
-                        elif ev.key in [pygame.K_SPACE, pygame.K_RETURN]: cancel_action = "NO"
-                if ser and ser.in_waiting > 0:
-                    try:
-                        s_in = ser.readline().decode('utf-8','ignore').strip()
-                        if s_in == "BTN:PLAYER": cancel_action = "YES" 
-                        elif s_in == "BTN:START": cancel_action = "NO" 
-                    except: pass
-                if cancel_action == "YES": return 
-                elif cancel_action == "NO": confirming = False; combo_press_start = 0
-            raw_data = None 
+        # --- ZUSTANDS-STEUERUNG ---
+        if current_state == "ABORT_MENU":
+            if raw_data == "BTN:START":
+                current_state = "GAME"
+                raw_data = None
+            elif raw_data == "BTN:PLAYER":
+                if sound_switch: sound_switch.play()
+                running = False
+                raw_data = None
 
-        if current_state == "GAME":
+        elif current_state == "GAME":
             is_berrys_turn = (is_berry_game and active_player == total_players)
             
             if raw_data == "BTN:PLAYER":
@@ -273,9 +262,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         if has_master_out and not is_master and hit_segment != "WIN_CHEAT": bust = True
                         elif has_double_out and not is_double and hit_segment != "WIN_CHEAT": bust = True
 
-                # --- SOUND & SCORE UPDATE LOGIK ---
                 if hit_segment == "MISS":
-                    pass # Sound wurde oben schon gespielt
+                    pass 
                 elif bust: 
                     if sound_bust: sound_bust.play()
                     player_scores[p_idx] = round_start_score
@@ -309,7 +297,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
                 sync_hw_display()
 
-            elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"] or (event.type == pygame.KEYDOWN and event.key == pygame.K_p)):
+            elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
                 if sound_switch: sound_switch.play()
                 return
 
@@ -319,7 +307,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0, 0, 0))
 
-        if current_state == "GAME":
+        if current_state in ["GAME", "ABORT_MENU"]:
             screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}  |  Runde {round_num}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.08)))
             name_surf = big_font.render(mode if is_berrys_turn else f"Spieler {active_player}", True, RED_COL if is_berrys_turn else WHITE)
             screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.14)))
@@ -352,9 +340,27 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if pygame.time.get_ticks() < champ_display_until and champ_img:
                 screen.blit(champ_img, ((sw - champ_img.get_width()) // 2, (sh - champ_img.get_height()) // 2))
                 screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((sw - 200) // 2, int(sh*0.75)))
+                
+            if current_state == "ABORT_MENU":
+                overlay = pygame.Surface((sw, sh))
+                overlay.set_alpha(220)
+                overlay.fill((0, 0, 0))
+                screen.blit(overlay, (0, 0))
+                
+                menu_y = int(sh * 0.35)
+                txt_head = big_font.render("SPIEL ABBRECHEN?", True, HIGHLIGHT)
+                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, menu_y))
+                
+                txt_start = title_font.render("> START = Weiterspielen <", True, (50, 255, 50))
+                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, menu_y + int(sh * 0.15)))
+                
+                txt_end = title_font.render("> SPIELERWECHSEL = Beenden <", True, RED_COL)
+                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, menu_y + int(sh * 0.25)))
+
         elif current_state == "WIN":
             screen.blit(giant_font.render("GEWONNEN!", True, (50, 255, 50)), (int(sw*0.2), int(sh*0.1)))
             screen.blit(big_font.render(f"{mode if is_berrys_turn else f'Spieler {active_player}'} beendet!", True, WHITE), (int(sw*0.25), int(sh*0.4)))
             hint_txt = title_font.render("Drücke Taste 'Spielerwechsel' für das Hauptmenü", True, HIGHLIGHT)
             screen.blit(hint_txt, ((sw - hint_txt.get_width()) // 2, int(sh*0.55)))
         pygame.display.flip(); clock.tick(30)
+                    
