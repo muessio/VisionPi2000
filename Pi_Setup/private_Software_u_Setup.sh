@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Privates Erstinstallations- und Setup-Skript 
-# (Inkl. erzwungener 2/3-Partitionierung für die Boot-Partition)
+# (Inkl. präziser 2/3-Sektoren-Partitionierung für die Boot-Partition)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -14,19 +14,23 @@ fi
 sudo apt update
 sudo apt install parted fatresize -y
 
-# --- ERSCHWUNGENE 2/3-PARTITIONS-VERGRÖßERUNG ---
-echo "Erzwinge 2/3-Speicheraufteilung für die Boot-Partition..."
+# --- EXAKTE 2/3-SEKTOREN-PARTITIONS-VERGRÖßERUNG ---
+echo "Erzwinge exakte 2/3-Speicheraufteilung für die Boot-Partition..."
 ROOT_PART=$(findmnt / -o SOURCE -n)
 DISK_DEV=$(echo "$ROOT_PART" | sed 's/[0-9p]*$//')
 
 if [ -b "$DISK_DEV" ]; then
-    TOTAL_MB=$(sudo parted -s "$DISK_DEV" unit MB print | grep "Disk" | awk '{print $2}' | sed 's/MB//' | cut -d'.' -f1)
+    TOTAL_SECTORS=$(sudo blockdev --getsz "$DISK_DEV")
     
-    if [ -n "$TOTAL_MB" ] && [ "$TOTAL_MB" -gt 1000 ]; then
-        TARGET_MB=$(( (TOTAL_MB * 2) / 3 ))
-        echo "SD-Gesamtgröße: ${TOTAL_MB} MB. Setze Boot-Partition fest auf ${TARGET_MB} MB..."
+    if [ -n "$TOTAL_SECTORS" ] && [ "$TOTAL_SECTORS" -gt 2000000 ]; then
+        START_SECTOR=$(sudo parted -s "$DISK_DEV" unit s print | grep "^ 1" | awk '{print $2}' | sed 's/s//')
+        if [ -z "$START_SECTOR" ]; then START_SECTOR=2048; fi
         
-        sudo parted -s "$DISK_DEV" resizepart 1 "${TARGET_MB}MB"
+        TARGET_SECTOR=$(( (TOTAL_SECTORS * 2) / 3 ))
+        
+        echo "SD-Gesamtsektoren: $TOTAL_SECTORS. Setze Partition 1 von Sektor $START_SECTOR auf $TARGET_SECTOR..."
+        
+        sudo parted -s "$DISK_DEV" unit s resizepart 1 "$TARGET_SECTOR"
         
         BOOT_PART="${DISK_DEV}p1"
         if [ ! -b "$BOOT_PART" ]; then BOOT_PART="${DISK_DEV}1"; fi
@@ -140,7 +144,7 @@ sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro
 
 echo "========================================================================="
-echo "Erstinstallation mit 2/3-Speicheraufteilung erfolgreich abgeschlossen!"
+echo "Erstinstallation mit exakter 2/3-Partitionierung erfolgreich abgeschlossen!"
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
