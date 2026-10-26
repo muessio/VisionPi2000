@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Privates Erstinstallations- und Setup-Skript 
-# (Inkl. präziser 2/3-Sektoren-Partitionierung für die Boot-Partition)
+# (Inkl. automatischer Erstellung einer schreibbaren FAT32-Datenpartition)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -12,32 +12,39 @@ if [ -z "$1" ]; then
 fi
 
 sudo apt update
-sudo apt install parted fatresize -y
+sudo apt install dosfstools -y
 
-# --- EXAKTE 2/3-SEKTOREN-PARTITIONS-VERGRÖßERUNG ---
-echo "Erzwinge exakte 2/3-Speicheraufteilung für die Boot-Partition..."
+# --- AUTOMATISCHE DATEN-PARTITION (FAT32) ERSTELLEN ---
+echo "Erstelle schreibbare FAT32-Datenpartition aus dem restlichen Speicher..."
 ROOT_PART=$(findmnt / -o SOURCE -n)
 DISK_DEV=$(echo "$ROOT_PART" | sed 's/[0-9p]*$//')
+DATA_PART="${DISK_DEV}p3"
+if [ ! -b "$DATA_PART" ]; then DATA_PART="${DISK_DEV}3"; fi
 
-if [ -b "$DISK_DEV" ]; then
-    TOTAL_SECTORS=$(sudo blockdev --getsz "$DISK_DEV")
+# Prüfen, ob Partition 3 schon existiert, falls nicht -> erstellen
+if [ ! -b "$DATA_PART" ]; then
+    echo "Lege Partition 3 an..."
+    # fdisk: Neue Partition (n), Primär (p), Nummer 3, Default Start, Default Ende, Schreiben (w)
+    echo -e "n\np\n3\n\n\nw" | sudo fdisk "$DISK_DEV" > /dev/null 2>&1
+    sudo partprobe "$DISK_DEV"
+    sleep 3
     
-    if [ -n "$TOTAL_SECTORS" ] && [ "$TOTAL_SECTORS" -gt 2000000 ]; then
-        START_SECTOR=$(sudo parted -s "$DISK_DEV" unit s print | grep "^ 1" | awk '{print $2}' | sed 's/s//')
-        if [ -z "$START_SECTOR" ]; then START_SECTOR=2048; fi
-        
-        TARGET_SECTOR=$(( (TOTAL_SECTORS * 2) / 3 ))
-        
-        echo "SD-Gesamtsektoren: $TOTAL_SECTORS. Setze Partition 1 von Sektor $START_SECTOR auf $TARGET_SECTOR..."
-        
-        sudo parted -s "$DISK_DEV" unit s resizepart 1 "$TARGET_SECTOR"
-        
-        BOOT_PART="${DISK_DEV}p1"
-        if [ ! -b "$BOOT_PART" ]; then BOOT_PART="${DISK_DEV}1"; fi
-        
-        sudo fatresize -s max "$BOOT_PART" || true
-    fi
+    echo "Formatiere Partition 3 als FAT32..."
+    sudo mkfs.fat -F 32 "$DATA_PART"
 fi
+
+PROJECT_DIR="/home/visionpi2000/VisionPi2000"
+sudo rm -rf "$PROJECT_DIR"
+sudo mkdir -p "$PROJECT_DIR"
+
+# In fstab eintragen für automatischen Mount beim Start
+if ! grep -q "$DATA_PART" /etc/fstab; then
+    echo "Trage neue Daten-Partition in /etc/fstab ein..."
+    echo "$DATA_PART $PROJECT_DIR vfat defaults,umask=000 0 2" | sudo tee -a /etc/fstab
+fi
+
+# Partition sofort einhängen
+sudo mount -a
 # -------------------------------------------------------------
 
 # 1.5. USB-Stromlimit auf Maximum setzen
@@ -67,29 +74,20 @@ sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils
 sudo systemctl set-default graphical.target
 sudo systemctl enable lightdm
 
-# 3. GitHub-Repository klonen und direkt auf der Boot-Partition ablegen
+# 3. GitHub-Repository klonen und direkt auf die neue Partition kopieren
 echo "Lade Dateien von GitHub herunter..."
-BOOT_DIR="/boot/firmware/VisionPi2000"
-if [ ! -d "/boot/firmware" ]; then BOOT_DIR="/boot/VisionPi2000"; fi
-
 rm -rf /tmp/VisionPiRepo
 git clone https://${1}@github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
 
-# Automatisch erkennen, ob die Dateien im Unterordner liegen
 if [ -d "/tmp/VisionPiRepo/VisionPi2000" ]; then
     SRC_DIR="/tmp/VisionPiRepo/VisionPi2000"
 else
     SRC_DIR="/tmp/VisionPiRepo"
 fi
 
-sudo mkdir -p "$BOOT_DIR"
-sudo rm -rf "$BOOT_DIR"/*
-sudo cp -r "$SRC_DIR"/* "$BOOT_DIR"/
+sudo rm -rf "$PROJECT_DIR"/*
+sudo cp -r "$SRC_DIR"/* "$PROJECT_DIR"/
 rm -rf /tmp/VisionPiRepo
-
-# 4. Symlink vom Home-Ordner auf die Boot-Partition erstellen
-sudo rm -rf /home/visionpi2000/VisionPi2000
-ln -s "$BOOT_DIR" /home/visionpi2000/VisionPi2000
 
 sudo usermod -a -G audio,dialout visionpi2000
 
@@ -112,21 +110,15 @@ cd /home/visionpi2000/VisionPi2000
 python3 visionpi.py &
 EOF
 
-# Settings.json direkt auf der Boot-Partition anlegen
-SETTINGS_BOOT="$BOOT_DIR/settings.json"
-if [ ! -f "$SETTINGS_BOOT" ]; then
-    echo "Erstelle settings.json auf der Boot-Partition..."
-    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$SETTINGS_BOOT" > /dev/null
-fi
-
-if ! grep -q "umask=000" /etc/fstab; then
-    echo "Passe fstab an..."
-    sudo sed -i -E 's/(vfat\s+defaults)/\1,umask=000/' /etc/fstab
+# Settings.json direkt im Projektordner anlegen
+SETTINGS_FILE="$PROJECT_DIR/settings.json"
+if [ ! -f "$SETTINGS_FILE" ]; then
+    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$SETTINGS_FILE" > /dev/null
 fi
 
 # 7. Sounds generieren
 echo "Generiere Sounds..."
-cd "$BOOT_DIR"
+cd "$PROJECT_DIR"
 mkdir -p sounds
 if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
@@ -144,7 +136,7 @@ sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro
 
 echo "========================================================================="
-echo "Erstinstallation mit exakter 2/3-Partitionierung erfolgreich abgeschlossen!"
+echo "Erstinstallation erfolgreich! Daten-Partition wurde automatisch erstellt."
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
