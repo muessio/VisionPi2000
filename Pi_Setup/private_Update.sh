@@ -15,7 +15,9 @@ fi
 
 # Zielverzeichnis auf der dauerhaft beschreibbaren Boot-Partition ermitteln
 BOOT_DIR="/boot/firmware/VisionPi2000"
-if [ ! -d "/boot/firmware" ]; then BOOT_DIR="/boot/VisionPi2000"; fi
+if [ ! -d "/boot/firmware" ]; then 
+    BOOT_DIR="/boot/VisionPi2000" 
+fi
 
 rm -rf /tmp/VisionPiRepoUpdate
 echo "Lade neueste Dateien von GitHub herunter..."
