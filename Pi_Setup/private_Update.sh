@@ -21,15 +21,16 @@ rm -rf /tmp/VisionPiRepoUpdate
 echo "Lade neueste Dateien von GitHub herunter..."
 git clone https://${1}@github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
 
-if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
-    echo "FEHLER: Download fehlgeschlagen!"
+# Prüfen, ob das Repository erfolgreich geklont wurde (z.B. anhand von visionpi.py)
+if [ ! -f "/tmp/VisionPiRepoUpdate/visionpi.py" ]; then
+    echo "FEHLER: Download fehlgeschlagen oder visionpi.py nicht gefunden!"
     exit 1
 fi
 
 echo "Aktualisiere den VisionPi2000 Ordner auf der Boot-Partition..."
 sudo mkdir -p "$BOOT_DIR"
-sudo rm -rf "$BOOT_DIR"/*
-sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$BOOT_DIR"/
+# Alle Dateien direkt aus dem Repo-Hauptverzeichnis kopieren (ohne .git Ordner)
+sudo find /tmp/VisionPiRepoUpdate -mindepth 1 -maxdepth 1 ! -name ".git" -exec sudo cp -r {} "$BOOT_DIR"/ \;
 rm -rf /tmp/VisionPiRepoUpdate
 
 # Sicherstellen, dass die settings.json erhalten bleibt / verlinkt ist
