@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.7.2"
+VERSION = "1.7.3"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -77,7 +77,6 @@ def get_available_mappers():
 def do_online_update(screen, font, sw, sh, ser):
     boot_dir = get_boot_dir()
     log_file = os.path.join(boot_dir, "update_log.txt")
-    USER_PASSWORD = "VisionPi2000"
     
     screen.fill((15, 15, 30))
     info_surf = font.render("Online-Update wird geladen...", True, (255, 255, 255))
@@ -91,11 +90,11 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Exakt die bewährte Struktur mit /tmp/ und sudo -S
+    # Absolut sauberer, passwortloser Befehl ohne -S und ohne echo-Pipeline
     cmd = (
         'curl -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S bash /tmp/private_Update.sh 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 > {log_file} 2>&1'
+        f'&& sudo bash /tmp/private_Update.sh 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 > {log_file} 2>&1'
     )
 
     screen.fill((15, 15, 30))
@@ -108,7 +107,7 @@ def do_online_update(screen, font, sw, sh, ser):
     except Exception as e:
         print("Update Error:", e)
 
-    # Die stabile Endlosschleife zum Halten des Pygame-Fensters bis zum Neustart
+    # Stabile Endlosschleife, die das Pygame-Fenster aktiv hält, bis der Neustart greift
     while True:
         pygame.time.Clock().tick(10)
         pygame.event.pump() 
@@ -318,4 +317,4 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.set_light(False)
                 display.clear_all()
             except: pass
-                
+            
