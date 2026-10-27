@@ -6,17 +6,14 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.6.4"
+VERSION = "1.7.4"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
 DEFAULT_SETTINGS = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
 
 def run_sudo(cmd):
-    # Nutzt vorrangig passwortloses sudo (-n); fällt nur bei Bedarf auf Passwort zurück
-    res = subprocess.run(f'sudo -n sh -c "{cmd}" >/dev/null 2>&1', shell=True)
-    if res.returncode != 0:
-        subprocess.run(f'echo "VisionPi2000" | sudo -S sh -c "{cmd}" >/dev/null 2>&1', shell=True)
+    subprocess.run(f'sudo sh -c "{cmd}" >/dev/null 2>&1', shell=True)
 
 def get_boot_dir():
     if os.path.exists("/boot/firmware"): return "/boot/firmware"
@@ -44,7 +41,6 @@ def load_settings():
                         return data
             except:
                 pass
-    # Falls die Datei korrupt war (z.B. "VisionPi2000" enthielt), sofort mit gültigem Standard reparieren
     save_settings(DEFAULT_SETTINGS.copy())
     return DEFAULT_SETTINGS.copy()
 
@@ -54,7 +50,6 @@ def save_settings(settings):
     local_path = get_local_settings_path()
     tmp_path = "/tmp/visionpi_settings.json"
 
-    # 1. Datei völlig sauber im RAM (/tmp) erzeugen (kein tee, keine Pipe-Korruption!)
     try:
         with open(tmp_path, "w") as f:
             json.dump(settings, f, indent=4)
@@ -62,17 +57,17 @@ def save_settings(settings):
         print("TMP Write Error:", e)
         return
 
-    # 2. Auf die Boot-Partition kopieren (dauerhaft über Reboots hinweg)
     if boot_dir != ".":
-        run_sudo(f'mount -o remount,rw {boot_dir}')
-        run_sudo(f'cp -f {tmp_path} {boot_path}')
+        try:
+            run_sudo(f'mount -o remount,rw {boot_dir}')
+            run_sudo(f'cp -f {tmp_path} {boot_path}')
+        except: pass
 
-    # 3. Sicherstellen, dass der lokale Pfad im Spielordner ein Symlink auf Boot ist
-    if boot_dir != ".":
-        if not os.path.islink(local_path):
-            run_sudo(f'rm -f {local_path} && ln -s {boot_path} {local_path}')
-    else:
+    try:
+        run_sudo(f'rm -f {local_path}')
         run_sudo(f'cp -f {tmp_path} {local_path}')
+        run_sudo(f'chown visionpi2000:visionpi2000 {local_path}')
+    except: pass
 
 def get_available_mappers():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -84,9 +79,10 @@ def do_online_update(screen, font, sw, sh, ser):
     log_file = os.path.join(boot_dir, "update_log.txt")
     
     screen.fill((15, 15, 30))
-    info_surf = font.render("Online-Update wird vorbereitet...", True, (255, 255, 255))
+    info_surf = font.render("Update startet – Pygame wird beendet...", True, (255, 255, 255))
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
+    time.sleep(1.5)
 
     if ser:
         try:
@@ -95,31 +91,19 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Öffentliches Update-Skript ohne Token vom stable-Branch in den RAM (/tmp) laden und ausführen
+    # Pygame und Display sauber herunterfahren, damit die Konsole/Shell direkt übernimmt
+    pygame.quit()
+
+    # Befehl direkt im Vordergrund ausführen
     cmd = (
-        'curl -f -s https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Pi_Setup/Update.sh -o /tmp/Update.sh '
-        f'&& (sudo -n bash /tmp/Update.sh > {log_file} 2>&1 || '
-        f'echo "VisionPi2000" | sudo -S bash /tmp/Update.sh > {log_file} 2>&1)'
+        'curl -H "Authorization: token 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" '
+        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
+        f'&& sudo bash /tmp/private_Update.sh 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 | tee {log_file}'
     )
 
-    screen.fill((15, 15, 30))
-    result_surf = font.render("Update läuft! System startet gleich automatisch neu...", True, (255, 215, 0))
-    screen.blit(result_surf, ((sw - result_surf.get_width()) // 2, sh // 2))
-    pygame.display.flip()
-
-    try:
-        subprocess.Popen(cmd, shell=True)
-    except Exception as e:
-        print("Update Error:", e)
-
-    start_wait = pygame.time.get_ticks()
-    while pygame.time.get_ticks() - start_wait < 120000:
-        pygame.time.Clock().tick(10)
-        pygame.event.pump() 
-        if ser:
-            try:
-                ser.write(b"LAMP:START:2\n")
-            except: pass
+    # Direkt über das Betriebssystem ausführen (wartet, bis das Update fertig ist und neu startet)
+    os.system(cmd)
+    sys.exit(0)
 
 def run_game(screen, ser, display, players, game_name, option_name, mode_name):
     clock = pygame.time.Clock()
@@ -214,7 +198,6 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
         settings["mapper"] = settings["mapper"].replace(".py", "")
         save_settings(settings)
 
-        # Wenn Format oder Mapper geändert wurden, Hauptprogramm sofort neu starten, damit 16:9 direkt aktiv wird!
         if settings["format"] != old_format or settings["mapper"] != old_mapper:
             pygame.quit()
             os.execv(sys.executable, ['python3'] + sys.argv)
