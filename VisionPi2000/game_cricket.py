@@ -4,15 +4,15 @@ import os
 import random
 import time
 
-VERSION = "1.8.0"
+VERSION = "1.8.1"
 GAMES = ["Cricket"]
 OPTIONS = ["Standard"]
 TARGETS = [15, 16, 17, 18, 19, 20, 25]
 
 def parse_hit(hit_str):
     if hit_str in ["-", "WIN_CHEAaT", "MISS"]: return (0, 0)
-    if hit_str == "b": return (25, 1)   
-    if hit_str == "db": return (25, 2)  
+    if hit_str == "b": return (25, 1)    
+    if hit_str == "db": return (25, 2)   
     mult = 3 if hit_str.startswith("t") else (2 if hit_str.startswith("d") else 1)
     return (int(hit_str.replace("d", "").replace("t", "")), mult)
 
@@ -103,17 +103,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     def sync_hw_display(update_player_idx=None):
         try:
-            if update_player_idx is None:
-                for p in range(total_players):
-                    display.set_score(p, max(0, player_scores[p]))
-                    for t in TARGETS:
-                        if hasattr(display, 'set_cricket_marks'):
-                            display.set_cricket_marks(p, t, player_marks[p][t])
-            else:
-                display.set_score(update_player_idx, max(0, player_scores[update_player_idx]))
+            # IMMER alle Spieler-Scores und Marken durchgehen, damit die LED-Matrix komplett leuchtet
+            for p in range(total_players):
+                display.set_score(p, max(0, player_scores[p]))
                 for t in TARGETS:
                     if hasattr(display, 'set_cricket_marks'):
-                        display.set_cricket_marks(update_player_idx, t, player_marks[update_player_idx][t])
+                        display.set_cricket_marks(p, t, player_marks[p][t])
+            
             display.set_active_player(active_player - 1)
             display.set_dart_arrows(3 - darts_thrown)
             display.set_temp_score(round_points)
@@ -212,7 +208,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if active_player == total_players: round_num += 1
                 active_player = (active_player % total_players) + 1
                 if sound_switch is not None: sound_switch.play()
-                sync_hw_display(active_player - 1)
+                sync_hw_display()
                 bot_timer = 0
                 is_berrys_turn = (is_berry_game and active_player == total_players)
 
@@ -226,7 +222,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             elif not is_berrys_turn: 
                 bot_timer = 0
 
-        # --- 3. Treffer-Verarbeitung (KOMPLETT OHNE AUTO-SWITCH) ---
+        # --- 3. Treffer-Verarbeitung ---
         if raw_data:
             if current_state == "GAME":
                 if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
@@ -256,7 +252,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                                 round_points += val
                     
                     darts_thrown += 1
-                    sync_hw_display(p_idx)
+                    sync_hw_display()
                     if check_win(): current_state = "WIN"
 
             elif current_state == "WIN":
