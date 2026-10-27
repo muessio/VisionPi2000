@@ -11,6 +11,12 @@ if [ -z "$1" ]; then
   exit 1
 fi
 
+# 0. WICHTIG: Sofort NOPASSWD für den Benutzer 'visionpi2000' einrichten,
+# damit später im laufenden Betrieb und bei Updates niemals eine Passwortabfrage blockiert!
+echo "Richte passwortlose Sudo-Rechte für visionpi2000 ein..."
+echo "visionpi2000 ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/010_visionpi_nopasswd > /dev/null
+sudo chmod 440 /etc/sudoers.d/010_visionpi_nopasswd
+
 # 1. Nur Paketlisten aktualisieren
 sudo apt update
 
