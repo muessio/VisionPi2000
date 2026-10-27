@@ -5,6 +5,12 @@
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
+# 0. WICHTIG: Sofort NOPASSWD für den Benutzer 'visionpi2000' einrichten,
+# damit im laufenden Betrieb und bei Updates niemals eine Passwortabfrage blockiert!
+echo "Richte passwortlose Sudo-Rechte für visionpi2000 ein..."
+echo "visionpi2000 ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/010_visionpi_nopasswd > /dev/null
+sudo chmod 440 /etc/sudoers.d/010_visionpi_nopasswd
+
 # 1. Nur Paketlisten aktualisieren (KEIN volles apt upgrade, um WLAN nicht zu zerstören!)
 sudo apt update
 
@@ -41,12 +47,12 @@ sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils
 sudo systemctl set-default graphical.target
 sudo systemctl enable lightdm
 
-# 3. Öffentliches GitHub-Repository (Branch: stable) klonen und Dateien ablegen
+# 3. Öffentliches GitHub-Repository (Branch: main) klonen und Dateien ablegen
 echo "Lade Dateien von GitHub herunter..."
 mkdir -p /home/visionpi2000/VisionPi2000
 rm -rf /tmp/VisionPiRepo
 
-git clone --depth 1 -b stable https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
+git clone --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
 
 if [ ! -d "/tmp/VisionPiRepo/VisionPi2000" ]; then
     echo "FEHLER: Download fehlgeschlagen! Überprüfe die Internetverbindung."
