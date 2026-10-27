@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.5.2"
+VERSION = "1.5.3"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -189,9 +189,10 @@ def main():
     title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.026), bold=True)
     big_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.04), bold=True)
     
-    # Großes Info-Schrift (doppelt so groß wie die normale Schrift)
-    info_title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.045), bold=True)
-    info_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.035), bold=True)
+    # Großes Info-Schrift (doppelt so groß)
+    info_title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.042), bold=True)
+    info_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.032), bold=True)
+    info_hint_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.035), bold=True)
 
     # --- KUGELSICHERES LADEN DER SPIELE ---
     game_registry = []
@@ -261,9 +262,9 @@ def main():
                 if bg_img: screen.blit(bg_img, (0, 0))
                 else: screen.fill((0,0,0))
                 
-                # --- SCHWARZER KASTEN IN DER MITTE DES BILDSchirms ---
-                box_w = int(TARGET_WIDTH * 0.7)
-                box_h = int(TARGET_HEIGHT * 0.75)
+                # --- SCHWARZER KASTEN IN DER MITTE DES BILDSCHIRMS ---
+                box_w = int(TARGET_WIDTH * 0.75)
+                box_h = int(TARGET_HEIGHT * 0.82)
                 box_x = (TARGET_WIDTH - box_w) // 2
                 box_y = (TARGET_HEIGHT - box_h) // 2
                 
@@ -272,15 +273,15 @@ def main():
                 pygame.draw.rect(screen, (255, 215, 0), (box_x, box_y, box_w, box_h), width=3, border_radius=16)
 
                 # Inhalt zentriert im Kasten ausgeben
-                cur_y = box_y + int(box_h * 0.05)
+                cur_y = box_y + int(box_h * 0.04)
                 
                 t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,215,0))
                 screen.blit(t_surf, (box_x + (box_w - t_surf.get_width()) // 2, cur_y))
-                cur_y += int(box_h * 0.12)
+                cur_y += int(box_h * 0.11)
 
                 main_surf = info_font.render(f"Hauptmenü (visionpi.py): v{VERSION}", True, (255,255,255))
                 screen.blit(main_surf, (box_x + int(box_w * 0.08), cur_y))
-                cur_y += int(box_h * 0.075)
+                cur_y += int(box_h * 0.07)
 
                 modules_to_check = [
                     ("X01", game_x01),
@@ -299,9 +300,10 @@ def main():
                     text_str = f"• {mod_name}: v{mod_ver}" if mod_obj else f"• {mod_name}: Modul fehlt"
                     mod_surf = info_font.render(text_str, True, color)
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
-                    cur_y += int(box_h * 0.065)
+                    cur_y += int(box_h * 0.06)
 
-                hint_surf = font.render("Drücke Spielerwechsel-Taste oder ESC zum Fortfahren", True, (180, 180, 180))
+                # Deutlicher Hinweis zum Schließen ganz unten im Kasten
+                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (oder ESC)", True, (255, 215, 0))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.09)))
 
                 pygame.display.flip()
@@ -378,4 +380,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-    
+            
