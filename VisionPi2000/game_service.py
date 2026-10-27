@@ -1,114 +1,85 @@
 import pygame
 import json
 import os
+import sys
 import glob
 import subprocess
 import time
 
-VERSION = "1.6.2"
+VERSION = "1.6.4"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
 DEFAULT_SETTINGS = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
+
+def run_sudo(cmd):
+    # Nutzt vorrangig passwortloses sudo (-n); fällt nur bei Bedarf auf Passwort zurück
+    res = subprocess.run(f'sudo -n sh -c "{cmd}" >/dev/null 2>&1', shell=True)
+    if res.returncode != 0:
+        subprocess.run(f'echo "VisionPi2000" | sudo -S sh -c "{cmd}" >/dev/null 2>&1', shell=True)
 
 def get_boot_dir():
     if os.path.exists("/boot/firmware"): return "/boot/firmware"
     if os.path.exists("/boot"): return "/boot"
     return "."
 
-def get_settings_path():
-    USER_PASSWORD = "VisionPi2000"
-    boot_dir = get_boot_dir()
-    boot_settings = os.path.join(boot_dir, "settings.json")
-    local_settings = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
-    
-    # 1. Falls auf der Boot-Partition noch keine settings.json liegt -> anlegen
-    if boot_dir != "." and not os.path.exists(boot_settings):
-        try:
-            init_data = DEFAULT_SETTINGS.copy()
-            if os.path.exists(local_settings) and not os.path.islink(local_settings):
-                with open(local_settings, "r") as f: init_data = json.load(f)
-            json_str = json.dumps(init_data, indent=4)
-            subprocess.run(f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw {boot_dir} 2>/dev/null', shell=True)
-            p = subprocess.Popen(f'echo "{USER_PASSWORD}" | sudo -S tee {boot_settings} > /dev/null', shell=True, stdin=subprocess.PIPE)
-            p.communicate(input=json_str.encode('utf-8'))
-        except: pass
+def get_local_settings_path():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 
-    # 2. Sicherstellen, dass die lokale settings.json ein Symlink auf die Boot-Partition ist
-    if boot_dir != "." and os.path.exists(boot_settings):
-        if not os.path.islink(local_settings):
-            try:
-                if os.path.exists(local_settings): os.remove(local_settings)
-                os.symlink(boot_settings, local_settings)
-            except:
-                subprocess.run(f'echo "{USER_PASSWORD}" | sudo -S rm -f {local_settings} && echo "{USER_PASSWORD}" | sudo -S ln -s {boot_settings} {local_settings}', shell=True)
-        return boot_settings
-
-    return local_settings
+def get_boot_settings_path():
+    return os.path.join(get_boot_dir(), "settings.json")
 
 def load_settings():
-    path = get_settings_path()
-    if not os.path.exists(path): return DEFAULT_SETTINGS.copy()
-    try:
-        with open(path, "r") as f:
-            data = json.load(f)
-            for k, v in DEFAULT_SETTINGS.items():
-                if k not in data: data[k] = v
-            return data
-    except: return DEFAULT_SETTINGS.copy()
+    boot_path = get_boot_settings_path()
+    local_path = get_local_settings_path()
+    
+    for path in [boot_path, local_path]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        for k, v in DEFAULT_SETTINGS.items():
+                            if k not in data: data[k] = v
+                        return data
+            except:
+                pass
+    # Falls die Datei korrupt war (z.B. "VisionPi2000" enthielt), sofort mit gültigem Standard reparieren
+    save_settings(DEFAULT_SETTINGS.copy())
+    return DEFAULT_SETTINGS.copy()
 
 def save_settings(settings):
-    USER_PASSWORD = "VisionPi2000"
     boot_dir = get_boot_dir()
-    boot_settings = os.path.join(boot_dir, "settings.json")
-    local_settings = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
-    json_str = json.dumps(settings, indent=4)
+    boot_path = get_boot_settings_path()
+    local_path = get_local_settings_path()
+    tmp_path = "/tmp/visionpi_settings.json"
 
-    # 1. Versuche direkt zu schreiben
-    written = False
+    # 1. Datei völlig sauber im RAM (/tmp) erzeugen (kein tee, keine Pipe-Korruption!)
+    try:
+        with open(tmp_path, "w") as f:
+            json.dump(settings, f, indent=4)
+    except Exception as e:
+        print("TMP Write Error:", e)
+        return
+
+    # 2. Auf die Boot-Partition kopieren (dauerhaft über Reboots hinweg)
     if boot_dir != ".":
-        try:
-            with open(boot_settings, "w") as f:
-                f.write(json_str)
-            written = True
-        except:
-            # 2. Kugelsicherer Fallback für FAT32 (umgeht fehlende User-Schreibrechte per sudo tee)
-            try:
-                subprocess.run(f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw {boot_dir} 2>/dev/null', shell=True)
-                p = subprocess.Popen(f'echo "{USER_PASSWORD}" | sudo -S tee {boot_settings} > /dev/null', shell=True, stdin=subprocess.PIPE)
-                p.communicate(input=json_str.encode('utf-8'))
-                written = True
-            except Exception as e:
-                print("Fehler beim Speichern auf Boot:", e)
+        run_sudo(f'mount -o remount,rw {boot_dir}')
+        run_sudo(f'cp -f {tmp_path} {boot_path}')
 
-    # 3. Lokalen Symlink im Spielordner erzwingen (im RAM und falls vorhanden auf /media/root-ro)
-    if boot_dir != "." and written:
-        if not os.path.islink(local_settings):
-            try:
-                subprocess.run(f'echo "{USER_PASSWORD}" | sudo -S rm -f {local_settings} && echo "{USER_PASSWORD}" | sudo -S ln -s {boot_settings} {local_settings}', shell=True)
-            except: pass
-        if os.path.exists("/media/root-ro/home/visionpi2000/VisionPi2000"):
-            ro_settings = "/media/root-ro/home/visionpi2000/VisionPi2000/settings.json"
-            if not os.path.islink(ro_settings):
-                try:
-                    subprocess.run(
-                        f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw /media/root-ro 2>/dev/null && '
-                        f'sudo rm -f {ro_settings} && sudo ln -s {boot_settings} {ro_settings} && '
-                        f'sudo mount -o remount,ro /media/root-ro 2>/dev/null',
-                        shell=True
-                    )
-                except: pass
+    # 3. Sicherstellen, dass der lokale Pfad im Spielordner ein Symlink auf Boot ist
+    if boot_dir != ".":
+        if not os.path.islink(local_path):
+            run_sudo(f'rm -f {local_path} && ln -s {boot_path} {local_path}')
     else:
-        try:
-            with open(local_settings, "w") as f: f.write(json_str)
-        except: pass
+        run_sudo(f'cp -f {tmp_path} {local_path}')
 
 def get_available_mappers():
-    files = glob.glob("display_mapper*.py")
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    files = [os.path.basename(f) for f in glob.glob(os.path.join(base_dir, "display_mapper*.py"))]
     return sorted(files) if files else ["display_mapper_Vision_Dart.py"]
 
 def do_online_update(screen, font, sw, sh, ser):
-    USER_PASSWORD = "VisionPi2000"
     boot_dir = get_boot_dir()
     log_file = os.path.join(boot_dir, "update_log.txt")
     
@@ -124,10 +95,11 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Lädt das öffentliche Update-Skript direkt vom stable-Branch in den RAM (/tmp)
+    # Öffentliches Update-Skript ohne Token vom stable-Branch in den RAM (/tmp) laden und ausführen
     cmd = (
         'curl -f -s https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Pi_Setup/Update.sh -o /tmp/Update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S bash /tmp/Update.sh > {log_file} 2>&1'
+        f'&& (sudo -n bash /tmp/Update.sh > {log_file} 2>&1 || '
+        f'echo "VisionPi2000" | sudo -S bash /tmp/Update.sh > {log_file} 2>&1)'
     )
 
     screen.fill((15, 15, 30))
@@ -161,7 +133,8 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
     
     WHITE, HIGHLIGHT, RED_COL, GREEN = (255, 255, 255), (255, 215, 0), (180, 30, 30), (50, 255, 50)
     
-    is_16_9 = load_settings().get("format", "4:3") == "16:9"
+    current_settings = load_settings()
+    is_16_9 = current_settings.get("format", "4:3") == "16:9"
     bg_file = "background_16_9.png" if is_16_9 else "background.png"
     bg_img = None
     if os.path.exists(bg_file):
@@ -181,6 +154,9 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
 
     if option_name == "Einstellungen & Update":
         settings = load_settings()
+        old_format = settings.get("format", "4:3")
+        old_mapper = settings.get("mapper", "display_mapper_Vision_Dart").replace(".py", "")
+        
         available_formats = ["4:3", "16:9"]
         available_mappers = get_available_mappers()
         if not settings["mapper"].endswith(".py"): settings["mapper"] += ".py"
@@ -237,6 +213,11 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             
         settings["mapper"] = settings["mapper"].replace(".py", "")
         save_settings(settings)
+
+        # Wenn Format oder Mapper geändert wurden, Hauptprogramm sofort neu starten, damit 16:9 direkt aktiv wird!
+        if settings["format"] != old_format or settings["mapper"] != old_mapper:
+            pygame.quit()
+            os.execv(sys.executable, ['python3'] + sys.argv)
 
     else:
         last_hit = "Warte auf Eingabe..."
