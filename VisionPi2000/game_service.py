@@ -6,17 +6,15 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.6.4"
+VERSION = "1.6.7"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
 DEFAULT_SETTINGS = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
 
 def run_sudo(cmd):
-    # Nutzt vorrangig passwortloses sudo (-n); fällt nur bei Bedarf auf Passwort zurück
-    res = subprocess.run(f'sudo -n sh -c "{cmd}" >/dev/null 2>&1', shell=True)
-    if res.returncode != 0:
-        subprocess.run(f'echo "VisionPi2000" | sudo -S sh -c "{cmd}" >/dev/null 2>&1', shell=True)
+    # Da NOPASSWD im Setup-Skript eingerichtet wurde, läuft sudo direkt fehlerfrei durch
+    subprocess.run(f'sudo sh -c "{cmd}" >/dev/null 2>&1', shell=True)
 
 def get_boot_dir():
     if os.path.exists("/boot/firmware"): return "/boot/firmware"
@@ -44,7 +42,6 @@ def load_settings():
                         return data
             except:
                 pass
-    # Falls die Datei korrupt war (z.B. "VisionPi2000" enthielt), sofort mit gültigem Standard reparieren
     save_settings(DEFAULT_SETTINGS.copy())
     return DEFAULT_SETTINGS.copy()
 
@@ -54,7 +51,6 @@ def save_settings(settings):
     local_path = get_local_settings_path()
     tmp_path = "/tmp/visionpi_settings.json"
 
-    # 1. Datei völlig sauber im RAM (/tmp) erzeugen (kein tee, keine Pipe-Korruption!)
     try:
         with open(tmp_path, "w") as f:
             json.dump(settings, f, indent=4)
@@ -62,17 +58,17 @@ def save_settings(settings):
         print("TMP Write Error:", e)
         return
 
-    # 2. Auf die Boot-Partition kopieren (dauerhaft über Reboots hinweg)
     if boot_dir != ".":
-        run_sudo(f'mount -o remount,rw {boot_dir}')
-        run_sudo(f'cp -f {tmp_path} {boot_path}')
+        try:
+            run_sudo(f'mount -o remount,rw {boot_dir}')
+            run_sudo(f'cp -f {tmp_path} {boot_path}')
+        except: pass
 
-    # 3. Sicherstellen, dass der lokale Pfad im Spielordner ein Symlink auf Boot ist
-    if boot_dir != ".":
-        if not os.path.islink(local_path):
-            run_sudo(f'rm -f {local_path} && ln -s {boot_path} {local_path}')
-    else:
+    try:
+        run_sudo(f'rm -f {local_path}')
         run_sudo(f'cp -f {tmp_path} {local_path}')
+        run_sudo(f'chown visionpi2000:visionpi2000 {local_path}')
+    except: pass
 
 def get_available_mappers():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -95,11 +91,11 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
+    # Update-Befehl läuft dank NOPASSWD absolut sauber als sudo im Hintergrund
     cmd = (
         'curl -f -s -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
-        f'&& (sudo -n bash /tmp/private_Update.sh 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 > {log_file} 2>&1 || '
-        f'echo "VisionPi2000" | sudo -S bash /tmp/private_Update.sh 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 > {log_file} 2>&1)'
+        f'&& sudo bash /tmp/private_Update.sh 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 > {log_file} 2>&1'
     )
 
     screen.fill((15, 15, 30))
@@ -214,7 +210,6 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
         settings["mapper"] = settings["mapper"].replace(".py", "")
         save_settings(settings)
 
-        # Wenn Format oder Mapper geändert wurden, Hauptprogramm sofort neu starten, damit 16:9 direkt aktiv wird!
         if settings["format"] != old_format or settings["mapper"] != old_mapper:
             pygame.quit()
             os.execv(sys.executable, ['python3'] + sys.argv)
@@ -272,5 +267,54 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                         test_digit = (test_digit + 1) % 8
                         if display: display.test_single_chip(test_chip, test_digit, 0xFF)
                     elif raw_data == "BTN:PLAYER":
-                        running
-    
+                        running = False
+
+                elif option_name == "Sensoren":
+                    if raw_data in sensor_timers:
+                        sensor_timers[raw_data] = pygame.time.get_ticks() + 1000
+                    if raw_data == "BTN:COMBO": running = False
+                else:
+                    if raw_data == "BTN:PLAYER" or raw_data == "BTN:COMBO": running = False
+
+            if bg_img: screen.blit(bg_img, (0, 0))
+            else: screen.fill((0, 0, 0))
+            
+            draw_centered(title_font.render(f"SERVICE-MODUS: {option_name}", True, HIGHLIGHT), int(sh*0.05))
+
+            if option_name == "Display & Lampen":
+                draw_centered(big_font.render("Alle Segmente des Boards leuchten auf.", True, WHITE), int(sh*0.25))
+                draw_centered(big_font.render("Beleuchtung (Relais) ist EINGESCHALTET.", True, WHITE), int(sh*0.35))
+                draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), int(sh*0.7))
+
+            elif option_name == "Chip-Test":
+                draw_centered(big_font.render(f"Teste MAX7219 Chip: U{test_chip+1} (Index {test_chip})", True, GREEN), int(sh*0.25))
+                draw_centered(big_font.render(f"Spalte / Digit: {test_digit} (0-7)", True, WHITE), int(sh*0.35))
+                draw_centered(small_font.render("Blauer Taster: Chip wechseln | Grauer Taster: Spalte wechseln", True, HIGHLIGHT), int(sh*0.5))
+                draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), int(sh*0.7))
+
+            elif option_name == "Matrix":
+                draw_centered(big_font.render("Drücke Segmente auf der Scheibe mit dem Finger.", True, WHITE), int(sh*0.2))
+                draw_centered(title_font.render("So findest du tote Felder oder falsche Belegungen.", True, (150,150,150)), int(sh*0.3))
+                c = WHITE if last_hit == "Warte auf Eingabe..." else GREEN
+                draw_centered(giant_font.render(last_hit, True, c), int(sh*0.5))
+                draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), int(sh*0.8))
+
+            elif option_name == "Sensoren":
+                draw_centered(big_font.render("Drücke Taster oder löse Sensoren aus:", True, WHITE), int(sh*0.15))
+                y_sens = int(sh*0.28)
+                for key, name in sensor_names.items():
+                    is_active = pygame.time.get_ticks() < sensor_timers[key]
+                    c = GREEN if is_active else (100, 100, 100)
+                    state_text = "AKTIV" if is_active else "Inaktiv"
+                    draw_centered(big_font.render(f"{name}: {state_text}", True, c), y_sens)
+                    y_sens += int(sh*0.07)
+                draw_centered(title_font.render("Zum Beenden: COMBO (Rot+Blau+Grau) halten", True, RED_COL), y_sens + int(sh*0.05))
+
+            pygame.display.flip()
+            clock.tick(30)
+
+        if ser:
+            try:
+                display.set_light(False)
+                display.clear_all()
+            except: pass
