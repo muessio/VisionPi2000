@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.6.2"
+VERSION = "1.6.4"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -47,6 +47,27 @@ def load_settings():
             return data
     except: return default_settings
 
+# Hilfsfunktion für robustes, case-insensitives Laden von Bilddateien
+def find_image_file(preferred_names):
+    if isinstance(preferred_names, str):
+        preferred_names = [preferred_names]
+    
+    # 1. Exakte Suche prüfen
+    for name in preferred_names:
+        if os.path.exists(name):
+            return name
+            
+    # 2. Groß-/Kleinschreibung im Verzeichnis ignorieren (Linux/Pi Fix)
+    try:
+        files = os.listdir('.')
+        files_lower = {f.lower(): f for f in files}
+        for name in preferred_names:
+            if name.lower() in files_lower:
+                return files_lower[name.lower()]
+    except:
+        pass
+    return None
+
 class ScreenSaver:
     def __init__(self, width, height):
         self.width, self.height = width, height
@@ -56,9 +77,10 @@ class ScreenSaver:
         self.avatars = []
         berry_files = ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]
         for file in berry_files:
-            if os.path.exists(file):
+            f_found = find_image_file(file)
+            if f_found:
                 try:
-                    img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
+                    img = pygame.transform.smoothscale(pygame.image.load(f_found).convert_alpha(), (100, 100))
                     self.avatars.append({"img": img, "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
                 except: pass
         self.font = pygame.font.SysFont("arial", int(height * 0.026), bold=True)
@@ -141,10 +163,11 @@ def main():
 
     screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT)
 
-    # --- HINTERGRUND LÄDT ---
-    bg_file = "background_16_9.png" if is_16_9 else "background.png"
+    # --- HINTERGRUND LÄDT (Kugelsicher) ---
+    bg_candidates = ["background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.png", "Background.png", "background.PNG"]
+    bg_file = find_image_file(bg_candidates)
     bg_img = None
-    if os.path.exists(bg_file):
+    if bg_file:
         try:
             raw_bg = pygame.image.load(bg_file).convert()
             bg_img = pygame.transform.scale(raw_bg, (TARGET_WIDTH, TARGET_HEIGHT))
@@ -153,19 +176,21 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    # --- HEADER BILD LÄDT (Um 15% vergrößert) ---
+    # --- HEADER BILD LÄDT (Kugelsicher, 15% vergrößert) ---
+    header_file = find_image_file(["header.png", "Header.png", "HEADER.png"])
     header_img = None
-    if os.path.exists("header.png"):
+    if header_file:
         try:
-            raw_h = pygame.image.load("header.png").convert_alpha()
+            raw_h = pygame.image.load(header_file).convert_alpha()
             header_h = int(TARGET_HEIGHT * 0.36 * 1.15)
             header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
         except: pass
 
-    # --- START BILD LÄDT (Vollständig erhalten!) ---
-    start_file = "Start_16_9.jpg" if is_16_9 else "Start.jpg"
-    if os.path.exists(start_file):
+    # --- START BILD LÄDT (Kugelsicher für 16:9 und 4:3) ---
+    start_candidates = ["Start_16_9.jpg", "start_16_9.jpg", "Start_16_9.JPG", "Start16_9.jpg"] if is_16_9 else ["Start.jpg", "start.jpg", "Start.JPG"]
+    start_file = find_image_file(start_candidates)
+    if start_file:
         try:
             screen.blit(pygame.transform.scale(pygame.image.load(start_file).convert(), (TARGET_WIDTH, TARGET_HEIGHT)), (0, 0))
             pygame.display.flip()
@@ -358,13 +383,13 @@ def main():
             hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
             screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 10))
         
-        # --- MENÜBOXEN (ROT, BLAU, GRAU) WIEDER 1 CM NACH UNTEN VERSCHOBEN ---
+        # --- MENÜBOXEN (ROT, BLAU, GRAU) ---
         cw = int(TARGET_WIDTH * 0.28)
         ch = int(TARGET_HEIGHT * 0.48)  
         pad = int(TARGET_WIDTH * 0.03)
         sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
         
-        sy = int(TARGET_HEIGHT * 0.38)  # Zurück auf den ursprünglichen Wert (wieder 1 cm tiefer)
+        sy = int(TARGET_HEIGHT * 0.38)  
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
@@ -380,4 +405,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-    
+                    
