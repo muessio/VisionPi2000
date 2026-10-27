@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.7.3"
+VERSION = "1.7.4"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -79,9 +79,10 @@ def do_online_update(screen, font, sw, sh, ser):
     log_file = os.path.join(boot_dir, "update_log.txt")
     
     screen.fill((15, 15, 30))
-    info_surf = font.render("Online-Update wird geladen...", True, (255, 255, 255))
+    info_surf = font.render("Update startet – Pygame wird beendet...", True, (255, 255, 255))
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
+    time.sleep(1.5)
 
     if ser:
         try:
@@ -90,31 +91,19 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Absolut sauberer, passwortloser Befehl ohne -S und ohne echo-Pipeline
+    # Pygame und Display sauber herunterfahren, damit die Konsole/Shell direkt übernimmt
+    pygame.quit()
+
+    # Befehl direkt im Vordergrund ausführen
     cmd = (
         'curl -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
-        f'&& sudo bash /tmp/private_Update.sh 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 > {log_file} 2>&1'
+        f'&& sudo bash /tmp/private_Update.sh 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 | tee {log_file}'
     )
 
-    screen.fill((15, 15, 30))
-    result_surf = font.render("Update läuft! System startet gleich automatisch neu...", True, (255, 215, 0))
-    screen.blit(result_surf, ((sw - result_surf.get_width()) // 2, sh // 2))
-    pygame.display.flip()
-
-    try:
-        subprocess.Popen(cmd, shell=True)
-    except Exception as e:
-        print("Update Error:", e)
-
-    # Stabile Endlosschleife, die das Pygame-Fenster aktiv hält, bis der Neustart greift
-    while True:
-        pygame.time.Clock().tick(10)
-        pygame.event.pump() 
-        if ser:
-            try:
-                ser.write(b"LAMP:START:2\n")
-            except: pass
+    # Direkt über das Betriebssystem ausführen (wartet, bis das Update fertig ist und neu startet)
+    os.system(cmd)
+    sys.exit(0)
 
 def run_game(screen, ser, display, players, game_name, option_name, mode_name):
     clock = pygame.time.Clock()
@@ -317,4 +306,4 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.set_light(False)
                 display.clear_all()
             except: pass
-            
+                
