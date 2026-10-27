@@ -64,13 +64,14 @@ sudo chown -R visionpi2000:visionpi2000 "$TARGET_DIR"
 # RAM aufräumen
 rm -rf /tmp/VisionPiRepoUpdate
 
-# Schreibpuffer zwingend auf die SD-Karte leeren
+# Schreibpuffer zwingend auf die SD-Karte leeren und kurz warten, damit keine Datei mehr blockiert ist
 sync
+sleep 2
 
-# Falls OverlayFS aktiv war, die echte SD-Karte sofort wieder verriegeln
+# Falls OverlayFS aktiv war, die echte SD-Karte wieder verriegeln
 if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
     echo "Verriegle /media/root-ro wieder (Read-Only)..."
-    sudo mount -o remount,ro /media/root-ro
+    sudo mount -o remount,ro /media/root-ro || true
 fi
 
 echo "========================================================================="
