@@ -1,14 +1,14 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Öffentliches UPDATE-Skript (Intelligenter OverlayFS-Durchgriff)
+# VisionPi2000 - Öffentliches UPDATE-Skript (Stable-Edition mit OverlayFS)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
 # WICHTIG: Vorherige Dateileichen im tmp-Ordner (RAM) löschen!
 rm -rf /tmp/VisionPiRepoUpdate
 
-echo "Lade neueste Dateien von GitHub in den RAM herunter..."
-git clone --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
+echo "Lade neueste Dateien vom stable-Branch in den RAM herunter..."
+git clone --depth 1 -b stable https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
 
 # SICHERHEITS-CHECK: Wurde wirklich etwas heruntergeladen?
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
