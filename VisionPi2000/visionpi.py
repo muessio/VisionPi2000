@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.5.0"
+VERSION = "1.5.2"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -189,6 +189,10 @@ def main():
     title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.026), bold=True)
     big_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.04), bold=True)
     
+    # Großes Info-Schrift (doppelt so groß wie die normale Schrift)
+    info_title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.045), bold=True)
+    info_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.035), bold=True)
+
     # --- KUGELSICHERES LADEN DER SPIELE ---
     game_registry = []
     for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service]:
@@ -256,8 +260,50 @@ def main():
             while showing_info:
                 if bg_img: screen.blit(bg_img, (0, 0))
                 else: screen.fill((0,0,0))
-                screen.blit(title_font.render("SYSTEM-INFORMATIONEN", True, (255,215,0)), (TARGET_WIDTH*0.1, TARGET_HEIGHT*0.1))
-                screen.blit(font.render(f"Vision Pi 2000: v{VERSION}", True, (255,255,255)), (TARGET_WIDTH*0.15, TARGET_HEIGHT*0.2))
+                
+                # --- SCHWARZER KASTEN IN DER MITTE DES BILDSchirms ---
+                box_w = int(TARGET_WIDTH * 0.7)
+                box_h = int(TARGET_HEIGHT * 0.75)
+                box_x = (TARGET_WIDTH - box_w) // 2
+                box_y = (TARGET_HEIGHT - box_h) // 2
+                
+                # Schwarzer Kasten mit feinem goldenen Rand
+                pygame.draw.rect(screen, (10, 10, 10), (box_x, box_y, box_w, box_h), border_radius=16)
+                pygame.draw.rect(screen, (255, 215, 0), (box_x, box_y, box_w, box_h), width=3, border_radius=16)
+
+                # Inhalt zentriert im Kasten ausgeben
+                cur_y = box_y + int(box_h * 0.05)
+                
+                t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,215,0))
+                screen.blit(t_surf, (box_x + (box_w - t_surf.get_width()) // 2, cur_y))
+                cur_y += int(box_h * 0.12)
+
+                main_surf = info_font.render(f"Hauptmenü (visionpi.py): v{VERSION}", True, (255,255,255))
+                screen.blit(main_surf, (box_x + int(box_w * 0.08), cur_y))
+                cur_y += int(box_h * 0.075)
+
+                modules_to_check = [
+                    ("X01", game_x01),
+                    ("Cricket", game_cricket),
+                    ("Elimination", game_elimination),
+                    ("Split Score", game_splitscore),
+                    ("Shanghai", game_shanghai),
+                    ("Around the Clock", game_aroundclock),
+                    ("Spieleanleitung", game_spieleanleitung),
+                    ("Service-Menü", game_service)
+                ]
+
+                for mod_name, mod_obj in modules_to_check:
+                    mod_ver = getattr(mod_obj, 'VERSION', 'Unbekannt') if mod_obj else 'Nicht geladen'
+                    color = (100, 255, 100) if mod_obj else (255, 100, 100)
+                    text_str = f"• {mod_name}: v{mod_ver}" if mod_obj else f"• {mod_name}: Modul fehlt"
+                    mod_surf = info_font.render(text_str, True, color)
+                    screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
+                    cur_y += int(box_h * 0.065)
+
+                hint_surf = font.render("Drücke Spielerwechsel-Taste oder ESC zum Fortfahren", True, (180, 180, 180))
+                screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.09)))
+
                 pygame.display.flip()
                 for ev in pygame.event.get():
                     if ev.type == pygame.KEYDOWN and ev.key in [pygame.K_p, pygame.K_ESCAPE]: showing_info = False
