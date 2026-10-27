@@ -1,1 +1,0 @@
-curl -H "Authorization: token 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" https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o private_Update.sh && chmod +x private_Update.sh && sudo ./private_Update.sh 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
