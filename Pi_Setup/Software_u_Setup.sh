@@ -47,12 +47,12 @@ sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils
 sudo systemctl set-default graphical.target
 sudo systemctl enable lightdm
 
-# 3. Öffentliches GitHub-Repository (Branch: main) klonen und Dateien ablegen
-echo "Lade Dateien von GitHub herunter..."
+# 3. Öffentliches GitHub-Repository (Branch: stable) klonen und Dateien ablegen
+echo "Lade Dateien vom stable-Branch von GitHub herunter..."
 mkdir -p /home/visionpi2000/VisionPi2000
 rm -rf /tmp/VisionPiRepo
 
-git clone --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
+git clone --depth 1 -b stable https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
 
 if [ ! -d "/tmp/VisionPiRepo/VisionPi2000" ]; then
     echo "FEHLER: Download fehlgeschlagen! Überprüfe die Internetverbindung."
