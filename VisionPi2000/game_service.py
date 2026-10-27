@@ -5,7 +5,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.6.1"
+VERSION = "1.6.1-stable"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -66,11 +66,10 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Skript in den RAM (/tmp) laden und ausführen
+    # Lädt das öffentliche Update-Skript direkt vom stable-Branch in den RAM (/tmp)
     cmd = (
-        'curl -f -s -H "Authorization: token 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" '
-        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S bash /tmp/private_Update.sh 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 > {log_file} 2>&1'
+        'curl -f -s https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Pi_Setup/Update.sh -o /tmp/Update.sh '
+        f'&& echo "{USER_PASSWORD}" | sudo -S bash /tmp/Update.sh > {log_file} 2>&1'
     )
 
     screen.fill((15, 15, 30))
@@ -83,7 +82,7 @@ def do_online_update(screen, font, sw, sh, ser):
     except Exception as e:
         print("Update Error:", e)
 
-    # Warteschleife bis zum automatischen Reboot durch das Skript (max. 120 Sek Timeout falls Download fehlschlägt)
+    # Warteschleife bis zum automatischen Reboot durch das Skript (max. 120 Sek Timeout)
     start_wait = pygame.time.get_ticks()
     while pygame.time.get_ticks() - start_wait < 120000:
         pygame.time.Clock().tick(10)
