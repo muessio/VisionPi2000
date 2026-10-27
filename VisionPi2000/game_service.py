@@ -5,7 +5,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.6.1"
+VERSION = "1.6.2"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -17,10 +17,34 @@ def get_boot_dir():
     return "."
 
 def get_settings_path():
+    USER_PASSWORD = "VisionPi2000"
     boot_dir = get_boot_dir()
-    if boot_dir != ".":
-        return os.path.join(boot_dir, "settings.json")
-    return "settings.json"
+    boot_settings = os.path.join(boot_dir, "settings.json")
+    local_settings = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+    
+    # 1. Falls auf der Boot-Partition noch keine settings.json liegt -> anlegen
+    if boot_dir != "." and not os.path.exists(boot_settings):
+        try:
+            init_data = DEFAULT_SETTINGS.copy()
+            if os.path.exists(local_settings) and not os.path.islink(local_settings):
+                with open(local_settings, "r") as f: init_data = json.load(f)
+            json_str = json.dumps(init_data, indent=4)
+            subprocess.run(f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw {boot_dir} 2>/dev/null', shell=True)
+            p = subprocess.Popen(f'echo "{USER_PASSWORD}" | sudo -S tee {boot_settings} > /dev/null', shell=True, stdin=subprocess.PIPE)
+            p.communicate(input=json_str.encode('utf-8'))
+        except: pass
+
+    # 2. Sicherstellen, dass die lokale settings.json ein Symlink auf die Boot-Partition ist
+    if boot_dir != "." and os.path.exists(boot_settings):
+        if not os.path.islink(local_settings):
+            try:
+                if os.path.exists(local_settings): os.remove(local_settings)
+                os.symlink(boot_settings, local_settings)
+            except:
+                subprocess.run(f'echo "{USER_PASSWORD}" | sudo -S rm -f {local_settings} && echo "{USER_PASSWORD}" | sudo -S ln -s {boot_settings} {local_settings}', shell=True)
+        return boot_settings
+
+    return local_settings
 
 def load_settings():
     path = get_settings_path()
@@ -34,15 +58,49 @@ def load_settings():
     except: return DEFAULT_SETTINGS.copy()
 
 def save_settings(settings):
-    path = get_settings_path()
-    try:
-        with open(path, "w") as f: json.dump(settings, f, indent=4)
-    except:
-        # Fallback: Falls die Boot-Partition schreibgeschützt gemountet wurde, kurz per sudo öffnen
+    USER_PASSWORD = "VisionPi2000"
+    boot_dir = get_boot_dir()
+    boot_settings = os.path.join(boot_dir, "settings.json")
+    local_settings = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+    json_str = json.dumps(settings, indent=4)
+
+    # 1. Versuche direkt zu schreiben
+    written = False
+    if boot_dir != ".":
         try:
-            boot_dir = get_boot_dir()
-            subprocess.run(f'echo "VisionPi2000" | sudo -S mount -o remount,rw {boot_dir}', shell=True)
-            with open(path, "w") as f: json.dump(settings, f, indent=4)
+            with open(boot_settings, "w") as f:
+                f.write(json_str)
+            written = True
+        except:
+            # 2. Kugelsicherer Fallback für FAT32 (umgeht fehlende User-Schreibrechte per sudo tee)
+            try:
+                subprocess.run(f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw {boot_dir} 2>/dev/null', shell=True)
+                p = subprocess.Popen(f'echo "{USER_PASSWORD}" | sudo -S tee {boot_settings} > /dev/null', shell=True, stdin=subprocess.PIPE)
+                p.communicate(input=json_str.encode('utf-8'))
+                written = True
+            except Exception as e:
+                print("Fehler beim Speichern auf Boot:", e)
+
+    # 3. Lokalen Symlink im Spielordner erzwingen (im RAM und falls vorhanden auf /media/root-ro)
+    if boot_dir != "." and written:
+        if not os.path.islink(local_settings):
+            try:
+                subprocess.run(f'echo "{USER_PASSWORD}" | sudo -S rm -f {local_settings} && echo "{USER_PASSWORD}" | sudo -S ln -s {boot_settings} {local_settings}', shell=True)
+            except: pass
+        if os.path.exists("/media/root-ro/home/visionpi2000/VisionPi2000"):
+            ro_settings = "/media/root-ro/home/visionpi2000/VisionPi2000/settings.json"
+            if not os.path.islink(ro_settings):
+                try:
+                    subprocess.run(
+                        f'echo "{USER_PASSWORD}" | sudo -S mount -o remount,rw /media/root-ro 2>/dev/null && '
+                        f'sudo rm -f {ro_settings} && sudo ln -s {boot_settings} {ro_settings} && '
+                        f'sudo mount -o remount,ro /media/root-ro 2>/dev/null',
+                        shell=True
+                    )
+                except: pass
+    else:
+        try:
+            with open(local_settings, "w") as f: f.write(json_str)
         except: pass
 
 def get_available_mappers():
@@ -66,7 +124,7 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Skript in den RAM (/tmp) laden und ausführen
+    # Privates Update-Skript mit Token in den RAM (/tmp) laden und ausführen
     cmd = (
         'curl -f -s -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
@@ -83,7 +141,6 @@ def do_online_update(screen, font, sw, sh, ser):
     except Exception as e:
         print("Update Error:", e)
 
-    # Warteschleife bis zum automatischen Reboot durch das Skript (max. 120 Sek Timeout falls Download fehlschlägt)
     start_wait = pygame.time.get_ticks()
     while pygame.time.get_ticks() - start_wait < 120000:
         pygame.time.Clock().tick(10)
@@ -105,10 +162,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
     
     WHITE, HIGHLIGHT, RED_COL, GREEN = (255, 255, 255), (255, 215, 0), (180, 30, 30), (50, 255, 50)
     
-    is_16_9 = False
-    try:
-        with open(get_settings_path(), "r") as f: is_16_9 = json.load(f).get("format", "4:3") == "16:9"
-    except: pass
+    is_16_9 = load_settings().get("format", "4:3") == "16:9"
     bg_file = "background_16_9.png" if is_16_9 else "background.png"
     bg_img = None
     if os.path.exists(bg_file):
