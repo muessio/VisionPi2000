@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.4.7"
+VERSION = "1.6.4"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -47,6 +47,27 @@ def load_settings():
             return data
     except: return default_settings
 
+# Hilfsfunktion für robustes, case-insensitives Laden von Bilddateien
+def find_image_file(preferred_names):
+    if isinstance(preferred_names, str):
+        preferred_names = [preferred_names]
+    
+    # 1. Exakte Suche prüfen
+    for name in preferred_names:
+        if os.path.exists(name):
+            return name
+            
+    # 2. Groß-/Kleinschreibung im Verzeichnis ignorieren (Linux/Pi Fix)
+    try:
+        files = os.listdir('.')
+        files_lower = {f.lower(): f for f in files}
+        for name in preferred_names:
+            if name.lower() in files_lower:
+                return files_lower[name.lower()]
+    except:
+        pass
+    return None
+
 class ScreenSaver:
     def __init__(self, width, height):
         self.width, self.height = width, height
@@ -56,9 +77,10 @@ class ScreenSaver:
         self.avatars = []
         berry_files = ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]
         for file in berry_files:
-            if os.path.exists(file):
+            f_found = find_image_file(file)
+            if f_found:
                 try:
-                    img = pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100))
+                    img = pygame.transform.smoothscale(pygame.image.load(f_found).convert_alpha(), (100, 100))
                     self.avatars.append({"img": img, "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
                 except: pass
         self.font = pygame.font.SysFont("arial", int(height * 0.026), bold=True)
@@ -141,10 +163,11 @@ def main():
 
     screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT)
 
-    # --- HINTERGRUND LÄDT ---
-    bg_file = "background_16_9.png" if is_16_9 else "background.png"
+    # --- HINTERGRUND LÄDT (Kugelsicher) ---
+    bg_candidates = ["background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.png", "Background.png", "background.PNG"]
+    bg_file = find_image_file(bg_candidates)
     bg_img = None
-    if os.path.exists(bg_file):
+    if bg_file:
         try:
             raw_bg = pygame.image.load(bg_file).convert()
             bg_img = pygame.transform.scale(raw_bg, (TARGET_WIDTH, TARGET_HEIGHT))
@@ -153,20 +176,21 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    # --- HEADER BILD LÄDT (NOCHMALS DEUTLICH VERGRÖßERT: 38%) ---
+    # --- HEADER BILD LÄDT (Kugelsicher, 15% vergrößert) ---
+    header_file = find_image_file(["header.png", "Header.png", "HEADER.png"])
     header_img = None
-    if os.path.exists("header.png"):
+    if header_file:
         try:
-            raw_h = pygame.image.load("header.png").convert_alpha()
-            # Header-Größe von 31% auf 38% angehoben für maximale Präsenz
-            header_h = int(TARGET_HEIGHT * 0.38)
+            raw_h = pygame.image.load(header_file).convert_alpha()
+            header_h = int(TARGET_HEIGHT * 0.36 * 1.15)
             header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
         except: pass
 
-    # --- START BILD LÄDT ---
-    start_file = "Start_16_9.jpg" if is_16_9 else "Start.jpg"
-    if os.path.exists(start_file):
+    # --- START BILD LÄDT (Kugelsicher für 16:9 und 4:3) ---
+    start_candidates = ["Start_16_9.jpg", "start_16_9.jpg", "Start_16_9.JPG", "Start16_9.jpg"] if is_16_9 else ["Start.jpg", "start.jpg", "Start.JPG"]
+    start_file = find_image_file(start_candidates)
+    if start_file:
         try:
             screen.blit(pygame.transform.scale(pygame.image.load(start_file).convert(), (TARGET_WIDTH, TARGET_HEIGHT)), (0, 0))
             pygame.display.flip()
@@ -190,6 +214,11 @@ def main():
     title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.026), bold=True)
     big_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.04), bold=True)
     
+    # Großes Info-Schrift (doppelt so groß)
+    info_title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.042), bold=True)
+    info_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.032), bold=True)
+    info_hint_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.035), bold=True)
+
     # --- KUGELSICHERES LADEN DER SPIELE ---
     game_registry = []
     for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service]:
@@ -257,8 +286,51 @@ def main():
             while showing_info:
                 if bg_img: screen.blit(bg_img, (0, 0))
                 else: screen.fill((0,0,0))
-                screen.blit(title_font.render("SYSTEM-INFORMATIONEN", True, (255,215,0)), (TARGET_WIDTH*0.1, TARGET_HEIGHT*0.1))
-                screen.blit(font.render(f"Vision Pi 2000: v{VERSION}", True, (255,255,255)), (TARGET_WIDTH*0.15, TARGET_HEIGHT*0.2))
+                
+                # --- SCHWARZER KASTEN IN DER MITTE DES BILDSCHIRMS ---
+                box_w = int(TARGET_WIDTH * 0.75)
+                box_h = int(TARGET_HEIGHT * 0.82)
+                box_x = (TARGET_WIDTH - box_w) // 2
+                box_y = (TARGET_HEIGHT - box_h) // 2
+                
+                # Schwarzer Kasten mit feinem goldenen Rand
+                pygame.draw.rect(screen, (10, 10, 10), (box_x, box_y, box_w, box_h), border_radius=16)
+                pygame.draw.rect(screen, (255, 215, 0), (box_x, box_y, box_w, box_h), width=3, border_radius=16)
+
+                # Inhalt zentriert im Kasten ausgeben
+                cur_y = box_y + int(box_h * 0.04)
+                
+                t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,215,0))
+                screen.blit(t_surf, (box_x + (box_w - t_surf.get_width()) // 2, cur_y))
+                cur_y += int(box_h * 0.11)
+
+                main_surf = info_font.render(f"Hauptmenü (visionpi.py): v{VERSION}", True, (255,255,255))
+                screen.blit(main_surf, (box_x + int(box_w * 0.08), cur_y))
+                cur_y += int(box_h * 0.07)
+
+                modules_to_check = [
+                    ("X01", game_x01),
+                    ("Cricket", game_cricket),
+                    ("Elimination", game_elimination),
+                    ("Split Score", game_splitscore),
+                    ("Shanghai", game_shanghai),
+                    ("Around the Clock", game_aroundclock),
+                    ("Spieleanleitung", game_spieleanleitung),
+                    ("Service-Menü", game_service)
+                ]
+
+                for mod_name, mod_obj in modules_to_check:
+                    mod_ver = getattr(mod_obj, 'VERSION', 'Unbekannt') if mod_obj else 'Nicht geladen'
+                    color = (100, 255, 100) if mod_obj else (255, 100, 100)
+                    text_str = f"• {mod_name}: v{mod_ver}" if mod_obj else f"• {mod_name}: Modul fehlt"
+                    mod_surf = info_font.render(text_str, True, color)
+                    screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
+                    cur_y += int(box_h * 0.06)
+
+                # Deutlicher Hinweis zum Schließen ganz unten im Kasten
+                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (oder ESC)", True, (255, 215, 0))
+                screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.09)))
+
                 pygame.display.flip()
                 for ev in pygame.event.get():
                     if ev.type == pygame.KEYDOWN and ev.key in [pygame.K_p, pygame.K_ESCAPE]: showing_info = False
@@ -303,30 +375,29 @@ def main():
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
         
-        # --- HEADER POSITIONS-LOGIK ---
-        header_y_pos = int(TARGET_HEIGHT * 0.01) 
+        # --- HEADER GANZ NACH OBEN GESCHOBEN ---
+        header_y_pos = 0 
         if header_img: 
             screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
         else:
             hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
-            screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 15))
+            screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 10))
         
-        # --- MENÜBOXEN POSITIONS-LOGIK (Angepasst an den größeren Header) ---
+        # --- MENÜBOXEN (ROT, BLAU, GRAU) ---
         cw = int(TARGET_WIDTH * 0.28)
-        ch = int(TARGET_HEIGHT * 0.44)  # Etwas kompakter in der Höhe, damit es perfekt passt
+        ch = int(TARGET_HEIGHT * 0.48)  
         pad = int(TARGET_WIDTH * 0.03)
         sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
         
-        # Boxen etwas weiter nach unten verschoben, um Platz für den präsenteren Header zu schaffen
-        sy = int(TARGET_HEIGHT * 0.40) 
+        sy = int(TARGET_HEIGHT * 0.38)  
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
         # --- FOOTER TEXT POSITIONS-LOGIK ---
-        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.03)))
-        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.08)))
+        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
+        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
 
         pygame.display.flip(); clock.tick(30)
 
@@ -334,4 +405,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-    
+                    
