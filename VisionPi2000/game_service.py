@@ -91,7 +91,6 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Update-Befehl läuft dank NOPASSWD absolut sauber als sudo im Hintergrund
     cmd = (
         'curl -f -s -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
@@ -318,3 +317,4 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.set_light(False)
                 display.clear_all()
             except: pass
+                
