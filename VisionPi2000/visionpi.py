@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.5.4"
+VERSION = "1.6.2"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -153,7 +153,7 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    # --- HEADER BILD LÄDT (Um 15% vergrößert: 0.36 * 1.15) ---
+    # --- HEADER BILD LÄDT (Um 15% vergrößert) ---
     header_img = None
     if os.path.exists("header.png"):
         try:
@@ -163,7 +163,7 @@ def main():
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
         except: pass
 
-    # --- START BILD LÄDT ---
+    # --- START BILD LÄDT (Vollständig erhalten!) ---
     start_file = "Start_16_9.jpg" if is_16_9 else "Start.jpg"
     if os.path.exists(start_file):
         try:
@@ -358,13 +358,13 @@ def main():
             hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
             screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 10))
         
-        # --- MENÜBOXEN (ROT, BLAU, GRAU) UM CA. 1 CM HÖHER GESCHOBEN ---
+        # --- MENÜBOXEN (ROT, BLAU, GRAU) WIEDER 1 CM NACH UNTEN VERSCHOBEN ---
         cw = int(TARGET_WIDTH * 0.28)
         ch = int(TARGET_HEIGHT * 0.48)  
         pad = int(TARGET_WIDTH * 0.03)
         sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
         
-        sy = int(TARGET_HEIGHT * 0.335)  # Ca. 1 cm höher als vorher (0.38)
+        sy = int(TARGET_HEIGHT * 0.38)  # Zurück auf den ursprünglichen Wert (wieder 1 cm tiefer)
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
