@@ -27,25 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.6.0"
-
-# =====================================================================
-# HEADER- & KASTEN-ANPASSUNGEN (Direkt hier oben auf GitHub änderbar)
-# =====================================================================
-HEADER_WIDTH = 710         # Breite des Headers
-HEADER_HEIGHT = 220        # Höhe des Headers
-HEADER_OFFSET_X = 0        # Position X (Verschiebung von der Mitte: - links, + rechts)
-HEADER_OFFSET_Y = 0       # Position Y (Abstand von oben)
-
-# Maße für die Menükästen (Rot, Blau, Grau)
-RED_WIDTH = 180
-RED_HEIGHT = 55
-BLUE_WIDTH = 180
-BLUE_HEIGHT = 55
-GREY_WIDTH = 180
-GREY_HEIGHT = 55
-ELEMENTS_OFFSET_Y = 80     # Abstand der Kästen von der Header-Oberkante
-# =====================================================================
+VERSION = "1.5.3"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -368,34 +350,29 @@ def main():
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
         
-        # --- HEADER BILD ODER TEXT ÜBER HEADER-VARIABLEN ---
-        header_x = (TARGET_WIDTH - HEADER_WIDTH) // 2 + HEADER_OFFSET_X
-        header_y = HEADER_OFFSET_Y
-        header_rect = pygame.Rect(header_x, header_y, HEADER_WIDTH, HEADER_HEIGHT)
-
+        # --- HEADER GANZ NACH OBEN GESCHOBEN ---
+        header_y_pos = 0 
         if header_img: 
-            screen.blit(header_img, (header_x, header_y))
+            screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
         else:
-            pygame.draw.rect(screen, (20, 20, 35), header_rect, border_radius=8)
-            pygame.draw.rect(screen, (100, 100, 140), header_rect, 2, border_radius=8)
-            ver_surf = title_font.render(f"VisionPi2000 - v{VERSION}", True, (255, 215, 0))
-            screen.blit(ver_surf, (header_x + (HEADER_WIDTH - ver_surf.get_width()) // 2, header_y + 15))
+            hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
+            screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 10))
         
-        # --- MENÜBOXEN (ROT, BLAU, GRAU) ÜBER HEADER- & KASTEN-VARIABLEN GESTEUERT ---
-        spacing = 15
-        total_three_width = RED_WIDTH + BLUE_WIDTH + GREY_WIDTH + (spacing * 2)
-        start_x = header_x + (HEADER_WIDTH - total_three_width) // 2
-        elements_y = header_y + ELEMENTS_OFFSET_Y
-
-        # Spalten-Berechnung basierend auf den variablen Kastenbreiten
-        draw_column(screen, font, title_font, start_x, elements_y, RED_WIDTH, RED_HEIGHT + 180, (180,30,30), "SPIEL", g_list, sel_game)
-        draw_column(screen, font, title_font, start_x + RED_WIDTH + spacing, elements_y, BLUE_WIDTH, BLUE_HEIGHT + 180, (30,80,180), "OPTION", c_opts, sel_option)
-        draw_column(screen, font, title_font, start_x + RED_WIDTH + BLUE_WIDTH + (spacing * 2), elements_y, GREY_WIDTH, GREY_HEIGHT + 180, (80,80,80), "MODUS", modes, sel_mode)
+        # --- MENÜBOXEN WEITER NACH OBEN GESCHOBEN ---
+        cw = int(TARGET_WIDTH * 0.28)
+        ch = int(TARGET_HEIGHT * 0.48)  
+        pad = int(TARGET_WIDTH * 0.03)
+        sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
+        
+        sy = int(TARGET_HEIGHT * 0.38)  # Deutlich weiter nach oben gesetzt
+        
+        draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
+        draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
+        draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
         # --- FOOTER TEXT POSITIONS-LOGIK ---
-        footer_y = elements_y + RED_HEIGHT + 200
-        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (start_x, footer_y))
-        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (start_x, footer_y + int(TARGET_HEIGHT * 0.045)))
+        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
+        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
 
         pygame.display.flip(); clock.tick(30)
 
@@ -403,4 +380,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-    
+            
