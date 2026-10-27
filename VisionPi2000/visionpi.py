@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.4.9"
+VERSION = "1.5.0"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -153,12 +153,12 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    # --- HEADER BILD LÄDT (Groß: 42%) ---
+    # --- HEADER BILD LÄDT ---
     header_img = None
     if os.path.exists("header.png"):
         try:
             raw_h = pygame.image.load("header.png").convert_alpha()
-            header_h = int(TARGET_HEIGHT * 0.42)
+            header_h = int(TARGET_HEIGHT * 0.36)
             header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
         except: pass
@@ -302,21 +302,21 @@ def main():
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
         
-        # --- HEADER NOCH WEITER NACH OBEN GESCHOBEN ---
-        header_y_pos = int(TARGET_HEIGHT * 0.005) 
+        # --- HEADER GANZ NACH OBEN GESCHOBEN ---
+        header_y_pos = 0 
         if header_img: 
             screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
         else:
             hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
             screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 10))
         
-        # --- MENÜBOXEN POSITIONS-LOGIK ---
+        # --- MENÜBOXEN WEITER NACH OBEN GESCHOBEN ---
         cw = int(TARGET_WIDTH * 0.28)
-        ch = int(TARGET_HEIGHT * 0.48)  # Groß in der Höhe
+        ch = int(TARGET_HEIGHT * 0.48)  
         pad = int(TARGET_WIDTH * 0.03)
         sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
         
-        sy = int(TARGET_HEIGHT * 0.43)  # Perfekt angepasst unter den höher gesetzten Header
+        sy = int(TARGET_HEIGHT * 0.38)  # Deutlich weiter nach oben gesetzt
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
