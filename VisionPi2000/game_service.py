@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -79,7 +79,7 @@ def do_online_update(screen, font, sw, sh, ser):
     log_file = os.path.join(boot_dir, "update_log.txt")
     
     screen.fill((15, 15, 30))
-    info_surf = font.render("Online-Update wird vorbereitet...", True, (255, 255, 255))
+    info_surf = font.render("Online-Update wird geladen...", True, (255, 255, 255))
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
 
@@ -90,18 +90,12 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Arbeitsverzeichnis erzwingen, damit curl & private_Update.sh im korrekten Pfad arbeiten
-    target_cwd = "/home/visionpi2000/VisionPi2000"
-    if not os.path.exists(target_cwd):
-        target_cwd = "."
-
-    inner_cmd = (
+    # Bewährte Update-Logik über /tmp/ mit passwortlosem sudo und Logging
+    cmd = (
         'curl -H "Authorization: token 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" '
-        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o private_Update.sh '
-        '&& chmod +x private_Update.sh '
-        '&& sudo ./private_Update.sh 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'
+        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
+        f'&& sudo bash /tmp/private_Update.sh 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 > {log_file} 2>&1'
     )
-    cmd = f'cd {target_cwd} && sudo sh -c "{inner_cmd}" > {log_file} 2>&1'
 
     screen.fill((15, 15, 30))
     result_surf = font.render("Update läuft! System startet gleich automatisch neu...", True, (255, 215, 0))
@@ -109,12 +103,12 @@ def do_online_update(screen, font, sw, sh, ser):
     pygame.display.flip()
 
     try:
-        subprocess.Popen(cmd, shell=True, stdin=None, stdout=None, stderr=None)
+        subprocess.Popen(cmd, shell=True)
     except Exception as e:
         print("Update Error:", e)
 
-    start_wait = pygame.time.get_ticks()
-    while pygame.time.get_ticks() - start_wait < 120000:
+    # Stabile Endlosschleife, die das Pygame-Fenster aktiv hält, bis der Neustart greift
+    while True:
         pygame.time.Clock().tick(10)
         pygame.event.pump() 
         if ser:
@@ -323,4 +317,4 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.set_light(False)
                 display.clear_all()
             except: pass
-        
+                
