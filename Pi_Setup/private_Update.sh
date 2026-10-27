@@ -42,11 +42,9 @@ if mountpoint -q /media/root-ro; then
         exit 1
     fi
     TARGET_DIR="/media/root-ro/home/visionpi2000/VisionPi2000"
-    OVERLAY_ACTIVE=1
 else
     echo "Standard-Dateisystem erkannt. Schreibe direkt..."
     TARGET_DIR="/home/visionpi2000/VisionPi2000"
-    OVERLAY_ACTIVE=0
 fi
 
 echo "Aktualisiere Spieldateien in $TARGET_DIR..."
@@ -64,18 +62,8 @@ sudo chown -R visionpi2000:visionpi2000 "$TARGET_DIR"
 # RAM aufräumen
 rm -rf /tmp/VisionPiRepoUpdate
 
-# Schreibpuffer zwingend auf die SD-Karte leeren und kurz warten, damit keine Datei mehr blockiert ist
-sync
+echo "========================================================================="
+echo "Update erfolgreich! Das System wird neu gestartet..."
+echo "========================================================================="
 sleep 2
-
-# Falls OverlayFS aktiv war, die echte SD-Karte wieder verriegeln
-if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
-    echo "Verriegle /media/root-ro wieder (Read-Only)..."
-    sudo mount -o remount,ro /media/root-ro || true
-fi
-
-echo "========================================================================="
-echo "Update erfolgreich! Das System wird in 5 Sekunden neu gestartet..."
-echo "========================================================================="
-sleep 5
 sudo reboot
