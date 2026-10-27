@@ -5,15 +5,21 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.6.0"
+VERSION = "1.6.1"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
 DEFAULT_SETTINGS = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
 
+def get_boot_dir():
+    if os.path.exists("/boot/firmware"): return "/boot/firmware"
+    if os.path.exists("/boot"): return "/boot"
+    return "."
+
 def get_settings_path():
-    if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
-    if os.path.exists("/boot/settings.json"): return "/boot/settings.json"
+    boot_dir = get_boot_dir()
+    if boot_dir != ".":
+        return os.path.join(boot_dir, "settings.json")
     return "settings.json"
 
 def load_settings():
@@ -31,18 +37,25 @@ def save_settings(settings):
     path = get_settings_path()
     try:
         with open(path, "w") as f: json.dump(settings, f, indent=4)
-    except: pass
+    except:
+        # Fallback: Falls die Boot-Partition schreibgeschützt gemountet wurde, kurz per sudo öffnen
+        try:
+            boot_dir = get_boot_dir()
+            subprocess.run(f'echo "VisionPi2000" | sudo -S mount -o remount,rw {boot_dir}', shell=True)
+            with open(path, "w") as f: json.dump(settings, f, indent=4)
+        except: pass
 
 def get_available_mappers():
     files = glob.glob("display_mapper*.py")
     return sorted(files) if files else ["display_mapper_Vision_Dart.py"]
 
 def do_online_update(screen, font, sw, sh, ser):
-    # Das Passwort, das per Pipeline an sudo -S übergeben wird
     USER_PASSWORD = "VisionPi2000"
+    boot_dir = get_boot_dir()
+    log_file = os.path.join(boot_dir, "update_log.txt")
     
     screen.fill((15, 15, 30))
-    info_surf = font.render("Online-Update wird geladen...", True, (255, 255, 255))
+    info_surf = font.render("Online-Update wird vorbereitet...", True, (255, 255, 255))
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
 
@@ -53,11 +66,11 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # NEU: Das Online-Update nutzt den /media/root-ro Durchgriff durch das OverlayFS
+    # Skript in den RAM (/tmp) laden und ausführen
     cmd = (
-        'curl -H "Authorization: token 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" '
+        'curl -f -s -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
-        f'&& echo "{USER_PASSWORD}" | sudo -S bash /tmp/private_Update.sh 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 > /boot/firmware/update_log.txt 2>&1'
+        f'&& echo "{USER_PASSWORD}" | sudo -S bash /tmp/private_Update.sh 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 > {log_file} 2>&1'
     )
 
     screen.fill((15, 15, 30))
@@ -66,15 +79,14 @@ def do_online_update(screen, font, sw, sh, ser):
     pygame.display.flip()
 
     try:
-        # Popen startet den Prozess im Hintergrund
         subprocess.Popen(cmd, shell=True)
     except Exception as e:
         print("Update Error:", e)
 
-    # Endlosschleife, bis der Raspberry Pi vom Update-Skript neu gestartet wird
-    while True:
+    # Warteschleife bis zum automatischen Reboot durch das Skript (max. 120 Sek Timeout falls Download fehlschlägt)
+    start_wait = pygame.time.get_ticks()
+    while pygame.time.get_ticks() - start_wait < 120000:
         pygame.time.Clock().tick(10)
-        # Hält die Pygame-Oberfläche ansprechbar (verhindert 'Programm reagiert nicht')
         pygame.event.pump() 
         if ser:
             try:
