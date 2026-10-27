@@ -6,14 +6,13 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.6.7"
+VERSION = "1.6.8"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
 DEFAULT_SETTINGS = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
 
 def run_sudo(cmd):
-    # Da NOPASSWD im Setup-Skript eingerichtet wurde, läuft sudo direkt fehlerfrei durch
     subprocess.run(f'sudo sh -c "{cmd}" >/dev/null 2>&1', shell=True)
 
 def get_boot_dir():
@@ -91,11 +90,13 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    cmd = (
+    # Gesamter Update-Befehl inklusive Log-Schreibung läuft sauber als Root
+    inner_cmd = (
         'curl -f -s -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
-        f'&& sudo bash /tmp/private_Update.sh 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 > {log_file} 2>&1'
+        '&& bash /tmp/private_Update.sh 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'
     )
+    cmd = f'sudo sh -c "{inner_cmd} > {log_file} 2>&1"'
 
     screen.fill((15, 15, 30))
     result_surf = font.render("Update läuft! System startet gleich automatisch neu...", True, (255, 215, 0))
@@ -317,4 +318,4 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.set_light(False)
                 display.clear_all()
             except: pass
-                
+            
