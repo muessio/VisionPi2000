@@ -1,4 +1,4 @@
-# Datei: display_mapper.py
+# Datei: display_mapper_Vision_Dart.py
 import time
 
 class LoewenDisplay:
@@ -106,13 +106,13 @@ class LoewenDisplay:
             8: [(7, "A", 7), (7, "A", 3)],
         }
 
-        # 100% überschneidungsfreie Cricket-LED-Matrix laut Schaltplan Blatt 3
+        # 100% überschneidungsfreie & foto-verifizierte Cricket-LED-Matrix (Blatt 3)
         self.CRICKET_LEDS = {
             0: { # Spieler 1 (PL1)
                 20: [(2, "H", 8), (2, "H", 6), (2, "H", 3)],
-                19: [(2, "H", 2), (3, "F", 5), (3, "H", 1)],
-                18: [(3, "F", 1), (3, "F", 8), (3, "F", 7)],
-                17: [(4, "D", 5), (4, "D", 7), (4, "D", 1)],
+                19: [(2, "H", 2), (3, "H", 5), (3, "H", 1)],
+                18: [(3, "F", 1), (3, "F", 8), (3, "F", 2)],
+                17: [(4, "D", 5), (4, "D", 4), (4, "D", 1)],
                 16: [(5, "D", 8), (5, "D", 4), (5, "D", 1)],
                 15: [(5, "D", 2), (6, "F", 6), (6, "F", 2)],
                 25: [(6, "D", 2), (6, "D", 6), (6, "D", 7)],
@@ -120,7 +120,7 @@ class LoewenDisplay:
             1: { # Spieler 2 (PL2)
                 20: [(2, "H", 4), (2, "H", 7), (2, "H", 1)],
                 19: [(2, "H", 5), (3, "H", 6), (3, "H", 4)],
-                18: [(3, "F", 6), (3, "F", 3), (3, "F", 2)],
+                18: [(3, "F", 6), (3, "F", 3), (3, "F", 7)],
                 17: [(4, "D", 6), (4, "D", 7), (4, "D", 2)],
                 16: [(5, "D", 7), (5, "D", 6), (5, "D", 5)],
                 15: [(5, "D", 3), (6, "F", 1), (6, "F", 5)],
@@ -137,7 +137,7 @@ class LoewenDisplay:
             },
             3: { # Spieler 4 (PL4)
                 20: [(2, "E", 4), (2, "E", 7), (2, "E", 1)],
-                19: [(2, "E", 5), (3, "H", 3), (3, "H", 7)],
+                19: [(2, "E", 5), (3, "H", 7), (3, "H", 3)],
                 18: [(3, "B", 6), (3, "B", 3), (3, "B", 7)],
                 17: [(4, "H", 6), (4, "H", 7), (4, "H", 2)],
                 16: [(5, "H", 7), (5, "H", 6), (5, "H", 5)],
@@ -164,7 +164,7 @@ class LoewenDisplay:
             },
             6: { # Spieler 7 (PL7)
                 20: [(1, "G", 4), (1, "G", 8), (1, "G", 7)],
-                19: [(3, "F", 7), (3, "G", 2), (3, "C", 3)],
+                19: [(3, "G", 3), (3, "G", 2), (3, "C", 3)],
                 18: [(4, "A", 3), (4, "G", 1), (4, "G", 8)],
                 17: [(4, "A", 7), (4, "A", 1), (4, "A", 5)],
                 16: [(5, "C", 4), (5, "A", 4), (5, "A", 5)],
@@ -328,6 +328,9 @@ class LoewenDisplay:
             for i, (chip, col, row) in enumerate(leds):
                 self.set_led(chip, col, row, i < marks)
 
+    def clear_buffer(self):
+        self.buffer = [[0 for _ in range(8)] for _ in range(9)]
+
     def clear_all(self):
         self.buffer = [[0 for _ in range(8)] for _ in range(9)]
         self.last_sent = [[-1 for _ in range(8)] for _ in range(9)]
@@ -364,4 +367,3 @@ class LoewenDisplay:
                         self.last_sent[chip][digit] = val
                         time.sleep(0.012)
                     except: pass
-                        
