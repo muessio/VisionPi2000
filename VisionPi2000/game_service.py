@@ -5,7 +5,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.5.3"
+VERSION = "1.6.0"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -53,8 +53,7 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # FIX: Das Skript wird nach /tmp/ geladen und per 'bash' ausgeführt, um FAT32-Blockaden zu umgehen.
-    # Die Ausgabe landet dauerhaft auf der Boot-Partition, falls wir ein Log brauchen.
+    # NEU: Das Online-Update nutzt den /media/root-ro Durchgriff durch das OverlayFS
     cmd = (
         'curl -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
