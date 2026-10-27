@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.4.7"
+VERSION = "1.4.9"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -153,13 +153,12 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    # --- HEADER BILD LÄDT (NOCHMALS DEUTLICH VERGRÖßERT: 38%) ---
+    # --- HEADER BILD LÄDT (Groß: 42%) ---
     header_img = None
     if os.path.exists("header.png"):
         try:
             raw_h = pygame.image.load("header.png").convert_alpha()
-            # Header-Größe von 31% auf 38% angehoben für maximale Präsenz
-            header_h = int(TARGET_HEIGHT * 0.38)
+            header_h = int(TARGET_HEIGHT * 0.42)
             header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
         except: pass
@@ -303,30 +302,29 @@ def main():
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
         
-        # --- HEADER POSITIONS-LOGIK ---
-        header_y_pos = int(TARGET_HEIGHT * 0.01) 
+        # --- HEADER NOCH WEITER NACH OBEN GESCHOBEN ---
+        header_y_pos = int(TARGET_HEIGHT * 0.005) 
         if header_img: 
             screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
         else:
             hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
-            screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 15))
+            screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 10))
         
-        # --- MENÜBOXEN POSITIONS-LOGIK (Angepasst an den größeren Header) ---
+        # --- MENÜBOXEN POSITIONS-LOGIK ---
         cw = int(TARGET_WIDTH * 0.28)
-        ch = int(TARGET_HEIGHT * 0.44)  # Etwas kompakter in der Höhe, damit es perfekt passt
+        ch = int(TARGET_HEIGHT * 0.48)  # Groß in der Höhe
         pad = int(TARGET_WIDTH * 0.03)
         sx = (TARGET_WIDTH - (3 * cw + 2 * pad)) // 2
         
-        # Boxen etwas weiter nach unten verschoben, um Platz für den präsenteren Header zu schaffen
-        sy = int(TARGET_HEIGHT * 0.40) 
+        sy = int(TARGET_HEIGHT * 0.43)  # Perfekt angepasst unter den höher gesetzten Header
         
         draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
         # --- FOOTER TEXT POSITIONS-LOGIK ---
-        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.03)))
-        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.08)))
+        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
+        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
 
         pygame.display.flip(); clock.tick(30)
 
@@ -334,4 +332,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-    
+            
