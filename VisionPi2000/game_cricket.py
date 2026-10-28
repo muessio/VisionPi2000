@@ -358,18 +358,19 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         except: pass
                     sync_hw_display()
                     
-                    if check_win(p_idx):
+                    if check_win(p_idx): # (Oder deine jeweilige Gewinn-Bedingung)
                         trigger_victory(ser)
-                        # ============================================================
-                        # FORCE REFRESH: Zerstört den Delta-Cache im Anzeige-Mapper, 
-                        # sodass er gezwungen ist, alle Daten GANZ NEU an den Arduino 
-                        # zu senden! Holt die Punkte nach dem TEST:OFF zurück.
-                        # ============================================================
+                        
+                        # --- CACHE-BUSTER: Zwingt die Hardware zum Refresh ---
+                        time.sleep(0.3)  # Dem Arduino kurz Zeit geben nach TEST:OFF
                         try:
-                            if hasattr(display, 'last_buffer'): display.last_buffer = [] 
-                            if hasattr(display, 'clear_buffer'): display.clear_buffer()
+                            # Löscht den internen Cache des Mappers komplett
+                            if hasattr(display, 'last_buffer'):
+                                display.last_buffer = []
                         except: pass
-                        sync_hw_display()
+                        sync_hw_display() # Feuert jetzt garantiert alle Daten neu ab!
+                        # -----------------------------------------------------
+                        
                         current_state = "WIN"
     
             elif current_state == "WIN":
