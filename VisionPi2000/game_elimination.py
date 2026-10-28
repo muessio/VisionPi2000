@@ -60,8 +60,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     total_players = players + 1 if is_berry_game else players
     sw, sh = screen.get_width(), screen.get_height()
     screensaver = ScreenSaver(sw, sh)
-    if hasattr(display, 'clear_all'):
-        display.clear_all()
+    display.clear_all()
 
     is_16_9 = False
     try:
@@ -102,8 +101,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         except: pass
 
     def sync_hw_display():
-        if hasattr(display, 'clear_all'):
-            display.clear_all()
+        display.clear_all()
         display.set_active_player(active_player - 1)
         for i in range(8): display.set_score(i, scores[i] if i < total_players and lives[i] > 0 else None)
         display.set_temp_score(round_points)
@@ -124,11 +122,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif event.key == pygame.K_SPACE: raw_data = "BTN:START"
                 elif event.key == pygame.K_i: raw_data = "IR:DETECT"
-                elif event.key == pygame.K_ESCAPE: 
-                    if ser:
-                        try: ser.write(b"CLEAR\n"); ser.flush()
-                        except: pass
-                    return
+                elif event.key == pygame.K_ESCAPE: running = False
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
@@ -223,7 +217,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     sync_hw_display()
                     current_state = "WIN"
 
-            elif current_state == "WIN":
+            elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
                 if raw_data == "BTN:PLAYER":
                     if sound_switch: sound_switch.play()
                     if ser:
@@ -232,21 +226,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     return
                 elif raw_data == "BTN:START":
                     if sound_switch: sound_switch.play()
-                    # === SPIEL NEUSTART ===
                     scores = [0] * total_players
                     lives = [3] * total_players if "Leben" in option else [1] * total_players
                     darts_thrown, active_player, round_points, switch_delay_timer = 0, 1, 0, 0
                     current_state = "GAME"
-                    champ_display_until, bot_timer, combo_press_start = 0, 0, 0
                     if ser:
-                        try: 
-                            ser.write(b"CLEAR\n")
-                            ser.write(b"LAMP:PLAYER:1\n")
-                            ser.write(b"LAMP:START:0\n")
-                            ser.flush()
+                        try: ser.write(b"CLEAR\n"); ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                         except: pass
-                    if hasattr(display, 'clear_all'):
-                        display.clear_all()
                     sync_hw_display()
                     raw_data = None
 
