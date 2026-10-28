@@ -18,7 +18,6 @@ def trigger_victory(ser):
             for _ in range(6):
                 ser.write(b"TEST:ON\n"); ser.flush(); time.sleep(0.25)
                 ser.write(b"TEST:OFF\n"); ser.flush(); time.sleep(0.25)
-            # CLEAR entfernt, damit die Werte auf der Hardware stehen bleiben
             ser.write(b"LAMP:PLAYER:2\n")
             ser.write(b"LAMP:START:0\n")
             ser.flush()
@@ -61,8 +60,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     total_players = players + 1 if is_berry_game else players
     sw, sh = screen.get_width(), screen.get_height()
     screensaver = ScreenSaver(sw, sh)
-    if hasattr(display, 'clear_all'):
-        display.clear_all()
+    display.clear_all()
 
     is_16_9 = False
     try:
@@ -102,8 +100,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         except: pass
 
     def sync_hw_display():
-        if hasattr(display, 'clear_all'):
-            display.clear_all()
+        display.clear_all()
         display.set_active_player(active_player - 1)
         for i in range(8): display.set_score(i, scores[i] if i < total_players else None)
         display.set_temp_score(scores[active_player - 1])
@@ -124,11 +121,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif event.key == pygame.K_SPACE: raw_data = "BTN:START"
                 elif event.key == pygame.K_i: raw_data = "IR:DETECT"
-                elif event.key == pygame.K_ESCAPE:
-                    if ser:
-                        try: ser.write(b"CLEAR\n"); ser.flush()
-                        except: pass
-                    return
+                elif event.key == pygame.K_ESCAPE: running = False
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
@@ -197,7 +190,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     mult = 3 if "t" in hit_segment else (2 if "d" in hit_segment else 1)
                     
                     hit_was_useful = False
-                    if (option == "Standard" and seg == scores[p_idx]) or (option == "Double Only" and scores[p_idx] == seg and mult == 2):
+                    if (option == "Standard" and seg == scores[p_idx]) or (option == "Double Only" and seg == scores[p_idx] and mult == 2):
                         scores[p_idx] += 1
                         round_points += 1
                         hit_was_useful = True
@@ -228,26 +221,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         except: pass
                     sync_hw_display()
 
-            elif current_state == "WIN":
+            elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
                 if raw_data == "BTN:PLAYER":
                     if sound_switch: sound_switch.play()
-                    if ser: 
+                    if ser:
                         try: ser.write(b"CLEAR\n"); ser.flush()
                         except: pass
                     return
                 elif raw_data == "BTN:START":
                     if sound_switch: sound_switch.play()
-                    # === SPIEL NEUSTART ===
                     scores = [1] * total_players
                     darts_thrown, active_player, round_points, switch_delay_timer = 0, 1, 0, 0
                     current_state = "GAME"
-                    champ_display_until, bot_timer, combo_press_start = 0, 0, 0
                     if ser:
-                        try: 
-                            ser.write(b"CLEAR\n")
-                            ser.write(b"LAMP:PLAYER:1\n")
-                            ser.write(b"LAMP:START:0\n")
-                            ser.flush()
+                        try: ser.write(b"CLEAR\n"); ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                         except: pass
                     sync_hw_display()
                     raw_data = None
