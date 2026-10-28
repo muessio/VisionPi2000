@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.7.5"
+VERSION = "1.7.6"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -302,6 +302,9 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             try:
                 display.set_light(False)
                 display.clear_all()
+                if hasattr(display, 'update'): 
+                    display.update() # <--- Dieser Befehl fehlte in deiner 1.7.5!
             except: pass
 
     return "menu"
+    
