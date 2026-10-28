@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.7.4"
+VERSION = "1.7.5"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -91,17 +91,14 @@ def do_online_update(screen, font, sw, sh, ser):
             ser.flush()
         except: pass
 
-    # Pygame und Display sauber herunterfahren, damit die Konsole/Shell direkt übernimmt
     pygame.quit()
 
-    # Befehl direkt im Vordergrund ausführen
     cmd = (
         'curl -H "Authorization: token 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" '
         'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
         f'&& sudo bash /tmp/private_Update.sh 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 | tee {log_file}'
     )
 
-    # Direkt über das Betriebssystem ausführen (wartet, bis das Update fertig ist und neu startet)
     os.system(cmd)
     sys.exit(0)
 
@@ -306,4 +303,5 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.set_light(False)
                 display.clear_all()
             except: pass
-                
+
+    return "menu"
