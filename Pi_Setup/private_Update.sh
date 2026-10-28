@@ -23,11 +23,6 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
     exit 1
 fi
 
-# Sounds direkt im schnellen RAM vorab generieren
-echo "Generiere Sounds im RAM..."
-cd /tmp/VisionPiRepoUpdate/VisionPi2000
-python3 generate_sounds.py
-
 # Boot-Verzeichnis für settings.json ermitteln
 BOOT_DIR="/boot/firmware"
 if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
@@ -56,7 +51,12 @@ sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$TARGET_DIR"/
 sudo rm -f "$TARGET_DIR/settings.json"
 sudo ln -s "$BOOT_DIR/settings.json" "$TARGET_DIR/settings.json"
 
-# Dateiberechtigungen auf dem Zielsystem glattziehen
+# Sounds im Zielverzeichnis generieren, solange das System noch schreibbar ist
+echo "Generiere Sounds direkt im Zielverzeichnis..."
+cd "$TARGET_DIR"
+sudo python3 generate_sounds.py
+
+# Dateiberechtigungen auf dem Zielsystem glattziehen (inklusive der neuen Audios)
 sudo chown -R visionpi2000:visionpi2000 "$TARGET_DIR"
 
 # RAM aufräumen
