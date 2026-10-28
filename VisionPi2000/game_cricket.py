@@ -92,9 +92,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     sw, sh = screen.get_width(), screen.get_height()
     screensaver = ScreenSaver(sw, sh)
+    
     if hasattr(display, 'clear_all'):
         display.clear_all()
-    
+
     is_16_9 = False
     try:
         with open("settings.json", "r") as f: is_16_9 = json.load(f).get("format", "4:3") == "16:9"
@@ -125,7 +126,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     giant_font = pygame.font.SysFont("arial", int(sh * 0.23), bold=True)
     HIGHLIGHT, WHITE, RED_COL = (255, 215, 0), (255, 255, 255), (180, 30, 30)
 
-    if is_pick_it: slot_targets = [None, None, None, None, None, None, 25]
+    if is_pick_it:
+        slot_targets = [None, None, None, None, None, None, 25]
     elif is_crazy:
         rand_nums = random.sample(range(1, 21), 6)
         rand_nums.sort(reverse=True)
@@ -139,10 +141,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     round_num, round_points, switch_delay_timer = 1, 0, 0
 
     if ser:
-        try: 
-            ser.write(b"LAMP:PLAYER:1\n")
-            ser.write(b"LAMP:START:0\n")
-            ser.flush()
+        try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
         except: pass
 
     def sync_hw_display():
@@ -192,15 +191,19 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         except: pass
 
     def check_win(p_idx):
-        if any(slot_targets[s] is None for s in range(7)): return False
-        if not all(marks[p_idx][s] >= 3 for s in range(7)): return False
-        if is_cut_throat: return all(scores[p_idx] <= scores[j] for j in range(total_players))
+        if any(slot_targets[s] is None for s in range(7)):
+            return False
+        if not all(marks[p_idx][s] >= 3 for s in range(7)):
+            return False
+        if is_cut_throat:
+            return all(scores[p_idx] <= scores[j] for j in range(total_players))
         return all(scores[p_idx] >= scores[j] for j in range(total_players))
 
     sync_hw_display()
 
     running, clock, current_state = True, pygame.time.Clock(), "GAME"
-    champ_display_until, bot_timer, combo_press_start = 0, 0, 0
+    champ_display_until, bot_timer = 0, 0
+    combo_press_start = 0
 
     while running:
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
@@ -212,11 +215,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif event.key == pygame.K_SPACE: raw_data = "BTN:START"
                 elif event.key == pygame.K_i: raw_data = "IR:DETECT"
-                elif event.key == pygame.K_ESCAPE: 
-                    if ser:
-                        try: ser.write(b"CLEAR\n"); ser.flush()
-                        except: pass
-                    return
+                elif event.key == pygame.K_ESCAPE: running = False
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
@@ -275,8 +274,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(marks, slot_targets, active_player-1, mode)}"
                     bot_timer = 0 
 
-        if raw_data:
-            if current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if raw_data and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
@@ -335,41 +333,30 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     sync_hw_display()
                     current_state = "WIN"
 
-            elif current_state == "WIN":
-                if raw_data == "BTN:PLAYER":
-                    if sound_switch: sound_switch.play()
-                    if ser:
-                        try: ser.write(b"CLEAR\n"); ser.flush()
-                        except: pass
-                    return
-                elif raw_data == "BTN:START":
-                    if sound_switch: sound_switch.play()
-                    # === SPIEL NEUSTART ===
-                    if is_pick_it: slot_targets = [None, None, None, None, None, None, 25]
-                    elif is_crazy:
-                        rand_nums = random.sample(range(1, 21), 6)
-                        rand_nums.sort(reverse=True)
-                        slot_targets = rand_nums + [25]
-                    else: slot_targets = [20, 19, 18, 17, 16, 15, 25]
-                    
-                    scores = [0] * total_players
-                    marks = {p: [0] * 7 for p in range(total_players)}
-                    darts_thrown, active_player = 0, 1
-                    round_num, round_points, switch_delay_timer = 1, 0, 0
-                    current_state = "GAME"
-                    champ_display_until, bot_timer, combo_press_start = 0, 0, 0
-                    
-                    if ser:
-                        try: 
-                            ser.write(b"CLEAR\n")
-                            ser.write(b"LAMP:PLAYER:1\n")
-                            ser.write(b"LAMP:START:0\n")
-                            ser.flush()
-                        except: pass
-                    if hasattr(display, 'clear_all'):
-                        display.clear_all()
-                    sync_hw_display()
-                    raw_data = None
+        elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
+            if raw_data == "BTN:PLAYER":
+                if sound_switch: sound_switch.play()
+                if ser:
+                    try: ser.write(b"CLEAR\n"); ser.flush()
+                    except: pass
+                return
+            elif raw_data == "BTN:START":
+                if sound_switch: sound_switch.play()
+                if is_pick_it: slot_targets = [None, None, None, None, None, None, 25]
+                elif is_crazy:
+                    rand_nums = random.sample(range(1, 21), 6)
+                    rand_nums.sort(reverse=True)
+                    slot_targets = rand_nums + [25]
+                else: slot_targets = [20, 19, 18, 17, 16, 15, 25]
+                scores = [0] * total_players
+                marks = {p: [0] * 7 for p in range(total_players)}
+                darts_thrown, active_player, round_num, round_points, switch_delay_timer = 0, 1, 1, 0, 0
+                current_state = "GAME"
+                if ser:
+                    try: ser.write(b"CLEAR\n"); ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
+                    except: pass
+                sync_hw_display()
+                raw_data = None
 
         if screensaver.check():
             screensaver.update_and_draw(screen, title_font); pygame.display.flip(); clock.tick(30); continue
