@@ -1,0 +1,1 @@
+BRANCH="main"; curl -fL https://raw.githubusercontent.com/muessio/VisionPi2000/$BRANCH/Pi_Setup/Update.sh -o Update.sh && chmod +x Update.sh && sudo ./Update.sh $BRANCH
