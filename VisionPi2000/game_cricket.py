@@ -328,6 +328,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     
                     if check_win(p_idx):
                         trigger_victory(ser)
+                        # --- FORCE REFRESH NACH DEM BLINKEN ---
+                        try:
+                            if hasattr(display, 'clear_buffer'): display.clear_buffer()
+                            elif hasattr(display, 'buffer'): display.buffer = [[0 for _ in range(8)] for _ in range(9)]
+                        except: pass
+                        sync_hw_display() # Erzwingt Update
                         current_state = "WIN"
     
             elif current_state == "WIN":
