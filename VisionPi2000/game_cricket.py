@@ -206,7 +206,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     
         sync_hw_display()
     
-        # Initiale Zustandswahl: Starten wir in der Pcking-Phase oder direkt im Spiel?
+        # Initiale Zustandswahl: Starten wir in der Vorbereitungsphase oder direkt im Spiel?
         current_state = "PICK_IT" if is_pick_it else "GAME"
         champ_display_until, bot_timer = 0, 0
         combo_press_start = 0
@@ -214,6 +214,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     
         while running:
             raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
+            
+            # WICHTIG: Variable immer definieren, um Abstürze beim Rendern (UnboundLocalError) zu verhindern!
+            is_berrys_turn = (is_berry_game and active_player == total_players)
             
             for event in pygame.event.get():
                 if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
@@ -254,7 +257,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             # ================= PICK IT PHASE =================
             elif current_state == "PICK_IT":
                 if raw_data:
-                    if raw_data.startswith("HIT:"):
+                    if raw_data == "BTN:PLAYER":
+                        raw_data = None # Spielerwechsel ignorieren in der Vorbereitung
+                    elif raw_data.startswith("HIT:"):
                         hit_segment = raw_data.split(":")[1]
                         if hit_segment not in ["MISS", "-"]:
                             seg = int(hit_segment.replace("t","").replace("d","").replace("b","25")) if hit_segment != "db" else 25
@@ -277,11 +282,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                                     sync_hw_display()
                             else:
                                 if sound_miss: sound_miss.play()
+                        raw_data = None # Event vernichten, damit es unten nicht verarbeitet wird
             # =================================================
     
             elif current_state == "GAME":
-                is_berrys_turn = (is_berry_game and active_player == total_players)
-                
                 if raw_data == "BTN:PLAYER":
                     switch_delay_timer = pygame.time.get_ticks(); raw_data = None
                 elif raw_data == "IR:DETECT":
@@ -309,6 +313,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         raw_data = f"HIT:{get_bot_hit(marks, slot_targets, active_player-1, mode)}"
                         bot_timer = 0 
     
+                # --- Wurflogik NUR im Status GAME verarbeiten ---
                 if raw_data and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                     hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                     p_idx = active_player - 1
@@ -318,7 +323,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     elif hit_segment != "-":
                         seg = int(hit_segment.replace("t","").replace("d","").replace("b","25")) if hit_segment != "db" else 25
                         mult = 3 if "t" in hit_segment else (2 if "d" in hit_segment else 1)
-
+                        
                         hit_was_useful = False
                         if seg in slot_targets:
                             s_idx = slot_targets.index(seg)
@@ -355,9 +360,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     
                     if check_win(p_idx):
                         trigger_victory(ser)
+                        # ============================================================
+                        # FORCE REFRESH: Zerstört den Delta-Cache im Anzeige-Mapper, 
+                        # sodass er gezwungen ist, alle Daten GANZ NEU an den Arduino 
+                        # zu senden! Holt die Punkte nach dem TEST:OFF zurück.
+                        # ============================================================
                         try:
+                            if hasattr(display, 'last_buffer'): display.last_buffer = [] 
                             if hasattr(display, 'clear_buffer'): display.clear_buffer()
-                            elif hasattr(display, 'buffer'): display.buffer = [[0 for _ in range(8)] for _ in range(9)]
                         except: pass
                         sync_hw_display()
                         current_state = "WIN"
