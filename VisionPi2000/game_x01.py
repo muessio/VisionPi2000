@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.7.5"
+VERSION = "1.7.6"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -140,7 +140,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         except: pass
 
     def sync_hw_display():
-        for i in range(total_players): display.set_score(i, max(0, player_scores[i]))
+        display.clear_buffer()
+        for i in range(8):
+            display.set_score(i, max(0, player_scores[i]) if i < total_players else None)
         display.set_active_player(active_player - 1)
         display.set_dart_arrows(3 - darts_thrown)
         display.set_temp_score(round_points)
@@ -153,6 +155,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     while running:
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
+        is_berrys_turn = (is_berry_game and active_player == total_players)
+
         for event in pygame.event.get():
             if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
                 if screensaver.reset_timer(): raw_data = None; continue
@@ -188,14 +192,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 raw_data = None
             elif raw_data == "BTN:PLAYER":
                 if sound_switch: sound_switch.play()
-                if ser:
-                    try: ser.write(b"CLEAR\n"); ser.flush()
-                    except: pass
-                return
+                display.clear_all()
+                return "menu"
 
         elif current_state == "GAME":
-            is_berrys_turn = (is_berry_game and active_player == total_players)
-            
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks(); raw_data = None
             elif raw_data == "IR:DETECT":
@@ -261,7 +261,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         elif has_double_out and not is_double and hit_segment != "WIN_CHEAT": bust = True
 
                 if hit_segment == "MISS":
-                    pass 
+                    darts_thrown += 1
+                    if darts_thrown == 3 and ser:
+                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
+                        except: pass
+                    sync_hw_display()
                 elif bust: 
                     if sound_bust: sound_bust.play()
                     player_scores[p_idx] = round_start_score
@@ -271,6 +275,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     if ser:
                         try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
                         except: pass
+                    sync_hw_display()
                 else:
                     player_scores[p_idx] = new_score
                     round_points += points
@@ -290,28 +295,21 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
                         except: pass
                     
-                    if new_score == 0:
-                        trigger_victory(ser)
-                        # --- FORCE REFRESH NACH DEM BLINKEN ---
-                        try:
-                            if hasattr(display, 'clear_buffer'): display.clear_buffer()
-                            elif hasattr(display, 'buffer'): display.buffer = [[0 for _ in range(8)] for _ in range(9)]
-                        except: pass
-                        sync_hw_display()
-                        current_state = "WIN"
+                    sync_hw_display()
 
-                sync_hw_display()
+                    if new_score == 0:
+                        current_state = "WIN"
+                        trigger_victory(ser)
+                        display.clear_all()
+                        sync_hw_display()
 
             elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
                 if raw_data == "BTN:PLAYER":
                     if sound_switch: sound_switch.play()
-                    if ser:
-                        try: ser.write(b"CLEAR\n"); ser.flush()
-                        except: pass
-                    return
+                    display.clear_all()
+                    return "menu"
                 elif raw_data == "BTN:START":
                     if sound_switch: sound_switch.play()
-                    # ZURÜCKSETZEN FÜR NEUSTART
                     player_scores = [start_score] * total_players
                     player_in_checked = [not has_double_in for _ in range(total_players)]
                     darts_thrown, active_player, round_num, round_points = 0, 1, 1, 0
@@ -319,8 +317,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     switch_delay_timer = 0
                     current_state = "GAME"
                     if ser:
-                        try: ser.write(b"CLEAR\n"); ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
+                        try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                         except: pass
+                    display.clear_all()
                     sync_hw_display()
                     raw_data = None
 
@@ -339,11 +338,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             score_surf = giant_font.render(str(player_scores[active_player-1]), True, WHITE)
             screen.blit(score_surf, ((sw - score_surf.get_width()) // 2, int(sh*0.27)))
             
-            if has_double_in and not player_in_checked[active_player-1]:
+            if has_double_in and not player_in_checked[active_player-1] and current_state == "GAME":
                 in_hint = title_font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
                 screen.blit(in_hint, ((sw - in_hint.get_width()) // 2, int(sh*0.56)))
 
-            if darts_thrown >= 3 and not is_berrys_turn:
+            if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.70)))
 
@@ -380,7 +379,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 txt_end = title_font.render("> SPIELERWECHSEL = Beenden <", True, RED_COL)
                 screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, menu_y + int(sh * 0.25)))
 
-            elif current_state == "WIN":
+            if current_state == "WIN":
                 overlay = pygame.Surface((sw, sh))
                 overlay.set_alpha(220)
                 overlay.fill((0, 0, 0))
