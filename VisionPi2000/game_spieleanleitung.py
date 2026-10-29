@@ -3,7 +3,7 @@ import os
 import random
 import json
 
-VERSION = "1.1.0"
+VERSION = "1.3.0"
 GAMES = ["Spieleanleitung"]
 OPTIONS = [
     "301 / 501 / 701 (X01)", 
@@ -22,10 +22,12 @@ EXPLANATIONS = {
         "es, exakt auf 0 Punkte zu kommen (je nach Option mit Double Out)."
     ],
     "Cricket": [
-        "Ein taktisches Team- und Taktikspiel. Ziel ist es, die Zahlen",
-        "15 bis 20 sowie das Bullseye jeweils dreimal zu treffen ('zu schließen')",
-        "und dabei Punkte zu sammeln, solange der Gegner das Feld noch",
-        "nicht geschlossen hat. Wer die meisten Punkte hat und alles schließt, gewinnt."
+        "Ein taktisches Team- und Taktikspiel. Gespielt wird standardmäßig",
+        "auf die Zahlen 15 bis 20 sowie das Bullseye (jeweils 3 Treffer zum Schließen).",
+        "• Standard/Cut Throat: Feste Zahlenvorgabe.",
+        "• You Pick It: Die ersten Felder sind frei wählbar durch eigene Treffer!",
+        "• Crazy (Zufall): Die 6 Zielfelder werden zu Beginn per Zufall bestimmt.",
+        "Wer als Erster alles schließt und die meisten Punkte hat, gewinnt."
     ],
     "Split Score": [
         "Ein Disziplin-Test über 9 Runden (15, 16, Double, 17, 18,",
@@ -89,7 +91,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     try: display.clear_all()
     except: pass
     
-    # --- 16:9 und 4:3 Erkennung ---
     is_16_9 = False
     try:
         with open("settings.json", "r") as f: is_16_9 = json.load(f).get("format", "4:3") == "16:9"
@@ -102,17 +103,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             raw_bg = pygame.image.load(bg_file).convert()
             bg_img = pygame.transform.scale(raw_bg, (sw, sh))
             darker_overlay = pygame.Surface((sw, sh))
-            darker_overlay.set_alpha(150)
+            darker_overlay.set_alpha(160)
             darker_overlay.fill((0, 0, 0))
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    title_font = pygame.font.SysFont("arial", int(sh * 0.05), bold=True)
-    text_font = pygame.font.SysFont("arial", int(sh * 0.035), bold=True)
-    hint_font = pygame.font.SysFont("arial", int(sh * 0.025), bold=True)
+    title_font = pygame.font.SysFont("arial", int(sh * 0.045), bold=True)
+    text_font = pygame.font.SysFont("arial", int(sh * 0.03), bold=True)
+    hint_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
-    # --- Signal für Spielerwechsel-Taste (Zurück-Funktion) ---
     if ser:
         try: 
             ser.write(b"LAMP:PLAYER:1\n")
@@ -150,31 +150,28 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0, 0, 0))
 
-        # --- Dynamische Positionierung ---
         t_surf = title_font.render(f"SPIELEANLEITUNG & REGELN", True, HIGHLIGHT)
-        screen.blit(t_surf, ((sw - t_surf.get_width()) // 2, int(sh * 0.1)))
+        screen.blit(t_surf, ((sw - t_surf.get_width()) // 2, int(sh * 0.08)))
         
         opt_surf = text_font.render(f"Ausgewähltes Spiel: {option}", True, (100, 220, 100))
-        screen.blit(opt_surf, ((sw - opt_surf.get_width()) // 2, int(sh * 0.18)))
+        screen.blit(opt_surf, ((sw - opt_surf.get_width()) // 2, int(sh * 0.15)))
 
         lines = EXPLANATIONS.get(option, ["Keine Beschreibung verfügbar."])
-        y_text = int(sh * 0.35)
+        y_text = int(sh * 0.28)
         for line in lines:
             line_surf = text_font.render(line, True, WHITE)
             screen.blit(line_surf, ((sw - line_surf.get_width()) // 2, y_text))
-            y_text += int(sh * 0.06)
+            y_text += int(sh * 0.055)
 
         back_hint = hint_font.render("Drücke Taste 'Spielerwechsel' (oder ESC), um ins Hauptmenü zurückzukehren.", True, HIGHLIGHT)
-        screen.blit(back_hint, ((sw - back_hint.get_width()) // 2, sh - int(sh * 0.1)))
+        screen.blit(back_hint, ((sw - back_hint.get_width()) // 2, sh - int(sh * 0.08)))
 
         pygame.display.flip()
         clock.tick(30)
         
-    # --- Reset Lampen beim Verlassen ---
     if ser:
         try: 
-            ser.write(b"LAMP:PLAYER:2\n") # Zurück in den Blinkmodus für das Hauptmenü
+            ser.write(b"LAMP:PLAYER:2\n")
             ser.write(b"LAMP:START:2\n")
             ser.flush()
         except: pass
-            
