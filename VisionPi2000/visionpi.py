@@ -30,7 +30,7 @@ except ImportError: game_service = None
 try: import game_about
 except ImportError: game_about = None
 
-VERSION = "1.7.2"
+VERSION = "1.7.3"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -60,7 +60,9 @@ def ensure_wifi_connection(settings):
         res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
         if ssid not in res.stdout:
             print(f"Erzwinge Verbindung mit WLAN aus settings.json: {ssid}...")
-            # NetworkManager anweisen, sich mit der in der JSON hinterlegten SSID zu verbinden
+            # Sicherheitshalber alte/falsche Verbindungen trennen
+            subprocess.run("nmcli device disconnect wlan0", shell=True)
+            # Verbindung zur SSID aus der settings.json erzwingen
             subprocess.run(f"nmcli device wifi connect '{ssid}'", shell=True)
     except Exception as e:
         print(f"WLAN Auto-Connect Fehler: {e}")
