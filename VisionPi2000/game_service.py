@@ -198,7 +198,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
         if settings["format"] != old_format or settings["mapper"] != old_mapper:
             pygame.quit()
             os.execv(sys.executable, ['python3'] + sys.argv)
-
+            
         return "menu" 
 
     else:
@@ -306,6 +306,15 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.clear_all()
                 if hasattr(display, 'update'): 
                     display.update()
+                
+                # --- WICHTIGER FIX GEGEN DEN NEUSTART ---
+                # Wir warten kurz und spülen dann restlos ALLE Tasten-Preller 
+                # aus dem USB/Seriell-Puffer, bevor wir ans Hauptmenü übergeben.
+                time.sleep(0.3)
+                while ser.in_waiting > 0:
+                    ser.read(ser.in_waiting)
             except: pass
+            
+        pygame.event.clear() # Leert auch noch hängende Tastatur-Events
 
     return "menu"
