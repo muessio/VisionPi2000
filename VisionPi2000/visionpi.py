@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.6.8"
+VERSION = "1.6.9"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -69,7 +69,7 @@ def find_image_file(preferred_names):
     return None
 
 class ScreenSaver:
-    def __init__(self, width, height):
+    def __init__(self, width, height, is_16_9):
         self.width, self.height = width, height
         self.timeout = 10 * 60 * 1000  # 10 Minuten Inaktivität bis Start
         self.last_activity = pygame.time.get_ticks()
@@ -91,9 +91,14 @@ class ScreenSaver:
                 except: pass
         self.font = pygame.font.SysFont("arial", int(height * 0.026), bold=True)
 
-        # Standby-Bild (Screensaver.jpg / png) laden
+        # Standby-Bild formatabhängig laden (mit intelligentem Fallback)
+        if is_16_9:
+            candidates = ["Screensaver_16_9.jpg", "screensaver_16_9.jpg", "Screensaver_16_9.png", "screensaver_16_9.png", "Screensaver.jpg", "Screensaver.png"]
+        else:
+            candidates = ["Screensaver.jpg", "screensaver.jpg", "Screensaver.png", "screensaver.png", "Screensaver_16_9.jpg"]
+
         self.static_img = None
-        img_found = find_image_file(["Screensaver.jpg", "screensaver.jpg", "Screensaver.png", "screensaver.png", "Screensaver.JPG"])
+        img_found = find_image_file(candidates)
         if img_found:
             try:
                 raw_img = pygame.image.load(img_found).convert()
@@ -197,7 +202,7 @@ def main():
     display.set_light(True)     
     display.clear_all()
 
-    screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT)
+    screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT, is_16_9)
 
     # --- HINTERGRUND LÄDT (Kugelsicher) ---
     bg_candidates = ["background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.png", "Background.png", "background.PNG"]
@@ -377,7 +382,7 @@ def main():
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
                     cur_y += int(box_h * 0.06)
 
-                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (or ESC)", True, (255, 215, 0))
+                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (oder ESC)", True, (255, 215, 0))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.09)))
 
                 pygame.display.flip()
