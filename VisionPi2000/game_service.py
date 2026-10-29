@@ -97,6 +97,8 @@ def do_wps_connect(screen, font, sw, sh):
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
     
+    # Interface kurz für wpa_cli freigeben und WPS-Handshake starten
+    subprocess.run("sudo nmcli device disconnect wlan0", shell=True)
     subprocess.run("sudo wpa_cli -i wlan0 wps_pbc", shell=True)
     
     start_t = time.time()
@@ -108,11 +110,6 @@ def do_wps_connect(screen, font, sw, sh):
                 res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
                 if res.stdout:
                     ssid = res.stdout.split(":")[1].strip()
-                    
-                    # WICHTIG: Nach erfolgreichem WPS-Handshake das Profil im NetworkManager
-                    # dauerhaft als Autoconnect-Profil festlegen, damit es Reboots überlebt.
-                    subprocess.run(f"sudo nmcli connection modify id '{ssid}' connection.autoconnect yes", shell=True)
-                    
                     settings = load_settings()
                     settings["wifi_ssid"] = ssid
                     save_settings(settings)
@@ -140,7 +137,7 @@ def do_online_update(screen, font, sw, sh, ser, branch):
 
     pygame.quit()
 
-    # Vollständig bereinigter, öffentlicher Aufruf ohne Token-Ballast
+    # Vollständig bereinigter, öffentlicher Aufruf ohne Token
     cmd = (
         f'curl -s https://raw.githubusercontent.com/muessio/VisionPi2000/{branch}/Pi_Setup/Update.sh -o /tmp/Update.sh '
         f'&& sudo bash /tmp/Update.sh | tee {log_file}'
