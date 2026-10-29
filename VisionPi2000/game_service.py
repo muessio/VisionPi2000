@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.8.2"
+VERSION = "1.8.3"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -93,10 +93,11 @@ def get_wifi_status():
 
 def do_wps_connect(screen, font, sw, sh):
     screen.fill((15, 15, 30))
-    info_surf = font.render("WPS aktiv! Bitte drücke die WPS-Taste am Router...", True, (255, 215, 0))
+    info_surf = font.render("WPS aktiv! Bitte drücke jetzt die WPS-Taste am Router...", True, (255, 215, 0))
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
     
+    # Exakter und getesteter wpa_cli-Befehl für den WPS-Handshake
     subprocess.run("sudo wpa_cli -i wlan0 wps_pbc", shell=True)
     
     start_t = time.time()
