@@ -6,11 +6,17 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.7.8"
+VERSION = "1.8.0"
 GAMES = ["Service-Menü"]
-OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
+OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
-DEFAULT_SETTINGS = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
+DEFAULT_SETTINGS = {
+    "format": "4:3", 
+    "mapper": "display_mapper_Vision_Dart", 
+    "branch": "stable",
+    "wifi_ssid": "",
+    "wifi_password": ""
+}
 
 def run_sudo(cmd):
     subprocess.run(f'sudo sh -c "{cmd}" >/dev/null 2>&1', shell=True)
@@ -74,12 +80,48 @@ def get_available_mappers():
     files = [os.path.basename(f) for f in glob.glob(os.path.join(base_dir, "display_mapper*.py"))]
     return sorted(files) if files else ["display_mapper_Vision_Dart.py"]
 
-def do_online_update(screen, font, sw, sh, ser):
+def get_wifi_status():
+    try:
+        res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
+        if res.stdout:
+            ssid = res.stdout.split(":")[1].strip()
+            ip_res = subprocess.run("hostname -I", shell=True, capture_output=True, text=True)
+            ip = ip_res.stdout.split()[0] if ip_res.stdout else "Keine IP"
+            return f"Verbunden ({ssid}) [IP: {ip}]"
+    except: pass
+    return "Nicht verbunden"
+
+def do_wps_connect(screen, font, sw, sh):
+    screen.fill((15, 15, 30))
+    info_surf = font.render("WPS aktiv! Bitte drücke die WPS-Taste am Router...", True, (255, 215, 0))
+    screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
+    pygame.display.flip()
+    
+    subprocess.run("sudo nmcli device wifi wps pbc", shell=True)
+    
+    start_t = time.time()
+    while time.time() - start_t < 40:
+        pygame.event.pump()
+        status = get_wifi_status()
+        if "Verbunden" in status:
+            try:
+                res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
+                if res.stdout:
+                    ssid = res.stdout.split(":")[1].strip()
+                    settings = load_settings()
+                    settings["wifi_ssid"] = ssid
+                    save_settings(settings)
+            except: pass
+            return True
+        time.sleep(1)
+    return False
+
+def do_online_update(screen, font, sw, sh, ser, branch):
     boot_dir = get_boot_dir()
     log_file = os.path.join(boot_dir, "update_log.txt")
     
     screen.fill((15, 15, 30))
-    info_surf = font.render("Update startet – Pygame wird beendet...", True, (255, 255, 255))
+    info_surf = font.render(f"Update von Branch '{branch}' startet...", True, (255, 255, 255))
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
     time.sleep(1.5)
@@ -95,7 +137,7 @@ def do_online_update(screen, font, sw, sh, ser):
 
     cmd = (
         'curl -H "Authorization: token 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" '
-        'https://raw.githubusercontent.com/muessio/VisionPi2000/main/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
+        f'https://raw.githubusercontent.com/muessio/VisionPi2000/{branch}/Pi_Setup/private_Update.sh -o /tmp/private_Update.sh '
         f'&& sudo bash /tmp/private_Update.sh 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 | tee {log_file}'
     )
 
@@ -137,18 +179,23 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
         settings = load_settings()
         old_format = settings.get("format", "4:3")
         old_mapper = settings.get("mapper", "display_mapper_Vision_Dart").replace(".py", "")
+        old_branch = settings.get("branch", "stable")
         
         available_formats = ["4:3", "16:9"]
         available_mappers = get_available_mappers()
+        available_branches = ["stable", "main"]
+        
+        if not settings.get("branch") or settings["branch"] not in available_branches:
+            settings["branch"] = "stable"
+            
         if not settings["mapper"].endswith(".py"): settings["mapper"] += ".py"
         
         if settings["format"] not in available_formats: settings["format"] = available_formats[0]
         if settings["mapper"] not in available_mappers: settings["mapper"] = available_mappers[0] if available_mappers else "display_mapper_Vision_Dart.py"
             
-        menu_items = ["Bildschirmformat", "Hardware-Mapper", "System-Update (Online)"]
+        menu_items = ["Bildschirmformat", "Hardware-Mapper", "Update-Quelle", "System-Update (Online)"]
         sel_item = 0
-        if display:
-            display.clear_all()
+        if display: display.clear_all()
         
         if ser:
             try: 
@@ -173,32 +220,74 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 elif raw_data == "BTN:BLUE":
                     if sel_item == 0: settings["format"] = available_formats[(available_formats.index(settings["format"]) + 1) % len(available_formats)]
                     elif sel_item == 1: settings["mapper"] = available_mappers[(available_mappers.index(settings["mapper"]) + 1) % len(available_mappers)]
-                    elif sel_item == 2: do_online_update(screen, font, sw, sh, ser)
+                    elif sel_item == 2: settings["branch"] = available_branches[(available_branches.index(settings["branch"]) + 1) % len(available_branches)]
+                    elif sel_item == 3: do_online_update(screen, font, sw, sh, ser, settings["branch"])
             
             screen.fill((15, 15, 30))
             t_surf = title_font.render("EINSTELLUNGEN & UPDATE", True, HIGHLIGHT)
             draw_centered(t_surf, int(sh * 0.1))
             
-            y_pos = int(sh * 0.3)
+            y_pos = int(sh * 0.26)
             for i, item in enumerate(menu_items):
                 color = HIGHLIGHT if i == sel_item else WHITE
                 prefix = "> " if i == sel_item else "  "
                 if i == 0: value = settings["format"]
                 elif i == 1: value = settings["mapper"]
+                elif i == 2: value = settings["branch"]
                 else: value = "[ BLAU drücken zum Starten ]"
                 screen.blit(font.render(f"{prefix}{item}: {value}", True, color), (int(sw * 0.15), y_pos))
                 y_pos += int(sh * 0.08)
                 
             h_surf = small_font.render("ROT: Auswählen | BLAU: Wert ändern/Aktion | START: Speichern & Zurück", True, (150, 150, 150))
-            draw_centered(h_surf, int(sh * 0.8))
+            draw_centered(h_surf, int(sh * 0.82))
             pygame.display.flip(); clock.tick(30)
             
         settings["mapper"] = settings["mapper"].replace(".py", "")
         
-        if settings["format"] != old_format or settings["mapper"] != old_mapper:
+        if settings["format"] != old_format or settings["mapper"] != old_mapper or settings.get("branch") != old_branch:
             save_settings(settings)
             pygame.quit()
             os.execv(sys.executable, ['python3'] + sys.argv)
+
+    elif option_name == "WLAN & WPS":
+        wifi_msg = get_wifi_status()
+        if display: display.clear_all()
+        
+        if ser:
+            try: 
+                ser.write(b"LAMP:START:1\n")
+                ser.write(b"LAMP:PLAYER:0\n")
+                ser.flush()
+            except: pass
+
+        while running:
+            raw_data = ser.readline().decode('utf-8', 'ignore').strip() if ser and ser.in_waiting > 0 else None
+                    
+            for ev in pygame.event.get():
+                if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE): running = False
+                elif ev.type == pygame.KEYDOWN:
+                    if ev.key == pygame.K_b: raw_data = "BTN:BLUE"
+                    elif ev.key == pygame.K_SPACE: raw_data = "BTN:START"
+
+            if raw_data:
+                if raw_data == "BTN:START": running = False
+                elif raw_data == "BTN:BLUE":
+                    success = do_wps_connect(screen, font, sw, sh)
+                    wifi_msg = "WPS erfolgreich verbunden!" if success else "WPS Zeitüberschreitung / Fehler"
+
+            screen.fill((15, 15, 30))
+            t_surf = title_font.render("WLAN & WPS EINSTELLUNGEN", True, HIGHLIGHT)
+            draw_centered(t_surf, int(sh * 0.15))
+            
+            stat_surf = font.render(f"Status: {wifi_msg}", True, GREEN if "Verbunden" in wifi_msg else WHITE)
+            draw_centered(stat_surf, int(sh * 0.35))
+            
+            btn_surf = font.render("[ BLAU drücken: WPS-Kopplung starten ]", True, HIGHLIGHT)
+            draw_centered(btn_surf, int(sh * 0.50))
+            
+            h_surf = small_font.render("BLAU: WPS starten | START: Zurück ins Menü", True, (150, 150, 150))
+            draw_centered(h_surf, int(sh * 0.82))
+            pygame.display.flip(); clock.tick(30)
 
     else:
         last_hit = "Warte auf Eingabe..."
