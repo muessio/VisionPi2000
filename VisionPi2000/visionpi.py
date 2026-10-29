@@ -27,7 +27,7 @@ except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
 
-VERSION = "1.6.4"
+VERSION = "1.6.8"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -71,9 +71,15 @@ def find_image_file(preferred_names):
 class ScreenSaver:
     def __init__(self, width, height):
         self.width, self.height = width, height
-        self.timeout = 10 * 60 * 1000  
+        self.timeout = 10 * 60 * 1000  # 10 Minuten Inaktivität bis Start
         self.last_activity = pygame.time.get_ticks()
         self.active = False
+        
+        # Zustandssteuerung für den Wechsel-Modus (Animation vs. Statisches Bild)
+        self.state = "ANIMATION"
+        self.state_timer = pygame.time.get_ticks()
+        
+        # Bullseye Berries Animation laden
         self.avatars = []
         berry_files = ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]
         for file in berry_files:
@@ -85,27 +91,57 @@ class ScreenSaver:
                 except: pass
         self.font = pygame.font.SysFont("arial", int(height * 0.026), bold=True)
 
+        # Standby-Bild (Screensaver.jpg / png) laden
+        self.static_img = None
+        img_found = find_image_file(["Screensaver.jpg", "screensaver.jpg", "Screensaver.png", "screensaver.png", "Screensaver.JPG"])
+        if img_found:
+            try:
+                raw_img = pygame.image.load(img_found).convert()
+                self.static_img = pygame.transform.scale(raw_img, (width, height))
+            except: pass
+
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
         if self.active:
             self.active = False
+            self.state = "ANIMATION"
+            self.state_timer = pygame.time.get_ticks()
             return True
         return False
 
     def check(self):
-        if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout: self.active = True
+        if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout:
+            self.active = True
+            self.state = "ANIMATION"
+            self.state_timer = pygame.time.get_ticks()
         return self.active
 
     def update_and_draw(self, screen):
         if not self.active: return
-        screen.fill((0, 0, 0))
-        for av in self.avatars:
-            av["x"] += av["vx"]; av["y"] += av["vy"]
-            if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
-            if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
-            screen.blit(av["img"], (av["x"], av["y"]))
-        hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
-        screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
+        
+        current_time = pygame.time.get_ticks()
+        
+        # Zeitgesteuerter Wechsel: 60 Sekunden Animation, danach 30 Sekunden statisches Bild
+        if self.state == "ANIMATION":
+            if current_time - self.state_timer > 60000:
+                self.state = "IMAGE"
+                self.state_timer = current_time
+        elif self.state == "IMAGE":
+            if current_time - self.state_timer > 30000:
+                self.state = "ANIMATION"
+                self.state_timer = current_time
+
+        if self.state == "IMAGE" and self.static_img is not None:
+            screen.blit(self.static_img, (0, 0))
+        else:
+            screen.fill((0, 0, 0))
+            for av in self.avatars:
+                av["x"] += av["vx"]; av["y"] += av["vy"]
+                if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
+                if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
+                screen.blit(av["img"], (av["x"], av["y"]))
+            hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
+            screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
 def init_serial():
     for port in glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*'):
@@ -229,19 +265,20 @@ def main():
             print(f"Warnung: Modul {m.__name__} übersprungen (GAMES oder OPTIONS fehlt)")
     # --------------------------------------
 
-    modes = ["Normales Spiel", "Bullseye-Berry (Leicht)", "Bullseye-Berry (Mittel)", "Bullseye-Berry (Schwer)", "Team-Modus"]
+    standard_modes = ["Normales Spiel", "Bullseye-Berry (Stufe 1)", "Bullseye-Berry (Stufe 2)", "Bullseye-Berry (Stufe 3)", "Team-Modus"]
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
     combo_press_start = 0
 
     def update_menu_hardware_display():
         g_name = game_registry[sel_game]["name"] if game_registry else "301"
-        is_berry = "Bullseye-Berry" in modes[sel_mode]
-        tot_pl = min(8, players + 1 if is_berry else players)
+        is_service = g_name in ["Service-Menü", "Spieleanleitung"]
+        tot_pl = 1 if is_service else min(8, players + 1 if "Bullseye-Berry" in standard_modes[sel_mode] else players)
         preview_score = int(g_name) if g_name in ["301", "501", "701"] else (40 if g_name == "Split Score" else (1 if g_name == "Around the Clock" else 0))
+        display.clear_buffer()
         for i in range(8):
-            if i < tot_pl: display.set_score(i, preview_score); display.set_pl_lamp(i + 1, True)
+            if not is_service and i < tot_pl: display.set_score(i, preview_score); display.set_pl_lamp(i + 1, True)
             else: display.set_score(i, None); display.set_pl_lamp(i + 1, False)
-        display.set_temp_score(None); display.set_turn(tot_pl); display.set_dart_arrows(0)
+        display.set_temp_score(None); display.set_turn(tot_pl if not is_service else 0); display.set_dart_arrows(0)
         display.update()
         if ser:
             try:
@@ -255,7 +292,23 @@ def main():
 
     while running:
         g_list = [g["name"] for g in game_registry]
-        c_opts = game_registry[sel_game]["options"]
+        current_game_name = g_list[sel_game] if g_list else ""
+        
+        # Dynamische Optionen & Modi je nach ausgewähltem Spiel
+        if current_game_name == "Service-Menü":
+            c_opts = game_service.OPTIONS if game_service else ["Einstellungen"]
+            modes = ["Konfiguration & Tests"]
+        elif current_game_name == "Spieleanleitung":
+            c_opts = game_spieleanleitung.OPTIONS if game_spieleanleitung else ["Anleitung"]
+            modes = ["Regeln & Hilfe"]
+        else:
+            c_opts = game_registry[sel_game]["options"]
+            modes = standard_modes
+
+        # Begrenze die Indizes, falls sie durch den Wechsel über den Rand laufen
+        if sel_option >= len(c_opts): sel_option = 0
+        if sel_mode >= len(modes): sel_mode = 0
+
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
             
         for e in pygame.event.get():
@@ -287,17 +340,14 @@ def main():
                 if bg_img: screen.blit(bg_img, (0, 0))
                 else: screen.fill((0,0,0))
                 
-                # --- SCHWARZER KASTEN IN DER MITTE DES BILDSCHIRMS ---
                 box_w = int(TARGET_WIDTH * 0.75)
                 box_h = int(TARGET_HEIGHT * 0.82)
                 box_x = (TARGET_WIDTH - box_w) // 2
                 box_y = (TARGET_HEIGHT - box_h) // 2
                 
-                # Schwarzer Kasten mit feinem goldenen Rand
                 pygame.draw.rect(screen, (10, 10, 10), (box_x, box_y, box_w, box_h), border_radius=16)
                 pygame.draw.rect(screen, (255, 215, 0), (box_x, box_y, box_w, box_h), width=3, border_radius=16)
 
-                # Inhalt zentriert im Kasten ausgeben
                 cur_y = box_y + int(box_h * 0.04)
                 
                 t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,215,0))
@@ -327,8 +377,7 @@ def main():
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
                     cur_y += int(box_h * 0.06)
 
-                # Deutlicher Hinweis zum Schließen ganz unten im Kasten
-                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (oder ESC)", True, (255, 215, 0))
+                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (or ESC)", True, (255, 215, 0))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.09)))
 
                 pygame.display.flip()
@@ -341,15 +390,19 @@ def main():
         if raw_data:
             if raw_data in ["BTN:RED", "BTN:BLUE", "BTN:GREY", "BTN:PLAYER"]:
                 if sound_click: sound_click.play()
-                if raw_data == "BTN:RED": sel_game, sel_option = (sel_game + 1) % len(g_list), 0
-                elif raw_data == "BTN:BLUE": sel_option = (sel_option + 1) % len(c_opts)
+                if raw_data == "BTN:RED": 
+                    sel_game, sel_option, sel_mode = (sel_game + 1) % len(g_list), 0, 0
+                elif raw_data == "BTN:BLUE": 
+                    sel_option = (sel_option + 1) % len(c_opts)
                 elif raw_data == "BTN:GREY": 
-                    sel_mode = (sel_mode + 1) % len(modes)
-                    if players == 8:
-                        while "Berry" in modes[sel_mode]: sel_mode = (sel_mode + 1) % len(modes)
+                    if current_game_name not in ["Service-Menü", "Spieleanleitung"]:
+                        sel_mode = (sel_mode + 1) % len(modes)
+                        if players == 8:
+                            while "Berry" in modes[sel_mode]: sel_mode = (sel_mode + 1) % len(modes)
                 elif raw_data == "BTN:PLAYER": 
-                    players = players + 1 if players < 8 else 1
-                    if players == 8 and "Berry" in modes[sel_mode]: sel_mode = 0
+                    if current_game_name not in ["Service-Menü", "Spieleanleitung"]:
+                        players = players + 1 if players < 8 else 1
+                        if players == 8 and "Berry" in modes[sel_mode]: sel_mode = 0
                 update_menu_hardware_display()
             elif raw_data == "BTN:START":
                 if sound_start: sound_start.play()
@@ -362,11 +415,14 @@ def main():
                 mod = game_registry[sel_game]["module"]
                 if mod: 
                     mod.run_game(screen, ser, display, players, g_list[sel_game], c_opts[sel_option], modes[sel_mode])
-                    if g_list[sel_game] == "Service-Menü":
-                        return main()
+                    display.set_light(True)
                     display.clear_all() 
                     update_menu_hardware_display()
                     screensaver.reset_timer()
+                    if ser:
+                        try: ser.reset_input_buffer()
+                        except: pass
+                    pygame.event.clear()
 
         if screensaver.check():
             screensaver.update_and_draw(screen)
@@ -396,8 +452,12 @@ def main():
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
         # --- FOOTER TEXT POSITIONS-LOGIK ---
-        screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
-        screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
+        if current_game_name in ["Service-Menü", "Spieleanleitung"]:
+            screen.blit(big_font.render("System-Funktion", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
+            screen.blit(font.render("Wähle eine Option mit Rot/Blau und starte mit START", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
+        else:
+            screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
+            screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
 
         pygame.display.flip(); clock.tick(30)
 
@@ -405,4 +465,3 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
-                    
