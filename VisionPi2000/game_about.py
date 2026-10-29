@@ -1,7 +1,7 @@
 import pygame
 import os
 
-VERSION = "1.3.0"
+VERSION = "1.0.0"
 GAMES = ["Über das Projekt"]
 OPTIONS = ["Projektziel & Infos"]
 
@@ -11,8 +11,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     
     title_font = pygame.font.SysFont("arial", int(sh * 0.034), bold=True)
     sub_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
+    heading_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)
     text_font = pygame.font.SysFont("arial", int(sh * 0.021), bold=True)
-    hint_font = pygame.font.SysFont("arial", int(sh * 0.026), bold=True)
+    hint_font = pygame.font.SysFont("arial", int(sh * 0.025), bold=True)
     qr_label_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
     
     HIGHLIGHT, WHITE, GRAY = (255, 215, 0), (255, 255, 255), (180, 180, 180)
@@ -28,7 +29,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     qr_img = None
     if os.path.exists("qrcode.png"):
         try:
-            qr_size = int(sh * 0.28)
+            qr_size = int(sh * 0.26)
             raw_qr = pygame.image.load("qrcode.png").convert()
             qr_img = pygame.transform.smoothscale(raw_qr, (qr_size, qr_size))
         except: pass
@@ -47,60 +48,60 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         screen.fill((10, 10, 20))
 
-        # Textinhalte
+        # Textinhalte strukturierter und ohne Grafik-Symbole
         lines = [
-            ("VisionPi2000 / OpenRetroDart", HIGHLIGHT),
-            ("Custom Dartsports Engine • Developed by Oliver Müssig", GRAY),
-            ("", WHITE),
-            ("Ein alternatives Open-Source-System als hochmoderne", WHITE),
-            ("Retrofit-Lösung für klassische Dartautomaten der 90er/", WHITE),
-            ("2000er-Jahre (z.B. Turnierdart 2000 / Vision Dart Gehäuse).", WHITE),
-            ("", WHITE),
-            ("🎯 Zielsetzung:", HIGHLIGHT),
-            ("• Rettung alter, robuster Gehäuse vor dem Elektroschrott.", WHITE),
-            ("• Weiternutzung der originalen Matrix, Kaskaden-Anzeigen und Lampen.", WHITE),
-            ("• Vollständige Bedienung über die originalen 5 Gehäusetasten.", WHITE),
-            ("• Modernes Innenleben durch Raspberry Pi 4B & Arduino Mega.", WHITE),
-            ("", WHITE),
-            ("⚙️ Highlights & Display-Mapper:", HIGHLIGHT),
-            ("• Präziser Display-Mapper (display_mapper_Vision_Dart.py)", WHITE),
-            ("  exakt für das originale THT-Layout (keine SMD-Bestückung).", WHITE),
-            ("• Ausfallsicheres Read-Only-System zum Schutz der", WHITE),
-            ("  Speicherkarten vor Dateisystem-Korruption.", WHITE),
-            ("• Integriertes Service-Menü und OTA-Online-Updates.", WHITE)
+            ("VisionPi2000 / OpenRetroDart", HIGHLIGHT, title_font),
+            ("Custom Dartsports Engine • Developed by Oliver Müssig", GRAY, sub_font),
+            ("", WHITE, text_font),
+            ("Ein alternatives Open-Source-System als hochmoderne", WHITE, text_font),
+            ("Retrofit-Lösung für klassische Dartautomaten der 90er/", WHITE, text_font),
+            ("2000er-Jahre (z.B. Turnierdart 2000 / Vision Dart Gehäuse).", WHITE, text_font),
+            ("", WHITE, text_font),
+            ("Projektziel & Zielsetzung:", HIGHLIGHT, heading_font),
+            ("• Rettung alter, robuster Gehäuse vor dem Elektroschrott.", WHITE, text_font),
+            ("• Weiternutzung von Matrix, Kaskaden-Anzeigen und Lampen.", WHITE, text_font),
+            ("• Vollständige Bedienung über die originalen 5 Gehäusetasten.", WHITE, text_font),
+            ("• Modernes Innenleben durch Raspberry Pi 4B & Arduino Mega.", WHITE, text_font),
+            ("", WHITE, text_font),
+            ("Highlights & Display-Mapper:", HIGHLIGHT, heading_font),
+            ("• Präziser Display-Mapper (display_mapper_Vision_Dart.py)", WHITE, text_font),
+            ("  exakt für das originale THT-Layout (keine SMD-Bestückung).", WHITE, text_font),
+            ("• Ausfallsicheres Read-Only-System zum Schutz der", WHITE, text_font),
+            ("  Speicherkarten vor Dateisystem-Korruption.", WHITE, text_font),
+            ("• Integriertes Service-Menü und OTA-Online-Updates.", WHITE, text_font)
         ]
 
-        # Kasten zeichnen (Platz für QR-Code rechts einberechnen)
+        # Kasten zeichnen
         box_w = int(sw * 0.88)
-        box_h = int(sh * 0.84)
+        box_h = int(sh * 0.85)
         box_x = (sw - box_w) // 2
         box_y = int(sh * 0.03)
 
         pygame.draw.rect(screen, (20, 20, 30), (box_x, box_y, box_w, box_h), border_radius=14)
         pygame.draw.rect(screen, HIGHLIGHT, (box_x, box_y, box_w, box_h), width=2, border_radius=14)
 
-        # Zeilen links in den Kasten rendern
-        text_max_w = box_w - (int(sh * 0.30) if qr_img else int(box_w * 0.08))
-        curr_y = box_y + int(box_h * 0.035)
-        for idx, (text, color) in enumerate(lines):
+        # Zeilen links in den Kasten rendern mit angepassten Abständen
+        curr_y = box_y + int(box_h * 0.04)
+        for text, color, font_obj in lines:
             if text == "":
-                curr_y += int(sh * 0.01)
+                curr_y += int(sh * 0.008)
                 continue
             
-            if idx == 0:
-                surf = title_font.render(text, True, color)
-            elif idx == 1:
-                surf = sub_font.render(text, True, color)
-            else:
-                surf = text_font.render(text, True, color)
-                
+            surf = font_obj.render(text, True, color)
             screen.blit(surf, (box_x + int(box_w * 0.04), curr_y))
-            curr_y += int(sh * 0.032)
+            
+            # Dynamischer Zeilenabstand je nach Schriftart
+            if font_obj == title_font:
+                curr_y += int(sh * 0.038)
+            elif font_obj == heading_font:
+                curr_y += int(sh * 0.035)
+            else:
+                curr_y += int(sh * 0.028)
 
         # QR-Code rechts im Kasten anzeigen, falls geladen
         if qr_img:
             qr_x = box_x + box_w - qr_img.get_width() - int(box_w * 0.04)
-            qr_y = box_y + int(box_h * 0.22)
+            qr_y = box_y + int(box_h * 0.20)
             screen.blit(qr_img, (qr_x, qr_y))
             
             # Label unter dem QR-Code
