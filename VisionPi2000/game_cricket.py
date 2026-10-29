@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.8.2"
+VERSION = "1.8.3"
 GAMES = ["Cricket"]
 OPTIONS = [
     "Standard",
@@ -29,34 +29,6 @@ def trigger_victory(ser):
             ser.write(b"LAMP:START:0\n")
             ser.flush()
         except: pass
-
-def force_hw_refresh(display, sync_func):
-    """
-    Zwingt den Display-Mapper dazu, JEDES Segment und JEDES Digit
-    nach TEST:OFF komplett neu an den Arduino zu senden.
-    """
-    time.sleep(0.15)
-    try:
-        # 1. Alle bekannten internen Cache-Variablen des Mappers zurücksetzen
-        for attr in ['last_buffer', 'prev_buffer', 'old_buffer', 'cache', 'sent_buffer']:
-            if hasattr(display, attr):
-                val = getattr(display, attr)
-                if isinstance(val, list):
-                    setattr(display, attr, [[-1 for _ in range(8)] for _ in range(9)])
-                elif isinstance(val, dict):
-                    val.clear()
-        # 2. Den Hauptbuffer einmal komplett auf 0xFF setzen und senden,
-        # damit sich im nächsten Schritt garantiert jedes Byte (auch Nullen/Leerzeichen) ändert!
-        if hasattr(display, 'buffer'):
-            for c in range(len(display.buffer)):
-                for d in range(len(display.buffer[c])):
-                    display.buffer[c][d] = 0xFF
-            if hasattr(display, 'update'):
-                display.update()
-            time.sleep(0.05)
-    except: pass
-    # 3. Jetzt den echten Spielstand sauber neu aufbauen und übertragen
-    sync_func()
 
 def get_bot_hit(marks, slot_targets, p_idx, mode):
     diff = 1 if "Leicht" in mode else (2 if "Mittel" in mode else 3)
@@ -174,48 +146,36 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     def sync_hw_display():
         try:
-            if hasattr(display, 'clear_buffer'):
-                display.clear_buffer()
-            elif hasattr(display, 'buffer'):
-                display.buffer = [[0 for _ in range(8)] for _ in range(9)]
-
-            if hasattr(display, 'set_active_player'):
-                display.set_active_player(active_player - 1)
+            display.clear_buffer()
+            display.set_active_player(active_player - 1)
                 
-            if hasattr(display, 'set_score'):
-                for i in range(8):
-                    display.set_score(i, scores[i] if i < total_players else None)
+            for i in range(8):
+                display.set_score(i, scores[i] if i < total_players else None)
             
             hw_keys = [20, 19, 18, 17, 16, 15]
             for s_idx, hw_key in enumerate(hw_keys):
                 t_val = slot_targets[s_idx]
                 
                 for p in range(total_players):
-                    if hasattr(display, 'set_cricket_marks'):
-                        display.set_cricket_marks(p, hw_key, marks[p][s_idx])
+                    display.set_cricket_marks(p, hw_key, marks[p][s_idx])
                 
                 if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
                     d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
                     if t_val is None:
-                        if hasattr(display, 'set_disp_char'):
-                            display.set_disp_char(d_ten, "-")
-                            display.set_disp_char(d_unit, "-")
+                        display.set_disp_char(d_ten, "-")
+                        display.set_disp_char(d_unit, "-")
                     else:
-                        if hasattr(display, 'set_disp_char'):
-                            t_str = f"{t_val:2d}"
-                            display.set_disp_char(d_ten, t_str[0])
-                            display.set_disp_char(d_unit, t_str[1])
+                        t_str = f"{t_val:2d}"
+                        display.set_disp_char(d_ten, t_str[0])
+                        display.set_disp_char(d_unit, t_str[1])
 
             for p in range(total_players):
-                if hasattr(display, 'set_cricket_marks'):
-                    display.set_cricket_marks(p, 25, marks[p][6])
+                display.set_cricket_marks(p, 25, marks[p][6])
                         
-            if hasattr(display, 'set_temp_score'): display.set_temp_score(round_points)
-            if hasattr(display, 'set_turn'): display.set_turn(round_num)
-            if hasattr(display, 'set_dart_arrows'): display.set_dart_arrows(3 - darts_thrown)
-            
-            if hasattr(display, 'update'):
-                display.update()
+            display.set_temp_score(round_points)
+            display.set_turn(round_num)
+            display.set_dart_arrows(3 - darts_thrown)
+            display.update()
         except: pass
 
     def check_win(p_idx):
@@ -268,10 +228,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 raw_data = None
             elif raw_data == "BTN:PLAYER":
                 if sound_switch: sound_switch.play()
-                if ser:
-                    try: ser.write(b"CLEAR\n"); ser.flush()
-                    except: pass
-                return
+                display.clear_all()
+                return "menu"
 
         elif current_state == "GAME":
             if raw_data == "BTN:PLAYER":
@@ -354,15 +312,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if check_win(p_idx):
                     current_state = "WIN"
                     trigger_victory(ser)
-                    force_hw_refresh(display, sync_hw_display)
+                    # Setzt self.last_sent im Mapper auf -1 zurück und überträgt alle 72 Register neu!
+                    display.clear_all()
+                    sync_hw_display()
 
         elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
             if raw_data == "BTN:PLAYER":
                 if sound_switch: sound_switch.play()
-                if ser:
-                    try: ser.write(b"CLEAR\n"); ser.flush()
-                    except: pass
-                return
+                display.clear_all()
+                return "menu"
             elif raw_data == "BTN:START":
                 if sound_switch: sound_switch.play()
                 if is_pick_it: slot_targets = [None, None, None, None, None, None, 25]
@@ -376,9 +334,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 darts_thrown, active_player, round_num, round_points, switch_delay_timer = 0, 1, 1, 0, 0
                 current_state = "GAME"
                 if ser:
-                    try: ser.write(b"CLEAR\n"); ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
+                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                     except: pass
-                force_hw_refresh(display, sync_hw_display)
+                display.clear_all()
+                sync_hw_display()
                 raw_data = None
 
         if screensaver.check():
@@ -468,7 +427,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 txt_end = title_font.render("> SPIELERWECHSEL = Beenden <", True, RED_COL)
                 screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, menu_y + int(sh * 0.25)))
                 
-            elif current_state == "WIN":
+            if current_state == "WIN":
                 overlay = pygame.Surface((sw, sh))
                 overlay.set_alpha(220)
                 overlay.fill((0, 0, 0))
