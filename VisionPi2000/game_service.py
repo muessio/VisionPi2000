@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.8.3"
+VERSION = "1.8.4"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -97,7 +97,6 @@ def do_wps_connect(screen, font, sw, sh):
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
     
-    # Exakter und getesteter wpa_cli-Befehl für den WPS-Handshake
     subprocess.run("sudo wpa_cli -i wlan0 wps_pbc", shell=True)
     
     start_t = time.time()
@@ -136,10 +135,10 @@ def do_online_update(screen, font, sw, sh, ser, branch):
 
     pygame.quit()
 
+    # Vollständig bereinigter, öffentlicher Aufruf ohne Token-Ballast
     cmd = (
-        'curl -H "Authorization: token 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" '
-        f'https://raw.githubusercontent.com/muessio/VisionPi2000/{branch}/Pi_Setup/Update.sh -o /tmp/Update.sh '
-        f'&& sudo bash /tmp/Update.sh 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 | tee {log_file}'
+        f'curl -s https://raw.githubusercontent.com/muessio/VisionPi2000/{branch}/Pi_Setup/Update.sh -o /tmp/Update.sh '
+        f'&& sudo bash /tmp/Update.sh | tee {log_file}'
     )
 
     os.system(cmd)
