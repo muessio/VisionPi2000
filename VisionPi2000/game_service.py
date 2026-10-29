@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.8.0"
+VERSION = "1.8.1"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -97,10 +97,11 @@ def do_wps_connect(screen, font, sw, sh):
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
     
-    subprocess.run("sudo nmcli device wifi wps pbc", shell=True)
+    # Korrekter WPS-Handshake über wpa_cli für Debian / Raspberry Pi OS
+    subprocess.run("sudo wpa_cli -i wlan0 wps_pbc", shell=True)
     
     start_t = time.time()
-    while time.time() - start_t < 40:
+    while time.time() - start_t < 60:
         pygame.event.pump()
         status = get_wifi_status()
         if "Verbunden" in status:
