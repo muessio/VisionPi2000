@@ -5,22 +5,30 @@ import random
 import time
 import json
 
-VERSION = "1.7.7"
+VERSION = "1.5.0"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 
-def trigger_victory(ser):
+def trigger_victory(ser, display=None):
     if os.path.exists("sounds/victory.wav"):
         try: pygame.mixer.Sound("sounds/victory.wav").play()
         except: pass
-    if ser:
+    if ser or display:
         try:
             for _ in range(6):
-                ser.write(b"TEST:ON\n"); ser.flush(); time.sleep(0.25)
-                ser.write(b"TEST:OFF\n"); ser.flush(); time.sleep(0.25)
-            ser.write(b"LAMP:PLAYER:2\n")
-            ser.write(b"LAMP:START:0\n")
-            ser.flush()
+                if display: display.set_light(True)
+                if ser: ser.write(b"TEST:ON\n"); ser.flush()
+                time.sleep(0.25)
+                
+                if display: display.set_light(False)
+                if ser: ser.write(b"TEST:OFF\n"); ser.flush()
+                time.sleep(0.25)
+                
+            if display: display.set_light(True)
+            if ser:
+                ser.write(b"LAMP:PLAYER:2\n")
+                ser.write(b"LAMP:START:0\n")
+                ser.flush()
         except: pass
 
 def get_bot_hit(target, mode):
@@ -90,7 +98,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     title_font = pygame.font.SysFont("arial", int(sh * 0.035), bold=True)
     big_font = pygame.font.SysFont("arial", int(sh * 0.05), bold=True)
+    
+    win_font_size = int(sh * 0.13) if sh <= 768 else int(sh * 0.23)
+    win_font = pygame.font.SysFont("arial", win_font_size, bold=True)
     giant_font = pygame.font.SysFont("arial", int(sh * 0.23), bold=True)
+    
     HIGHLIGHT, WHITE, RED_COL = (255, 215, 0), (255, 255, 255), (180, 30, 30)
 
     scores = [40] * total_players
@@ -172,7 +184,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if current_round >= len(targets):
                     current_round = len(targets) - 1
                     current_state = "WIN"
-                    trigger_victory(ser)
+                    trigger_victory(ser, display)
                     display.clear_all()
                     sync_hw_display()
                 else:
@@ -300,17 +312,18 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 overlay.fill((0, 0, 0))
                 screen.blit(overlay, (0, 0))
                 
-                win_y = int(sh * 0.25)
-                txt_head = giant_font.render("GEWONNEN!", True, (50, 255, 50))
+                win_y = int(sh * 0.22)
+                txt_head = win_font.render("GEWONNEN!", True, (50, 255, 50))
                 screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
                 
-                txt_winner = big_font.render("Spiel beendet!", True, WHITE)
-                screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.25)))
+                winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
+                txt_winner = big_font.render(f"{winner_name} beendet!", True, WHITE)
+                screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
                 
                 txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
-                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, win_y + int(sh * 0.40)))
+                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, win_y + int(sh * 0.36)))
                 
                 txt_end = title_font.render("> SPIELERWECHSEL = Hauptmenü <", True, RED_COL)
-                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.50)))
+                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.46)))
                 
         pygame.display.flip(); clock.tick(30)
