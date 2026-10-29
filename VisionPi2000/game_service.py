@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.7.7"
+VERSION = "1.7.8"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -123,7 +123,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             raw_bg = pygame.image.load(bg_file).convert()
             bg_img = pygame.transform.scale(raw_bg, (sw, sh))
             darker_overlay = pygame.Surface((sw, sh))
-            darker_overlay.set_alpha(120)
+            darker_overlay.set_alpha(160)
             darker_overlay.fill((0, 0, 0))
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
