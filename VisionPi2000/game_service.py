@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.7.6"
+VERSION = "1.7.7"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -147,7 +147,8 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             
         menu_items = ["Bildschirmformat", "Hardware-Mapper", "System-Update (Online)"]
         sel_item = 0
-        display.clear_all()
+        if display:
+            display.clear_all()
         
         if ser:
             try: 
@@ -193,13 +194,11 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             pygame.display.flip(); clock.tick(30)
             
         settings["mapper"] = settings["mapper"].replace(".py", "")
-        save_settings(settings)
-
+        
         if settings["format"] != old_format or settings["mapper"] != old_mapper:
+            save_settings(settings)
             pygame.quit()
             os.execv(sys.executable, ['python3'] + sys.argv)
-            
-        return "menu" 
 
     else:
         last_hit = "Warte auf Eingabe..."
@@ -240,11 +239,20 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             for e in pygame.event.get():
                 if e.type == pygame.KEYDOWN:
                     if e.key == pygame.K_ESCAPE: running = False
+                    elif e.key == pygame.K_p: raw_data = "BTN:PLAYER"
+                    elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
+                    elif e.key == pygame.K_g: raw_data = "BTN:GREY"
+                    elif e.key == pygame.K_r: raw_data = "BTN:RED"
+                    elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
             if raw_data:
                 if option_name == "Matrix" and raw_data.startswith("HIT:"):
                     last_hit = raw_data.split(":")[1]
                     if last_hit == "-": last_hit = "LEERES FELD (-)"
+                    if raw_data in ["BTN:PLAYER", "BTN:COMBO"]:
+                        running = False
+                elif option_name == "Matrix" and raw_data in ["BTN:PLAYER", "BTN:COMBO"]:
+                    running = False
 
                 elif option_name == "Chip-Test":
                     if raw_data == "BTN:BLUE":
@@ -253,7 +261,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                     elif raw_data == "BTN:GREY":
                         test_digit = (test_digit + 1) % 8
                         if display: display.test_single_chip(test_chip, test_digit, 0xFF)
-                    elif raw_data == "BTN:PLAYER":
+                    elif raw_data in ["BTN:PLAYER", "BTN:COMBO"]:
                         running = False
 
                 elif option_name == "Sensoren":
@@ -261,7 +269,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                         sensor_timers[raw_data] = pygame.time.get_ticks() + 1000
                     if raw_data == "BTN:COMBO": running = False
                 else:
-                    if raw_data == "BTN:PLAYER" or raw_data == "BTN:COMBO": running = False
+                    if raw_data in ["BTN:PLAYER", "BTN:COMBO"]: running = False
 
             if bg_img: screen.blit(bg_img, (0, 0))
             else: screen.fill((0, 0, 0))
@@ -300,21 +308,9 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             pygame.display.flip()
             clock.tick(30)
 
-        if ser:
+        if display:
             try:
-                display.set_light(False)
                 display.clear_all()
-                if hasattr(display, 'update'): 
-                    display.update()
-                
-                # --- WICHTIGER FIX GEGEN DEN NEUSTART ---
-                # Wir warten kurz und spülen dann restlos ALLE Tasten-Preller 
-                # aus dem USB/Seriell-Puffer, bevor wir ans Hauptmenü übergeben.
-                time.sleep(0.3)
-                while ser.in_waiting > 0:
-                    ser.read(ser.in_waiting)
             except: pass
-            
-        pygame.event.clear() # Leert auch noch hängende Tastatur-Events
 
     return "menu"
