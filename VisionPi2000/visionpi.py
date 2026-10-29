@@ -26,8 +26,10 @@ try: import game_spieleanleitung
 except ImportError: game_spieleanleitung = None
 try: import game_service
 except ImportError: game_service = None
+try: import game_about
+except ImportError: game_about = None
 
-VERSION = "1.6.9"
+VERSION = "1.7.0"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -262,7 +264,7 @@ def main():
 
     # --- KUGELSICHERES LADEN DER SPIELE ---
     game_registry = []
-    for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service]:
+    for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service, game_about]:
         if m and hasattr(m, 'GAMES') and hasattr(m, 'OPTIONS'):
             for g in m.GAMES: 
                 game_registry.append({"name": g, "options": m.OPTIONS, "module": m})
@@ -276,14 +278,14 @@ def main():
 
     def update_menu_hardware_display():
         g_name = game_registry[sel_game]["name"] if game_registry else "301"
-        is_service = g_name in ["Service-Menü", "Spieleanleitung"]
-        tot_pl = 1 if is_service else min(8, players + 1 if "Bullseye-Berry" in standard_modes[sel_mode] else players)
+        is_system_menu = g_name in ["Service-Menü", "Spieleanleitung", "Über das Projekt"]
+        tot_pl = 1 if is_system_menu else min(8, players + 1 if "Bullseye-Berry" in standard_modes[sel_mode] else players)
         preview_score = int(g_name) if g_name in ["301", "501", "701"] else (40 if g_name == "Split Score" else (1 if g_name == "Around the Clock" else 0))
         display.clear_buffer()
         for i in range(8):
-            if not is_service and i < tot_pl: display.set_score(i, preview_score); display.set_pl_lamp(i + 1, True)
+            if not is_system_menu and i < tot_pl: display.set_score(i, preview_score); display.set_pl_lamp(i + 1, True)
             else: display.set_score(i, None); display.set_pl_lamp(i + 1, False)
-        display.set_temp_score(None); display.set_turn(tot_pl if not is_service else 0); display.set_dart_arrows(0)
+        display.set_temp_score(None); display.set_turn(tot_pl if not is_system_menu else 0); display.set_dart_arrows(0)
         display.update()
         if ser:
             try:
@@ -306,6 +308,9 @@ def main():
         elif current_game_name == "Spieleanleitung":
             c_opts = game_spieleanleitung.OPTIONS if game_spieleanleitung else ["Anleitung"]
             modes = ["Regeln & Hilfe"]
+        elif current_game_name == "Über das Projekt":
+            c_opts = game_about.OPTIONS if game_about else ["Infos"]
+            modes = ["Projekt & Ziel"]
         else:
             c_opts = game_registry[sel_game]["options"]
             modes = standard_modes
@@ -371,7 +376,8 @@ def main():
                     ("Shanghai", game_shanghai),
                     ("Around the Clock", game_aroundclock),
                     ("Spieleanleitung", game_spieleanleitung),
-                    ("Service-Menü", game_service)
+                    ("Service-Menü", game_service),
+                    ("Über das Projekt", game_about)
                 ]
 
                 for mod_name, mod_obj in modules_to_check:
@@ -400,12 +406,12 @@ def main():
                 elif raw_data == "BTN:BLUE": 
                     sel_option = (sel_option + 1) % len(c_opts)
                 elif raw_data == "BTN:GREY": 
-                    if current_game_name not in ["Service-Menü", "Spieleanleitung"]:
+                    if current_game_name not in ["Service-Menü", "Spieleanleitung", "Über das Projekt"]:
                         sel_mode = (sel_mode + 1) % len(modes)
                         if players == 8:
                             while "Berry" in modes[sel_mode]: sel_mode = (sel_mode + 1) % len(modes)
                 elif raw_data == "BTN:PLAYER": 
-                    if current_game_name not in ["Service-Menü", "Spieleanleitung"]:
+                    if current_game_name not in ["Service-Menü", "Spieleanleitung", "Über das Projekt"]:
                         players = players + 1 if players < 8 else 1
                         if players == 8 and "Berry" in modes[sel_mode]: sel_mode = 0
                 update_menu_hardware_display()
@@ -457,7 +463,7 @@ def main():
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
         # --- FOOTER TEXT POSITIONS-LOGIK ---
-        if current_game_name in ["Service-Menü", "Spieleanleitung"]:
+        if current_game_name in ["Service-Menü", "Spieleanleitung", "Über das Projekt"]:
             screen.blit(big_font.render("System-Funktion", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
             screen.blit(font.render("Wähle eine Option mit Rot/Blau und starte mit START", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
         else:
