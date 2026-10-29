@@ -1,1 +1,0 @@
-curl -s https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Pi_Setup/Update.sh -o Update.sh && chmod +x Update.sh && sudo ./Update.sh
