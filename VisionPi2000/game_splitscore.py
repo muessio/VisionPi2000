@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 
@@ -95,6 +95,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
     sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
     sound_miss = pygame.mixer.Sound("sounds/miss.wav") if os.path.exists("sounds/miss.wav") else None
+    sound_bust = pygame.mixer.Sound("sounds/bust.wav") if os.path.exists("sounds/bust.wav") else None
 
     title_font = pygame.font.SysFont("arial", int(sh * 0.035), bold=True)
     big_font = pygame.font.SysFont("arial", int(sh * 0.05), bold=True)
@@ -232,7 +233,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if darts_thrown == 3 and ser:
                     try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
                     except: pass
-                    if round_points == 0: scores[p_idx] //= 2
+                    if round_points == 0:
+                        scores[p_idx] //= 2
+                        if sound_bust: sound_bust.play()  # <--- Hier ertönt die Burst-Melodie bei Halbierung!
                 
                 sync_hw_display()
 
