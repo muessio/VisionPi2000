@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.8.1"
+VERSION = "1.8.2"
 GAMES = ["Cricket"]
 OPTIONS = [
     "Standard",
@@ -29,6 +29,34 @@ def trigger_victory(ser):
             ser.write(b"LAMP:START:0\n")
             ser.flush()
         except: pass
+
+def force_hw_refresh(display, sync_func):
+    """
+    Zwingt den Display-Mapper dazu, JEDES Segment und JEDES Digit
+    nach TEST:OFF komplett neu an den Arduino zu senden.
+    """
+    time.sleep(0.15)
+    try:
+        # 1. Alle bekannten internen Cache-Variablen des Mappers zurücksetzen
+        for attr in ['last_buffer', 'prev_buffer', 'old_buffer', 'cache', 'sent_buffer']:
+            if hasattr(display, attr):
+                val = getattr(display, attr)
+                if isinstance(val, list):
+                    setattr(display, attr, [[-1 for _ in range(8)] for _ in range(9)])
+                elif isinstance(val, dict):
+                    val.clear()
+        # 2. Den Hauptbuffer einmal komplett auf 0xFF setzen und senden,
+        # damit sich im nächsten Schritt garantiert jedes Byte (auch Nullen/Leerzeichen) ändert!
+        if hasattr(display, 'buffer'):
+            for c in range(len(display.buffer)):
+                for d in range(len(display.buffer[c])):
+                    display.buffer[c][d] = 0xFF
+            if hasattr(display, 'update'):
+                display.update()
+            time.sleep(0.05)
+    except: pass
+    # 3. Jetzt den echten Spielstand sauber neu aufbauen und übertragen
+    sync_func()
 
 def get_bot_hit(marks, slot_targets, p_idx, mode):
     diff = 1 if "Leicht" in mode else (2 if "Mittel" in mode else 3)
@@ -207,6 +235,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     while running:
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
+        is_berrys_turn = (is_berry_game and active_player == total_players)
         
         for event in pygame.event.get():
             if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
@@ -245,8 +274,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 return
 
         elif current_state == "GAME":
-            is_berrys_turn = (is_berry_game and active_player == total_players)
-            
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks(); raw_data = None
             elif raw_data == "IR:DETECT":
@@ -325,26 +352,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 sync_hw_display()
                 
                 if check_win(p_idx):
-                    trigger_victory(ser)
-                    
-                    # =========================================================
-                    # DER SCORE-BOUNCE: Ultimativer Cache-Buster
-                    # Wir zwingen den Display-Mapper dazu, nach dem TEST:OFF
-                    # den finalen Stand nochmal ganz physisch zu übertragen!
-                    # =========================================================
-                    time.sleep(0.5) # Dem Arduino Zeit zum Durchatmen geben
-                    temp_real_score = scores[p_idx]
-                    scores[p_idx] = 999 if temp_real_score != 999 else 998
-                    sync_hw_display() # Flusht Fake-Daten ins Kabel
-                    
-                    time.sleep(0.1)
-                    scores[p_idx] = temp_real_score
-                    sync_hw_display() # Flusht die ECHTEN Daten hart hinterher!
-                    # =========================================================
-                    
                     current_state = "WIN"
+                    trigger_victory(ser)
+                    force_hw_refresh(display, sync_hw_display)
 
-        elif current_state == "WIN":
+        elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
             if raw_data == "BTN:PLAYER":
                 if sound_switch: sound_switch.play()
                 if ser:
@@ -366,7 +378,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if ser:
                     try: ser.write(b"CLEAR\n"); ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                     except: pass
-                sync_hw_display()
+                force_hw_refresh(display, sync_hw_display)
                 raw_data = None
 
         if screensaver.check():
@@ -382,10 +394,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             temp_score_surf = title_font.render(f"Temp Score: {round_points}   |   Pfeile geworfen: {darts_thrown} / 3", True, (200, 200, 200))
             screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.18)))
             
-            if darts_thrown >= 3 and not is_berrys_turn:
+            if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
                 block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
                 screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.25)))
-            elif is_pick_it and None in slot_targets[:6]:
+            elif is_pick_it and None in slot_targets[:6] and current_state == "GAME":
                 pick_hint = title_font.render("YOU PICK IT: Wirf auf eine freie Zahl (1–20), um sie auszuwählen!", True, (50, 255, 50))
                 screen.blit(pick_hint, ((sw - pick_hint.get_width())//2, int(sh*0.25)))
 
@@ -456,24 +468,24 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 txt_end = title_font.render("> SPIELERWECHSEL = Beenden <", True, RED_COL)
                 screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, menu_y + int(sh * 0.25)))
                 
-        elif current_state == "WIN":
-            overlay = pygame.Surface((sw, sh))
-            overlay.set_alpha(220)
-            overlay.fill((0, 0, 0))
-            screen.blit(overlay, (0, 0))
-            
-            win_y = int(sh * 0.25)
-            txt_head = giant_font.render("GEWONNEN!", True, (50, 255, 50))
-            screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
-            
-            winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
-            txt_winner = big_font.render(f"{winner_name} beendet!", True, WHITE)
-            screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.25)))
-            
-            txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
-            screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, win_y + int(sh * 0.40)))
-            
-            txt_end = title_font.render("> SPIELERWECHSEL = Hauptmenü <", True, RED_COL)
-            screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.50)))
+            elif current_state == "WIN":
+                overlay = pygame.Surface((sw, sh))
+                overlay.set_alpha(220)
+                overlay.fill((0, 0, 0))
+                screen.blit(overlay, (0, 0))
+                
+                win_y = int(sh * 0.25)
+                txt_head = giant_font.render("GEWONNEN!", True, (50, 255, 50))
+                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
+                
+                winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
+                txt_winner = big_font.render(f"{winner_name} beendet!", True, WHITE)
+                screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.25)))
+                
+                txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
+                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, win_y + int(sh * 0.40)))
+                
+                txt_end = title_font.render("> SPIELERWECHSEL = Hauptmenü <", True, RED_COL)
+                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.50)))
                 
         pygame.display.flip(); clock.tick(30)
