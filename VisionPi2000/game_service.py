@@ -199,6 +199,8 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             pygame.quit()
             os.execv(sys.executable, ['python3'] + sys.argv)
 
+        return "menu" 
+
     else:
         last_hit = "Warte auf Eingabe..."
         test_chip = 0
@@ -303,8 +305,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 display.set_light(False)
                 display.clear_all()
                 if hasattr(display, 'update'): 
-                    display.update() # <--- Dieser Befehl fehlte in deiner 1.7.5!
+                    display.update()
             except: pass
 
     return "menu"
-    
