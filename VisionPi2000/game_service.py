@@ -6,7 +6,7 @@ import glob
 import subprocess
 import time
 
-VERSION = "1.8.4"
+VERSION = "1.8.5"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -108,6 +108,11 @@ def do_wps_connect(screen, font, sw, sh):
                 res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
                 if res.stdout:
                     ssid = res.stdout.split(":")[1].strip()
+                    
+                    # WICHTIG: Nach erfolgreichem WPS-Handshake das Profil im NetworkManager
+                    # dauerhaft als Autoconnect-Profil festlegen, damit es Reboots überlebt.
+                    subprocess.run(f"sudo nmcli connection modify id '{ssid}' connection.autoconnect yes", shell=True)
+                    
                     settings = load_settings()
                     settings["wifi_ssid"] = ssid
                     save_settings(settings)
