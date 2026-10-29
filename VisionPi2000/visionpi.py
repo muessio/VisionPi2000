@@ -7,6 +7,7 @@ import random
 import time
 import json
 import importlib
+import subprocess
 
 os.environ['SDL_RENDER_SCALE_QUALITY'] = '0'
 
@@ -29,7 +30,7 @@ except ImportError: game_service = None
 try: import game_about
 except ImportError: game_about = None
 
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
@@ -37,7 +38,7 @@ def get_settings_path():
     return "settings.json"
 
 def load_settings():
-    default_settings = {"format": "4:3", "mapper": "display_mapper_Vision_Dart"}
+    default_settings = {"format": "4:3", "mapper": "display_mapper_Vision_Dart", "wifi_ssid": "", "wifi_password": ""}
     path = get_settings_path()
     if not os.path.exists(path): return default_settings
     try:
@@ -48,6 +49,18 @@ def load_settings():
             data["mapper"] = data["mapper"].replace(".py", "")
             return data
     except: return default_settings
+
+def ensure_wifi_connection(settings):
+    ssid = settings.get("wifi_ssid", "")
+    if not ssid:
+        return
+    
+    try:
+        res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
+        if ssid not in res.stdout:
+            subprocess.run(f"nmcli device wifi connect '{ssid}'", shell=True)
+    except Exception as e:
+        print(f"WLAN Auto-Connect Fehler: {e}")
 
 # Hilfsfunktion für robustes, case-insensitives Laden von Bilddateien
 def find_image_file(preferred_names):
@@ -176,6 +189,8 @@ def main():
     pygame.mouse.set_visible(False) 
     
     settings = load_settings()
+    ensure_wifi_connection(settings) # WLAN direkt beim Start prüfen und verbinden
+    
     is_16_9 = (settings.get("format", "4:3") == "16:9")
     mapper_name = settings.get("mapper", "display_mapper_Vision_Dart")
     
@@ -388,7 +403,7 @@ def main():
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
                     cur_y += int(box_h * 0.06)
 
-                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (oder ESC)", True, (255, 215, 0))
+                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (or ESC)", True, (255, 215, 0))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.09)))
 
                 pygame.display.flip()
