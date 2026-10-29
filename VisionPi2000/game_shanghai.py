@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.7.6"
+VERSION = "1.7.7"
 GAMES = ["Shanghai"]
 OPTIONS = ["Standard"]
 
@@ -24,7 +24,7 @@ def trigger_victory(ser):
         except: pass
 
 def get_bot_hit(target, mode):
-    diff = 1 if "Leicht" in mode else (2 if "Mittel" in mode else 3)
+    diff = 1 if "Stufe 1" in mode else (2 if "Stufe 2" in mode else 3)
     if diff == 1: return str(target) if random.random() < 0.3 else str(random.randint(1, 20))
     elif diff == 2: return str(target) if random.random() < 0.7 else f"d{target}"
     else:
@@ -74,11 +74,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         try:
             raw_bg = pygame.image.load(bg_file).convert()
             bg_img = pygame.transform.scale(raw_bg, (sw, sh))
-            darker_overlay = pygame.Surface((sw, sh)); darker_overlay.set_alpha(120); darker_overlay.fill((0, 0, 0))
+            darker_overlay = pygame.Surface((sw, sh)); darker_overlay.set_alpha(160); darker_overlay.fill((0, 0, 0))
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    avatar_path = {"Bullseye-Berry (Leicht)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Mittel)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Schwer)": "Bullseye-Berry_Ninja.png"}.get(mode, "")
+    avatar_path = {"Bullseye-Berry (Stufe 1)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Stufe 2)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Stufe 3)": "Bullseye-Berry_Ninja.png"}.get(mode, "")
     avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
     champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (int(sh*0.45), int(sh*0.45))) if os.path.exists("Bullseye-Berry_Champ.png") else None
 
