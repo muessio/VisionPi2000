@@ -7,7 +7,7 @@ import subprocess
 import time
 import re
 
-VERSION = "1.8.10"
+VERSION = "1.8.11"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -91,7 +91,6 @@ def do_wps_connect(screen, font, sw, sh):
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
     
-    # 1. Temporäre, beschreibbare wpa_supplicant Konfiguration in /tmp (RAM) anlegen
     tmp_wpa = "/tmp/wps_temp.conf"
     try:
         with open(tmp_wpa, "w") as f:
@@ -99,14 +98,12 @@ def do_wps_connect(screen, font, sw, sh):
     except:
         return False
 
-    # 2. NetworkManager und alte wpa_supplicant Prozesse kurz stoppen, Interface freimachen
     run_sudo("systemctl stop NetworkManager")
     run_sudo("systemctl stop wpa_supplicant")
     run_sudo("killall wpa_supplicant")
     run_sudo("rm -rf /var/run/wpa_supplicant/wlan0")
     time.sleep(0.5)
     
-    # 3. Eigenen wpa_supplicant mit unserer /tmp-Config starten und WPS auslösen
     run_sudo(f"wpa_supplicant -B -i wlan0 -c {tmp_wpa}")
     time.sleep(1.5)
     run_sudo("wpa_cli -i wlan0 wps_pbc")
@@ -120,7 +117,6 @@ def do_wps_connect(screen, font, sw, sh):
         pygame.event.pump()
         res = subprocess.run("sudo wpa_cli -i wlan0 status", shell=True, capture_output=True, text=True)
         if "wpa_state=COMPLETED" in res.stdout:
-            # Verbindung steht! Jetzt Config in /tmp/wps_temp.conf herausschreiben lassen
             run_sudo("wpa_cli -i wlan0 save_config")
             time.sleep(0.5)
             run_sudo(f"chmod 644 {tmp_wpa}")
@@ -138,23 +134,18 @@ def do_wps_connect(screen, font, sw, sh):
             break
         time.sleep(1)
 
-    # 4. Temporären wpa_supplicant beenden und NetworkManager wieder sauber starten
     run_sudo("killall wpa_supplicant")
     run_sudo(f"rm -f {tmp_wpa}")
     run_sudo("systemctl start wpa_supplicant")
     run_sudo("systemctl start NetworkManager")
-    
-    # Warten bis NetworkManager wieder bereit ist
     time.sleep(4)
     
     if wps_ok and ssid_found and psk_found:
-        # 5. SSID und extrahierten PSK dauerhaft auf der Boot-Partition in settings.json speichern
         settings = load_settings()
         settings["wifi_ssid"] = ssid_found
         settings["wifi_password"] = psk_found
         save_settings(settings)
         
-        # 6. Sofort über NetworkManager mit robustem Fallback verbinden
         run_sudo("nmcli device disconnect wlan0")
         run_sudo("nmcli device wifi rescan")
         time.sleep(2)
@@ -263,10 +254,10 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 elif ev.type == pygame.KEYDOWN:
                     if ev.key == pygame.K_r: raw_data = "BTN:RED"
                     elif ev.key == pygame.K_b: raw_data = "BTN:BLUE"
-                    elif ev.key == pygame.K_SPACE: raw_data = "BTN:START"
+                    elif ev.key == pygame.K_p: raw_data = "BTN:PLAYER"
 
             if raw_data:
-                if raw_data == "BTN:START": running = False
+                if raw_data == "BTN:PLAYER": running = False  # Spielerwechsel beendet / verlässt das Untermenü
                 elif raw_data == "BTN:RED": sel_item = (sel_item + 1) % len(menu_items)
                 elif raw_data == "BTN:BLUE":
                     if sel_item == 0: settings["format"] = available_formats[(available_formats.index(settings["format"]) + 1) % len(available_formats)]
@@ -289,7 +280,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 screen.blit(font.render(f"{prefix}{item}: {value}", True, color), (int(sw * 0.15), y_pos))
                 y_pos += int(sh * 0.08)
                 
-            h_surf = small_font.render("ROT: Auswählen | BLAU: Wert ändern/Aktion | START: Speichern & Zurück", True, (150, 150, 150))
+            h_surf = small_font.render("ROT: Auswählen | BLAU: Wert ändern/Aktion | SPIELERWECHSEL: Speichern & Zurück", True, (150, 150, 150))
             draw_centered(h_surf, int(sh * 0.82))
             pygame.display.flip(); clock.tick(30)
             
@@ -319,10 +310,10 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 if ev.type == pygame.QUIT or (ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE): running = False
                 elif ev.type == pygame.KEYDOWN:
                     if ev.key == pygame.K_b: raw_data = "BTN:BLUE"
-                    elif ev.key == pygame.K_SPACE: raw_data = "BTN:START"
+                    elif ev.key == pygame.K_p: raw_data = "BTN:PLAYER"
 
             if raw_data:
-                if raw_data == "BTN:START": running = False
+                if raw_data == "BTN:PLAYER": running = False  # Zurück ins Menü
                 elif raw_data == "BTN:BLUE":
                     success = do_wps_connect(screen, font, sw, sh)
                     wifi_msg = get_wifi_status() if success else "WPS Zeitüberschreitung / Fehler"
@@ -341,7 +332,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
             btn_surf = font.render("[ BLAU drücken: WPS-Kopplung starten ]", True, HIGHLIGHT)
             draw_centered(btn_surf, int(sh * 0.54))
             
-            h_surf = small_font.render("BLAU: WPS starten | START: Zurück ins Menü", True, (150, 150, 150))
+            h_surf = small_font.render("BLAU: WPS starten | SPIELERWECHSEL: Zurück ins Menü", True, (150, 150, 150))
             draw_centered(h_surf, int(sh * 0.82))
             pygame.display.flip(); clock.tick(30)
 
@@ -388,15 +379,14 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                     elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
                     elif e.key == pygame.K_g: raw_data = "BTN:GREY"
                     elif e.key == pygame.K_r: raw_data = "BTN:RED"
-                    elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
             if raw_data:
                 if option_name == "Matrix" and raw_data.startswith("HIT:"):
                     last_hit = raw_data.split(":")[1]
                     if last_hit == "-": last_hit = "LEERES FELD (-)"
-                    if raw_data in ["BTN:PLAYER", "BTN:COMBO"]:
+                    if raw_data == "BTN:PLAYER":
                         running = False
-                elif option_name == "Matrix" and raw_data in ["BTN:PLAYER", "BTN:COMBO"]:
+                elif option_name == "Matrix" and raw_data == "BTN:PLAYER":
                     running = False
 
                 elif option_name == "Chip-Test":
@@ -406,15 +396,15 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                     elif raw_data == "BTN:GREY":
                         test_digit = (test_digit + 1) % 8
                         if display: display.test_single_chip(test_chip, test_digit, 0xFF)
-                    elif raw_data in ["BTN:PLAYER", "BTN:COMBO"]:
+                    elif raw_data == "BTN:PLAYER":
                         running = False
 
                 elif option_name == "Sensoren":
                     if raw_data in sensor_timers:
                         sensor_timers[raw_data] = pygame.time.get_ticks() + 1000
-                    if raw_data == "BTN:COMBO": running = False
+                    if raw_data == "BTN:PLAYER": running = False
                 else:
-                    if raw_data in ["BTN:PLAYER", "BTN:COMBO"]: running = False
+                    if raw_data == "BTN:PLAYER": running = False
 
             if bg_img: screen.blit(bg_img, (0, 0))
             else: screen.fill((0, 0, 0))
@@ -448,7 +438,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                     state_text = "AKTIV" if is_active else "Inaktiv"
                     draw_centered(big_font.render(f"{name}: {state_text}", True, c), y_sens)
                     y_sens += int(sh*0.07)
-                draw_centered(title_font.render("Zum Beenden: COMBO (Rot+Blau+Grau) halten", True, RED_COL), y_sens + int(sh*0.05))
+                draw_centered(title_font.render("Zum Beenden: Spielerwechsel-Taste drücken", True, RED_COL), y_sens + int(sh*0.05))
 
             pygame.display.flip()
             clock.tick(30)
