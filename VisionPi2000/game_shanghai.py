@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.5.0"
+VERSION = "1.1.0"
 GAMES = ["Shanghai"]
 OPTIONS = ["Standard"]
 
