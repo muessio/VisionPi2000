@@ -30,7 +30,7 @@ except ImportError: game_service = None
 try: import game_about
 except ImportError: game_about = None
 
-VERSION = "1.1.0"
+VERSION = "1.0.9"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
