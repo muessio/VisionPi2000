@@ -5,8 +5,9 @@ import sys
 import glob
 import subprocess
 import time
+import re
 
-VERSION = "1.8.5"
+VERSION = "1.8.6"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -26,34 +27,27 @@ def get_boot_dir():
     if os.path.exists("/boot"): return "/boot"
     return "."
 
-def get_local_settings_path():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
-
 def get_boot_settings_path():
     return os.path.join(get_boot_dir(), "settings.json")
 
 def load_settings():
     boot_path = get_boot_settings_path()
-    local_path = get_local_settings_path()
-    
-    for path in [boot_path, local_path]:
-        if os.path.exists(path):
-            try:
-                with open(path, "r") as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        for k, v in DEFAULT_SETTINGS.items():
-                            if k not in data: data[k] = v
-                        return data
-            except:
-                pass
+    if os.path.exists(boot_path):
+        try:
+            with open(boot_path, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    for k, v in DEFAULT_SETTINGS.items():
+                        if k not in data: data[k] = v
+                    return data
+        except:
+            pass
     save_settings(DEFAULT_SETTINGS.copy())
     return DEFAULT_SETTINGS.copy()
 
 def save_settings(settings):
     boot_dir = get_boot_dir()
     boot_path = get_boot_settings_path()
-    local_path = get_local_settings_path()
     tmp_path = "/tmp/visionpi_settings.json"
 
     try:
@@ -67,13 +61,13 @@ def save_settings(settings):
         try:
             run_sudo(f'mount -o remount,rw {boot_dir}')
             run_sudo(f'cp -f {tmp_path} {boot_path}')
+            run_sudo('sync')
+            run_sudo(f'mount -o remount,ro {boot_dir}')
         except: pass
-
-    try:
-        run_sudo(f'rm -f {local_path}')
-        run_sudo(f'cp -f {tmp_path} {local_path}')
-        run_sudo(f'chown visionpi2000:visionpi2000 {local_path}')
-    except: pass
+    else:
+        try:
+            run_sudo(f'cp -f {tmp_path} {boot_path}')
+        except: pass
 
 def get_available_mappers():
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -84,7 +78,7 @@ def get_wifi_status():
     try:
         res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
         if res.stdout:
-            ssid = res.stdout.split(":")[1].strip()
+            ssid = res.stdout.split(":", 1)[1].strip()
             ip_res = subprocess.run("hostname -I", shell=True, capture_output=True, text=True)
             ip = ip_res.stdout.split()[0] if ip_res.stdout else "Keine IP"
             return f"Verbunden ({ssid}) [IP: {ip}]"
@@ -97,25 +91,78 @@ def do_wps_connect(screen, font, sw, sh):
     screen.blit(info_surf, ((sw - info_surf.get_width()) // 2, sh // 2 - 30))
     pygame.display.flip()
     
-    # Interface kurz für wpa_cli freigeben und WPS-Handshake starten
-    subprocess.run("sudo nmcli device disconnect wlan0", shell=True)
-    subprocess.run("sudo wpa_cli -i wlan0 wps_pbc", shell=True)
+    # 1. Temporäre, beschreibbare wpa_supplicant Konfiguration in /tmp (RAM) anlegen
+    tmp_wpa = "/tmp/wps_temp.conf"
+    try:
+        with open(tmp_wpa, "w") as f:
+            f.write("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\nupdate_config=1\n")
+    except:
+        return False
+
+    # 2. NetworkManager und alte wpa_supplicant Prozesse kurz stoppen, Interface freimachen
+    run_sudo("systemctl stop NetworkManager")
+    run_sudo("systemctl stop wpa_supplicant")
+    run_sudo("killall wpa_supplicant")
+    run_sudo("rm -rf /var/run/wpa_supplicant/wlan0")
+    time.sleep(0.5)
+    
+    # 3. Eigenen wpa_supplicant mit unserer /tmp-Config starten und WPS auslösen
+    run_sudo(f"wpa_supplicant -B -i wlan0 -c {tmp_wpa}")
+    time.sleep(1.5)
+    run_sudo("wpa_cli -i wlan0 wps_pbc")
+    
+    wps_ok = False
+    ssid_found = ""
+    psk_found = ""
     
     start_t = time.time()
     while time.time() - start_t < 60:
         pygame.event.pump()
-        status = get_wifi_status()
-        if "Verbunden" in status:
+        res = subprocess.run("sudo wpa_cli -i wlan0 status", shell=True, capture_output=True, text=True)
+        if "wpa_state=COMPLETED" in res.stdout:
+            # Verbindung steht! Jetzt Config in /tmp/wps_temp.conf herausschreiben lassen
+            run_sudo("wpa_cli -i wlan0 save_config")
+            time.sleep(0.5)
+            run_sudo(f"chmod 644 {tmp_wpa}")
             try:
-                res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
-                if res.stdout:
-                    ssid = res.stdout.split(":")[1].strip()
-                    settings = load_settings()
-                    settings["wifi_ssid"] = ssid
-                    save_settings(settings)
-            except: pass
-            return True
+                with open(tmp_wpa, "r") as f:
+                    content = f.read()
+                m_ssid = re.search(r'ssid="([^"]+)"', content)
+                # psk kann in Anführungszeichen (Passphrase) oder ohne (64-stelliger Hex-Key) stehen
+                m_psk = re.search(r'psk=(?:"([^"]+)"|([0-9a-fA-F]{64}))', content)
+                if m_ssid and m_psk:
+                    ssid_found = m_ssid.group(1)
+                    psk_found = m_psk.group(1) if m_psk.group(1) else m_psk.group(2)
+                    wps_ok = True
+            except:
+                pass
+            break
         time.sleep(1)
+
+    # 4. Temporären wpa_supplicant beenden und NetworkManager wieder sauber starten
+    run_sudo("killall wpa_supplicant")
+    run_sudo(f"rm -f {tmp_wpa}")
+    run_sudo("systemctl start wpa_supplicant")
+    run_sudo("systemctl start NetworkManager")
+    
+    # Warten bis NetworkManager wieder bereit ist
+    time.sleep(4)
+    
+    if wps_ok and ssid_found and psk_found:
+        # 5. SSID und extrahierten PSK dauerhaft auf der Boot-Partition in settings.json speichern
+        settings = load_settings()
+        settings["wifi_ssid"] = ssid_found
+        settings["wifi_password"] = psk_found
+        save_settings(settings)
+        
+        # 6. Sofort über NetworkManager mit den neuen Daten verbinden (verdrängt das alte WLAN)
+        run_sudo("nmcli device disconnect wlan0")
+        run_sudo("nmcli device wifi rescan")
+        time.sleep(2)
+        run_sudo(f'nmcli device wifi connect "{ssid_found}" password "{psk_found}"')
+        time.sleep(2)
+        return True
+        
     return False
 
 def do_online_update(screen, font, sw, sh, ser, branch):
@@ -137,7 +184,6 @@ def do_online_update(screen, font, sw, sh, ser, branch):
 
     pygame.quit()
 
-    # Vollständig bereinigter, öffentlicher Aufruf ohne Token
     cmd = (
         f'curl -s https://raw.githubusercontent.com/muessio/VisionPi2000/{branch}/Pi_Setup/Update.sh -o /tmp/Update.sh '
         f'&& sudo bash /tmp/Update.sh | tee {log_file}'
@@ -253,6 +299,7 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
 
     elif option_name == "WLAN & WPS":
         wifi_msg = get_wifi_status()
+        saved_ssid = load_settings().get("wifi_ssid", "") or "Keine hinterlegt"
         if display: display.clear_all()
         
         if ser:
@@ -275,17 +322,21 @@ def run_game(screen, ser, display, players, game_name, option_name, mode_name):
                 if raw_data == "BTN:START": running = False
                 elif raw_data == "BTN:BLUE":
                     success = do_wps_connect(screen, font, sw, sh)
-                    wifi_msg = "WPS erfolgreich verbunden!" if success else "WPS Zeitüberschreitung / Fehler"
+                    wifi_msg = get_wifi_status() if success else "WPS Zeitüberschreitung / Fehler"
+                    saved_ssid = load_settings().get("wifi_ssid", "") or "Keine hinterlegt"
 
             screen.fill((15, 15, 30))
             t_surf = title_font.render("WLAN & WPS EINSTELLUNGEN", True, HIGHLIGHT)
             draw_centered(t_surf, int(sh * 0.15))
             
             stat_surf = font.render(f"Status: {wifi_msg}", True, GREEN if "Verbunden" in wifi_msg else WHITE)
-            draw_centered(stat_surf, int(sh * 0.35))
+            draw_centered(stat_surf, int(sh * 0.32))
+            
+            cfg_surf = small_font.render(f"Gespeichert in settings.json: {saved_ssid}", True, (180, 180, 180))
+            draw_centered(cfg_surf, int(sh * 0.40))
             
             btn_surf = font.render("[ BLAU drücken: WPS-Kopplung starten ]", True, HIGHLIGHT)
-            draw_centered(btn_surf, int(sh * 0.50))
+            draw_centered(btn_surf, int(sh * 0.54))
             
             h_surf = small_font.render("BLAU: WPS starten | START: Zurück ins Menü", True, (150, 150, 150))
             draw_centered(h_surf, int(sh * 0.82))
