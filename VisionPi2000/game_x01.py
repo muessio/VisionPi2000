@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.5.0"
+VERSION = "1.1.0"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
