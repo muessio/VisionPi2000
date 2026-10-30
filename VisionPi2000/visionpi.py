@@ -30,38 +30,60 @@ except ImportError: game_service = None
 try: import game_about
 except ImportError: game_about = None
 
-VERSION = "1.7.4"
+VERSION = "1.7.5"
 
 def get_settings_path():
-    if os.path.exists("/boot/firmware/settings.json"): return "/boot/firmware/settings.json"
-    if os.path.exists("/boot/settings.json"): return "/boot/settings.json"
+    if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
+    if os.path.exists("/boot"): return "/boot/settings.json"
     return "settings.json"
 
 def load_settings():
-    default_settings = {"format": "4:3", "mapper": "display_mapper_Vision_Dart", "wifi_ssid": "", "wifi_password": ""}
+    default_settings = {
+        "format": "4:3", 
+        "mapper": "display_mapper_Vision_Dart", 
+        "branch": "stable",
+        "wifi_ssid": "", 
+        "wifi_password": ""
+    }
     path = get_settings_path()
     if not os.path.exists(path): return default_settings
     try:
         with open(path, "r") as f:
             data = json.load(f)
-            for k, v in default_settings.items():
-                if k not in data: data[k] = v
-            data["mapper"] = data["mapper"].replace(".py", "")
-            return data
-    except: return default_settings
+            if isinstance(data, dict):
+                for k, v in default_settings.items():
+                    if k not in data: data[k] = v
+                data["mapper"] = data["mapper"].replace(".py", "")
+                return data
+    except:
+        pass
+    return default_settings
 
 def ensure_wifi_connection(settings):
-    ssid = settings.get("wifi_ssid", "")
+    ssid = settings.get("wifi_ssid", "").strip()
+    password = settings.get("wifi_password", "").strip()
     if not ssid:
         return
     
     try:
-        # Prüfen, ob NetworkManager bereits mit der korrekten SSID verbunden ist
+        # Prüfen, mit welchem WLAN NetworkManager aktuell verbunden ist
         res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
-        if ssid not in res.stdout:
+        current_ssid = res.stdout.split(":", 1)[1].strip() if res.stdout and ":" in res.stdout else ""
+        
+        if current_ssid != ssid:
             print(f"Erzwinge Verbindung mit WLAN aus settings.json: {ssid}...")
-            # Nur die SSID aus der settings.json anfordern (ohne generelles hartes Trennen im Boot-Prozess)
-            subprocess.run(f"nmcli device wifi connect '{ssid}'", shell=True)
+            # Falls er sich mit dem alten Image-WLAN verbunden hat, dieses trennen
+            if current_ssid:
+                subprocess.run(f'sudo nmcli connection modify id "{current_ssid}" connection.autoconnect no >/dev/null 2>&1', shell=True)
+                subprocess.run("sudo nmcli device disconnect wlan0 >/dev/null 2>&1", shell=True)
+            
+            subprocess.run("sudo nmcli device wifi rescan >/dev/null 2>&1", shell=True)
+            time.sleep(2)
+            
+            if password:
+                subprocess.run(f'sudo nmcli device wifi connect "{ssid}" password "{password}" >/dev/null 2>&1', shell=True)
+            else:
+                subprocess.run(f'sudo nmcli device wifi connect "{ssid}" >/dev/null 2>&1', shell=True)
     except Exception as e:
         print(f"WLAN Auto-Connect Fehler: {e}")
 
@@ -70,12 +92,10 @@ def find_image_file(preferred_names):
     if isinstance(preferred_names, str):
         preferred_names = [preferred_names]
     
-    # 1. Exakte Suche prüfen
     for name in preferred_names:
         if os.path.exists(name):
             return name
             
-    # 2. Groß-/Kleinschreibung im Verzeichnis ignorieren (Linux/Pi Fix)
     try:
         files = os.listdir('.')
         files_lower = {f.lower(): f for f in files}
@@ -89,15 +109,13 @@ def find_image_file(preferred_names):
 class ScreenSaver:
     def __init__(self, width, height, is_16_9):
         self.width, self.height = width, height
-        self.timeout = 10 * 60 * 1000  # 10 Minuten Inaktivität bis Start
+        self.timeout = 10 * 60 * 1000  
         self.last_activity = pygame.time.get_ticks()
         self.active = False
         
-        # Zustandssteuerung für den Wechsel-Modus (Animation vs. Statisches Bild)
         self.state = "ANIMATION"
         self.state_timer = pygame.time.get_ticks()
         
-        # Bullseye Berries Animation laden
         self.avatars = []
         berry_files = ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]
         for file in berry_files:
@@ -109,7 +127,6 @@ class ScreenSaver:
                 except: pass
         self.font = pygame.font.SysFont("arial", int(height * 0.026), bold=True)
 
-        # Standby-Bild formatabhängig laden (mit intelligentem Fallback)
         if is_16_9:
             candidates = ["Screensaver_16_9.jpg", "screensaver_16_9.jpg", "Screensaver_16_9.png", "screensaver_16_9.png", "Screensaver.jpg", "Screensaver.png"]
         else:
@@ -144,7 +161,6 @@ class ScreenSaver:
         
         current_time = pygame.time.get_ticks()
         
-        # Zeitgesteuerter Wechsel: 60 Sekunden Animation, danach 30 Sekunden statisches Bild
         if self.state == "ANIMATION":
             if current_time - self.state_timer > 60000:
                 self.state = "IMAGE"
@@ -192,7 +208,7 @@ def main():
     pygame.mouse.set_visible(False) 
     
     settings = load_settings()
-    ensure_wifi_connection(settings) # WLAN direkt beim Start prüfen und erzwingen
+    ensure_wifi_connection(settings) 
     
     is_16_9 = (settings.get("format", "4:3") == "16:9")
     mapper_name = settings.get("mapper", "display_mapper_Vision_Dart")
@@ -208,14 +224,12 @@ def main():
     sound_click = pygame.mixer.Sound("sounds/click.wav") if os.path.exists("sounds/click.wav") else None
     sound_start = pygame.mixer.Sound("sounds/start.wav") if os.path.exists("sounds/start.wav") else None
         
-    # --- SEITENVERHÄLTNIS ERZWINGEN ---
     if is_16_9:
         TARGET_WIDTH, TARGET_HEIGHT = 1920, 1080
     else:
         TARGET_WIDTH, TARGET_HEIGHT = 1024, 768
 
     screen = pygame.display.set_mode((TARGET_WIDTH, TARGET_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
-    # ----------------------------------
     
     ser = init_serial()
     display = LoewenDisplay(ser) 
@@ -224,7 +238,6 @@ def main():
 
     screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT, is_16_9)
 
-    # --- HINTERGRUND LÄDT (Kugelsicher) ---
     bg_candidates = ["background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.png", "Background.png", "background.PNG"]
     bg_file = find_image_file(bg_candidates)
     bg_img = None
@@ -237,7 +250,6 @@ def main():
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    # --- HEADER BILD LÄDT (Kugelsicher, 15% vergrößert) ---
     header_file = find_image_file(["header.png", "Header.png", "HEADER.png"])
     header_img = None
     if header_file:
@@ -248,7 +260,6 @@ def main():
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
         except: pass
 
-    # --- START BILD LÄDT (Kugelsicher für 16:9 und 4:3) ---
     start_candidates = ["Start_16_9.jpg", "start_16_9.jpg", "Start_16_9.JPG", "Start16_9.jpg"] if is_16_9 else ["Start.jpg", "start.jpg", "Start.JPG"]
     start_file = find_image_file(start_candidates)
     if start_file:
@@ -275,12 +286,10 @@ def main():
     title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.026), bold=True)
     big_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.04), bold=True)
     
-    # Großes Info-Schrift (doppelt so groß)
     info_title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.042), bold=True)
     info_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.032), bold=True)
     info_hint_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.035), bold=True)
 
-    # --- KUGELSICHERES LADEN DER SPIELE ---
     game_registry = []
     for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service, game_about]:
         if m and hasattr(m, 'GAMES') and hasattr(m, 'OPTIONS'):
@@ -288,7 +297,6 @@ def main():
                 game_registry.append({"name": g, "options": m.OPTIONS, "module": m})
         elif m:
             print(f"Warnung: Modul {m.__name__} übersprungen (GAMES oder OPTIONS fehlt)")
-    # --------------------------------------
 
     standard_modes = ["Normales Spiel", "Bullseye-Berry (Stufe 1)", "Bullseye-Berry (Stufe 2)", "Bullseye-Berry (Stufe 3)", "Team-Modus"]
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
@@ -319,7 +327,6 @@ def main():
         g_list = [g["name"] for g in game_registry]
         current_game_name = g_list[sel_game] if g_list else ""
         
-        # Dynamische Optionen & Modi je nach ausgewähltem Spiel
         if current_game_name == "Service-Menü":
             c_opts = game_service.OPTIONS if game_service else ["Einstellungen"]
             modes = ["Konfiguration & Tests"]
@@ -333,7 +340,6 @@ def main():
             c_opts = game_registry[sel_game]["options"]
             modes = standard_modes
 
-        # Begrenze die Indizes, falls sie durch den Wechsel über den Rand laufen
         if sel_option >= len(c_opts): sel_option = 0
         if sel_mode >= len(modes): sel_mode = 0
 
@@ -460,7 +466,6 @@ def main():
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
         
-        # --- HEADER GANZ NACH OBEN GESCHOBEN ---
         header_y_pos = 0 
         if header_img: 
             screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
@@ -468,7 +473,6 @@ def main():
             hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
             screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 10))
         
-        # --- MENÜBOXEN (ROT, BLAU, GRAU) ---
         cw = int(TARGET_WIDTH * 0.28)
         ch = int(TARGET_HEIGHT * 0.48)  
         pad = int(TARGET_WIDTH * 0.03)
@@ -480,7 +484,6 @@ def main():
         draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
         draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
 
-        # --- FOOTER TEXT POSITIONS-LOGIK ---
         if current_game_name in ["Service-Menü", "Spieleanleitung", "Über das Projekt"]:
             screen.blit(big_font.render("System-Funktion", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
             screen.blit(font.render("Wähle eine Option mit Rot/Blau und starte mit START", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
