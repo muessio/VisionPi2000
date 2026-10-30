@@ -30,7 +30,7 @@ except ImportError: game_service = None
 try: import game_about
 except ImportError: game_about = None
 
-VERSION = "1.7.5"
+VERSION = "1.7.8"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
@@ -66,13 +66,11 @@ def ensure_wifi_connection(settings):
         return
     
     try:
-        # Prüfen, mit welchem WLAN NetworkManager aktuell verbunden ist
         res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
         current_ssid = res.stdout.split(":", 1)[1].strip() if res.stdout and ":" in res.stdout else ""
         
         if current_ssid != ssid:
             print(f"Erzwinge Verbindung mit WLAN aus settings.json: {ssid}...")
-            # Falls er sich mit dem alten Image-WLAN verbunden hat, dieses trennen
             if current_ssid:
                 subprocess.run(f'sudo nmcli connection modify id "{current_ssid}" connection.autoconnect no >/dev/null 2>&1', shell=True)
                 subprocess.run("sudo nmcli device disconnect wlan0 >/dev/null 2>&1", shell=True)
@@ -87,7 +85,6 @@ def ensure_wifi_connection(settings):
     except Exception as e:
         print(f"WLAN Auto-Connect Fehler: {e}")
 
-# Hilfsfunktion für robustes, case-insensitives Laden von Bilddateien
 def find_image_file(preferred_names):
     if isinstance(preferred_names, str):
         preferred_names = [preferred_names]
@@ -286,9 +283,10 @@ def main():
     title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.026), bold=True)
     big_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.04), bold=True)
     
-    info_title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.042), bold=True)
+    # Korrigierte Schriftgrößen für das Systeminfo-Fenster
+    info_title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.034), bold=True)
     info_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.032), bold=True)
-    info_hint_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.035), bold=True)
+    info_hint_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.033), bold=True)
 
     game_registry = []
     for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service, game_about]:
@@ -412,7 +410,8 @@ def main():
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
                     cur_y += int(box_h * 0.06)
 
-                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken (or ESC)", True, (255, 215, 0))
+                # Ohne "(or ESC)" und mit angepasster Schriftgröße
+                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken", True, (255, 215, 0))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.09)))
 
                 pygame.display.flip()
