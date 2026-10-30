@@ -1,4 +1,6 @@
 # Datei: display_mapper_Vision_Dart.py
+# Version: 1.1.0
+
 import time
 
 class LoewenDisplay:
