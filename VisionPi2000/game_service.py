@@ -7,7 +7,7 @@ import subprocess
 import time
 import re
 
-VERSION = "1.8.6"
+VERSION = "1.8.10"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
@@ -128,7 +128,6 @@ def do_wps_connect(screen, font, sw, sh):
                 with open(tmp_wpa, "r") as f:
                     content = f.read()
                 m_ssid = re.search(r'ssid="([^"]+)"', content)
-                # psk kann in Anführungszeichen (Passphrase) oder ohne (64-stelliger Hex-Key) stehen
                 m_psk = re.search(r'psk=(?:"([^"]+)"|([0-9a-fA-F]{64}))', content)
                 if m_ssid and m_psk:
                     ssid_found = m_ssid.group(1)
@@ -155,11 +154,15 @@ def do_wps_connect(screen, font, sw, sh):
         settings["wifi_password"] = psk_found
         save_settings(settings)
         
-        # 6. Sofort über NetworkManager mit den neuen Daten verbinden (verdrängt das alte WLAN)
+        # 6. Sofort über NetworkManager mit robustem Fallback verbinden
         run_sudo("nmcli device disconnect wlan0")
         run_sudo("nmcli device wifi rescan")
         time.sleep(2)
-        run_sudo(f'nmcli device wifi connect "{ssid_found}" password "{psk_found}"')
+        
+        connect_res = subprocess.run(f'sudo nmcli device wifi connect "{ssid_found}" password "{psk_found}"', shell=True, capture_output=True)
+        if connect_res.returncode != 0:
+            run_sudo(f'nmcli connection up "{ssid_found}"')
+            
         time.sleep(2)
         return True
         
