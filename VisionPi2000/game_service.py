@@ -7,7 +7,7 @@ import subprocess
 import time
 import re
 
-VERSION = "1.8.11"
+VERSION = "1.1.0"
 GAMES = ["Service-Menü"]
 OPTIONS = ["Einstellungen & Update", "WLAN & WPS", "Display & Lampen", "Matrix", "Sensoren", "Chip-Test"]
 
