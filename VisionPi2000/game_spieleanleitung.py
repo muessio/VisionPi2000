@@ -3,7 +3,7 @@ import os
 import random
 import json
 
-VERSION = "1.3.0"
+VERSION = "1.1.0"
 GAMES = ["Spieleanleitung"]
 OPTIONS = [
     "301 / 501 / 701 (X01)", 

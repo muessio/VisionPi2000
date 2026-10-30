@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.5.1"
+VERSION = "1.1.0"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 

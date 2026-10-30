@@ -5,7 +5,7 @@ import os
 
 os.makedirs("sounds", exist_ok=True)
 
-VERSION = "1.4.0"
+VERSION = "1.1.0"
 
 def save_wav(filename, audio_data, sample_rate=44100):
     with wave.open(filename, 'w') as f:
