@@ -1,6 +1,6 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Öffentliches UPDATE-Skript (Mit Boot-Partition MQTT-Fallback)
+# VisionPi2000 - Öffentliches UPDATE-Skript (Mit OverlayFS-konformem apt)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -17,37 +17,21 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
     exit 1
 fi
 
-# Boot-Verzeichnis ermitteln
-BOOT_DIR="/boot/firmware"
-if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
-
-if [ ! -f "$BOOT_DIR/settings.json" ]; then
-    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart", "branch": "stable", "mqtt_broker": "broker.emqx.io"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
-    sudo chmod 666 "$BOOT_DIR/settings.json"
-fi
-
-# =====================================================================
-# MQTT-FALLBACK DIREKT AUF DER BOOT-PARTITION (Läuft immer garantiert!)
-# =================python3-paho-mqtt lokal vorbereiten=================
-if ! python3 -c "import paho.mqtt.client" >/dev/null 2>&1; then
-    echo "paho-mqtt Modul nicht im System gefunden. Installiere es direkt auf der Boot-Partition..."
-    sudo mkdir -p "$BOOT_DIR/python_libs"
-    # Wir laden das paho-mqtt Paket via pip direkt in den offenen Boot-Ordner herunter
-    sudo pip3 install paho-mqtt --target="$BOOT_DIR/python_libs" --no-deps >/dev/null 2>&1
-    
-    # Python-Pfad dauerhaft für den Benutzer in der .bashrc oder Umgebung hinterlegen
-    if ! grep -q "python_libs" /home/visionpi2000/.bashrc; then
-        echo 'export PYTHONPATH="$PYTHONPATH:/boot/firmware/python_libs"' >> /home/visionpi2000/.bashrc
-        echo 'export PYTHONPATH="$PYTHONPATH:/boot/python_libs"' >> /home/visionpi2000/.bashrc
-    fi
-fi
-
 # Sounds direkt im schnellen RAM vorab generieren
 echo "Generiere Sounds im RAM..."
 cd /tmp/VisionPiRepoUpdate/VisionPi2000
 mkdir -p sounds
 if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
+fi
+
+# Boot-Verzeichnis für settings.json ermitteln
+BOOT_DIR="/boot/firmware"
+if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
+
+if [ ! -f "$BOOT_DIR/settings.json" ]; then
+    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart", "branch": "stable", "mqtt_broker": "broker.emqx.io"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
+    sudo chmod 666 "$BOOT_DIR/settings.json"
 fi
 
 # PRÜFUNG: Ist das System im OverlayFS-Modus (/media/root-ro existiert) oder offen?
@@ -65,6 +49,21 @@ else
     echo "Standard-Dateisystem erkannt. Schreibe direkt..."
     TARGET_DIR="/home/visionpi2000/VisionPi2000"
     OVERLAY_ACTIVE=0
+fi
+
+# =====================================================================
+# JETZT IST ROOT OFFEN: Hier greift der Eintrag in das echte Dateisystem!
+# =====================================================================
+if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
+    echo "Installiere python3-paho-mqtt direkt in das schreibgeschützte Root-Image..."
+    # Da apt auf dem Live-System läuft, installieren wir es über pip mit Zielverzeichnis 
+    # oder direkt über apt, wenn der Mountpoint aktiv ist:
+    sudo chroot /media/root-ro apt update && sudo chroot /media/root-ro apt install -y python3-paho-mqtt
+else
+    if ! dpkg -s python3-paho-mqtt >/dev/null 2>&1; then
+        echo "Installiere MQTT-Bibliothek (python3-paho-mqtt)..."
+        sudo apt update && sudo apt install -y python3-paho-mqtt
+    fi
 fi
 
 echo "Aktualisiere Spieldateien in $TARGET_DIR..."
@@ -92,7 +91,7 @@ if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
 fi
 
 echo "========================================================================="
-echo "Update & MQTT-Fallback erfolgreich eingerichtet!"
+echo "Update & MQTT-Installation erfolgreich! Permanent auf SD-Karte gespeichert."
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
