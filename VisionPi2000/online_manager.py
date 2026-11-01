@@ -1,8 +1,13 @@
 # Datei: online_manager.py
-# Version: 1.1.1
-# P2P / MQTT Online-Engine mit eindeutigen Lobby-IDs, Handshake & Serial-Proxy
+# Version: 1.1.2
+# P2P / MQTT Online-Engine mit eindeutigen Lobby-IDs, Handshake, Heartbeat & Abbruch-Kontrolle
 
+import sys
 import os
+
+# Sicherstellen, dass ein lokal eingebettetes paho-Modul (im Spielordner) immer zuerst gefunden wird
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import re
 import json
 import time
@@ -18,7 +23,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 # Die 8 festen Online-Spieler-Slots für die Lobby (Die Bullseye-Berrys)
 ONLINE_PLAYER_NAMES = [
@@ -107,7 +112,7 @@ class OnlineSession:
         # Speichert alle aktiven Lobbys im Netz: { "Lobby-XXXX": { ... info ... } }
         self.active_rooms = {}
 
-        # Lobby-Status
+        # Lobby- & Match-Status
         self.players = []
         self.local_slots = []
         self.game_name = "501"
@@ -117,6 +122,12 @@ class OnlineSession:
         self.host_manifest = {}
         self.handshake_ok = False
         self.handshake_status = "Suche nach kollisionsfreien Lobbys..."
+
+        # Abbruch- & Heartbeat-Überwachung
+        self.peer_heartbeats = {}
+        self.remote_aborted = False
+        self.abort_reason = ""
+        self.abort_timestamp = 0.0
 
         self.incoming_serial_queue = queue.Queue()
 
@@ -130,23 +141,50 @@ class OnlineSession:
                 self.client.on_connect = self._on_connect
                 self.client.on_message = self._on_message
                 self.client.on_disconnect = self._on_disconnect
+
+                # Last Will & Testament (falls Strom/WLAN komplett abreißt)
+                lwt_payload = json.dumps({
+                    "type": "peer_left",
+                    "sender_id": self.client_id,
+                    "reason": "Verbindung verloren (Timeout)"
+                })
+                self.client.will_set(DISCOVERY_TOPIC, payload=lwt_payload, qos=1, retain=False)
             except Exception as e:
                 self.error_msg = f"MQTT Init Fehler: {e}"
         else:
-            self.error_msg = "paho-mqtt fehlt! (sudo apt install python3-paho-mqtt)"
+            self.error_msg = "paho-mqtt fehlt! (Bitte Update ausführen)"
 
     def connect(self):
         if not self.client:
             return False
         try:
-            self.client.connect_async(self.broker, self.port, 60)
+            self.client.connect_async(self.broker, self.port, 20)
             self.client.loop_start()
             return True
         except Exception as e:
             self.error_msg = f"Verbindungsfehler: {e}"
             return False
 
+    def trigger_remote_abort(self, reason="Mitspieler hat das Spiel verlassen!"):
+        """Markiert das laufende Spiel als abgebrochen, damit der Proxy sauber beendet."""
+        if not self.remote_aborted:
+            self.remote_aborted = True
+            self.abort_reason = reason
+            self.abort_timestamp = time.time()
+
+    def notify_leaving(self, reason="Spieler hat das Match beendet"):
+        """Sendet beim Verlassen aktiv ein Abbruchsignal an alle anderen Automaten im Raum."""
+        if self.connected and self.room_topic:
+            try:
+                self.publish_room({
+                    "type": "match_abort",
+                    "reason": reason
+                })
+            except:
+                pass
+
     def disconnect(self):
+        self.notify_leaving("Automat hat die Sitzung geschlossen")
         if self.is_host and self.room_id and self.connected:
             try:
                 self.client.publish(DISCOVERY_TOPIC, json.dumps({
@@ -158,8 +196,9 @@ class OnlineSession:
                 pass
         if self.client:
             try:
-                self.client.loop_stop()
-                self.client.disconnect()
+                 time.sleep(0.08)
+                 self.client.loop_stop()
+                 self.client.disconnect()
             except:
                 pass
         self.connected = False
@@ -220,6 +259,20 @@ class OnlineSession:
         except:
             pass
 
+    def check_peer_timeouts(self):
+        """Prüft im laufenden Spiel, ob von allen vernetzten Automaten noch Heartbeats kommen."""
+        if not self.match_started or self.remote_aborted:
+            return
+        now = time.time()
+        remote_clients = {
+            p["client_id"] for p in self.players if p["client_id"] != self.client_id
+        }
+        for rc_id in remote_clients:
+            last_seen = self.peer_heartbeats.get(rc_id, now)
+            if now - last_seen > 7.5:
+                self.trigger_remote_abort("Verbindung zum Mitspieler abgebrochen (Timeout)!")
+                break
+
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
             self.connected = True
@@ -238,13 +291,17 @@ class OnlineSession:
         except:
             return
 
+        sender = data.get("sender_id")
+        if sender and sender != self.client_id:
+            self.peer_heartbeats[sender] = time.time()
+
+        # 1. Globaler Discovery-Kanal
         if msg.topic == DISCOVERY_TOPIC:
             m_type = data.get("type")
             r_id = data.get("room_id")
             h_id = data.get("host_id")
+
             if m_type == "room_beacon" and r_id:
-                # Kollisions-Schutz: Sollte per extremem Zufall eine Lobby-ID doppelt vergeben werden,
-                # generiert der jüngere Host sofort einen neuen eindeutigen Code.
                 if (self.is_host and not self.match_started and r_id == self.room_id
                         and h_id and h_id != self.client_id):
                     new_id = self.generate_unique_room_id()
@@ -260,12 +317,63 @@ class OnlineSession:
                     "players_count": data.get("players_count", 1),
                     "ts": time.time()
                 }
-            elif m_type == "room_closed" and r_id in self.active_rooms:
-                del self.active_rooms[r_id]
+
+            elif m_type == "room_closed" and r_id:
+                if r_id in self.active_rooms:
+                    del self.active_rooms[r_id]
+                # Wenn wir als Gast in diesem Raum waren -> Abbruch auslösen!
+                if r_id == self.room_id and not self.is_host:
+                    if self.match_started:
+                        self.trigger_remote_abort("Host hat das Spiel verlassen!")
+                    else:
+                        self.players = []
+                        self.local_slots = []
+                        self.room_id = ""
+                        self.handshake_status = "Host hat die Lobby geschlossen. Suche neue..."
+
+            elif m_type == "peer_left" and sender:
+                # LWT: Ein Automat im Spiel hat die Verbindung verloren
+                in_our_game = any(p["client_id"] == sender for p in self.players)
+                if in_our_game:
+                    if self.match_started:
+                        self.trigger_remote_abort("Mitspieler-Verbindung abgebrochen!")
+                    elif self.is_host:
+                        # In der Lobby: Spieler wieder aus der Liste entfernen und Slots neu ordnen
+                        remaining = [p for p in self.players if p["client_id"] != sender]
+                        self.players = []
+                        for idx, p in enumerate(remaining):
+                            self.players.append({
+                                "slot": idx,
+                                "name": ONLINE_PLAYER_NAMES[idx],
+                                "client_id": p["client_id"]
+                            })
+                        self.broadcast_lobby_state()
             return
 
-        sender = data.get("sender_id")
+        # 2. Raum-Kanal Nachrichten
         msg_type = data.get("type")
+
+        # Herzschlag von Mitspielern
+        if msg_type == "heartbeat":
+            return
+
+        # Expliziter Spielabbruch durch einen der Automaten (z.B. BTN:COMBO oder Lobby-Exit)
+        if msg_type == "match_abort" and sender != self.client_id:
+            reason = data.get("reason", "Mitspieler hat das Spiel beendet!")
+            if self.match_started:
+                self.trigger_remote_abort(reason)
+            elif self.is_host:
+                # Falls ein Gast noch vor Spielstart in der Lobby aussteigt: Slots bereinigen
+                remaining = [p for p in self.players if p["client_id"] != sender]
+                self.players = []
+                for idx, p in enumerate(remaining):
+                    self.players.append({
+                        "slot": idx,
+                        "name": ONLINE_PLAYER_NAMES[idx],
+                        "client_id": p["client_id"]
+                    })
+                self.broadcast_lobby_state()
+            return
 
         if self.is_host:
             if msg_type == "guest_hello" and not self.match_started:
@@ -317,6 +425,9 @@ class OnlineSession:
                         p["slot"] for p in self.players if p["client_id"] == self.client_id
                     ]
                     self.match_seed = data.get("seed", 12345)
+                    now = time.time()
+                    for p in self.players:
+                        self.peer_heartbeats[p["client_id"]] = now
                     self.match_started = True
 
             elif msg_type == "game_event" and sender != self.client_id:
@@ -346,6 +457,7 @@ class OnlineDisplayProxy:
         self.darts_left = 3
         sh = screen.get_height()
         self.banner_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
+        self.alert_font = pygame.font.SysFont("arial", int(sh * 0.036), bold=True)
 
     def set_active_player(self, active_player_idx):
         self.active_player_idx = active_player_idx
@@ -361,6 +473,23 @@ class OnlineDisplayProxy:
     def draw_online_hud(self):
         if not self._screen or not self._session.players:
             return
+        sw, sh = self._screen.get_width(), self._screen.get_height()
+
+        # Falls ein Spieler ausgestiegen ist: Großes Warn-Banner in der Bildschirmmitte!
+        if self._session.remote_aborted:
+            msg1 = f"ABBRUCH: {self._session.abort_reason}"
+            msg2 = "Kehre automatisch ins Hauptmenü zurück..."
+            s1 = self.alert_font.render(msg1, True, (255, 255, 255))
+            s2 = self.banner_font.render(msg2, True, (255, 215, 0))
+            bw = max(s1.get_width(), s2.get_width()) + 60
+            bh = s1.get_height() + s2.get_height() + 50
+            bx, by = (sw - bw) // 2, (sh - bh) // 2
+            pygame.draw.rect(self._screen, (150, 20, 20), (bx, by, bw, bh), border_radius=14)
+            pygame.draw.rect(self._screen, (255, 215, 0), (bx, by, bw, bh), width=4, border_radius=14)
+            self._screen.blit(s1, ((sw - s1.get_width()) // 2, by + 18))
+            self._screen.blit(s2, ((sw - s2.get_width()) // 2, by + 26 + s1.get_height()))
+            return
+
         idx = self.active_player_idx
         if 0 <= idx < len(self._session.players):
             p_info = self._session.players[idx]
@@ -371,7 +500,6 @@ class OnlineDisplayProxy:
 
             text = f"ONLINE [{self._session.room_id}]  •  Spieler {idx + 1}: {p_name} ({status_txt})"
             surf = self.banner_font.render(text, True, (255, 255, 255))
-            sw = self._screen.get_width()
             pad_x, pad_y = 18, 4
             rect_w = surf.get_width() + pad_x * 2
             rect_h = surf.get_height() + pad_y * 2
@@ -397,12 +525,31 @@ class OnlineSerialProxy:
         self._ready_queue = queue.Queue()
         self._last_ir_sent = 0
         self._last_beacon = time.time()
+        self._last_heartbeat = time.time()
+        self._abort_combo_sent = False
 
     def _poll(self):
-        if self._session.is_host and (time.time() - self._last_beacon > 3.0):
-            self._last_beacon = time.time()
+        now = time.time()
+
+        # 1. Als Host alle 3 Sekunden Raum-Beacon aktualisieren
+        if self._session.is_host and (now - self._last_beacon > 3.0):
+            self._last_beacon = now
             self._session.broadcast_discovery_beacon()
 
+        # 2. Alle 2 Sekunden Heartbeat an alle Mitspieler senden & Timeouts prüfen
+        if now - self._last_heartbeat > 2.0:
+            self._last_heartbeat = now
+            self._session.publish_room({"type": "heartbeat"})
+            self._session.check_peer_timeouts()
+
+        # 3. Wenn ein Remote-Abbruch erkannt wurde: nach 2.2s Einblendzeit automatisch BTN:COMBO feuern!
+        if self._session.remote_aborted and not self._abort_combo_sent:
+            if now - self._session.abort_timestamp > 2.2:
+                self._abort_combo_sent = True
+                self._ready_queue.put("BTN:COMBO")
+            return
+
+        # 4. Eingehende Netzwerk-Kommandos abarbeiten
         while not self._session.incoming_serial_queue.empty():
             try:
                 net_cmd = self._session.incoming_serial_queue.get_nowait()
@@ -410,6 +557,7 @@ class OnlineSerialProxy:
             except:
                 break
 
+        # 5. Lokale Hardware-Eingaben vom Arduino lesen
         if self._real_ser and self._real_ser.in_waiting > 0:
             try:
                 raw_line = self._real_ser.readline().decode("utf-8", "ignore").strip()
@@ -419,7 +567,9 @@ class OnlineSerialProxy:
             if raw_line:
                 is_my_turn = (self._disp.active_player_idx in self._session.local_slots)
 
+                # Wenn lokal die Abbruch-Kombination gedrückt wird -> sofort anderen Automaten Bescheid geben!
                 if raw_line == "BTN:COMBO":
+                    self._session.notify_leaving("Mitspieler hat das Match abgebrochen!")
                     self._ready_queue.put(raw_line)
 
                 elif is_my_turn:
@@ -432,8 +582,8 @@ class OnlineSerialProxy:
                         self._ready_queue.put(raw_line)
 
                     elif raw_line == "IR:DETECT":
-                        if self._disp.darts_left <= 0 and (time.time() - self._last_ir_sent > 2.0):
-                            self._last_ir_sent = time.time()
+                        if self._disp.darts_left <= 0 and (now - self._last_ir_sent > 2.0):
+                            self._last_ir_sent = now
                             self._session.publish_room({"type": "game_event", "cmd": "IR:DETECT"})
                             self._ready_queue.put("IR:DETECT")
 
@@ -504,7 +654,6 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             })
         session.local_slots = list(range(len(session.players)))
         session.handshake_ok = True
-        # Generiere sofort eine eindeutige, kollisionsfreie Lobby-ID
         unique_id = session.generate_unique_room_id()
         session.join_room_topic(unique_id)
         session.handshake_status = f"{unique_id} geöffnet – SHA-256 bereit!"
@@ -528,13 +677,14 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
                 elif ev.key == pygame.K_b:
                     raw_data = "BTN:BLUE"
 
-        if raw_data == "BTN:PLAYER":
+        if raw_data in ["BTN:PLAYER", "BTN:COMBO"]:
             session.disconnect()
             return "menu"
 
         elif raw_data == "BTN:BLUE" and not is_host:
             open_lobbies = session.get_open_lobbies()
             if len(open_lobbies) > 1:
+                session.notify_leaving("Gast hat die Lobby gewechselt")
                 cur_idx = open_lobbies.index(session.room_id) if session.room_id in open_lobbies else -1
                 next_room = open_lobbies[(cur_idx + 1) % len(open_lobbies)]
                 session.players = []
@@ -546,6 +696,9 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         elif raw_data == "BTN:START" and is_host and session.room_id:
             if len(session.players) >= 1 and session.connected:
                 session.match_seed = random.randint(100000, 999999)
+                now = time.time()
+                for p in session.players:
+                    session.peer_heartbeats[p["client_id"]] = now
                 session.match_started = True
                 session.broadcast_discovery_beacon()
                 session.publish_room({
