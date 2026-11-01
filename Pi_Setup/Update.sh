@@ -1,6 +1,6 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Öffentliches UPDATE-Skript (Intelligenter OverlayFS-Durchgriff)
+# VisionPi2000 - Öffentliches UPDATE-Skript (Inkl. MQTT-Fix im OverlayFS)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -15,12 +15,6 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
     echo "FEHLER: Download fehlgeschlagen! Das Update wird abgebrochen."
     rm -rf /tmp/VisionPiRepoUpdate
     exit 1
-fi
-
-# 0.5 MQTT-Abhängigkeit prüfen und bei Bedarf automatisch nachinstallieren
-if ! dpkg -s python3-paho-mqtt >/dev/null 2>&1; then
-    echo "Installiere MQTT-Bibliothek (python3-paho-mqtt)..."
-    sudo apt update && sudo apt install python3-paho-mqtt -y
 fi
 
 # Sounds direkt im schnellen RAM vorab generieren
@@ -57,6 +51,12 @@ else
     OVERLAY_ACTIVE=0
 fi
 
+# WICHTIG: MQTT-Bibliothek bei offenem Dateisystem direkt fest auf die SD-Karte installieren!
+if ! dpkg -s python3-paho-mqtt >/dev/null 2>&1; then
+    echo "Installiere MQTT-Bibliothek (python3-paho-mqtt) fest in das System..."
+    sudo apt update && sudo apt install python3-paho-mqtt -y
+fi
+
 echo "Aktualisiere Spieldateien in $TARGET_DIR..."
 sudo mkdir -p "$TARGET_DIR"
 sudo rm -rf "$TARGET_DIR"/*
@@ -82,7 +82,7 @@ if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
 fi
 
 echo "========================================================================="
-echo "Update erfolgreich! Permanent auf SD-Karte gespeichert."
+echo "Update & MQTT-Installation erfolgreich! Permanent auf SD-Karte gespeichert."
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
