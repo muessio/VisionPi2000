@@ -1,7 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Öffentliches Master Installations- und Setup-Skript
-# (Standard-Edition mit automatischem OverlayFS-Schreibschutz)
+# (Standard-Edition mit automatischem OverlayFS-Schreibschutz & MQTT Online)
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -33,9 +33,9 @@ if [ -f "$CMDLINE_FILE" ]; then
     fi
 fi
 
-# 2. Grafische Minimal-Oberfläche und Abhängigkeiten installieren
+# 2. Grafische Minimal-Oberfläche, MQTT und Abhängigkeiten installieren
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
-sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils unclutter curl -y
+sudo apt install git python3 python3-pygame python3-serial python3-paho-mqtt pulseaudio alsa-utils unclutter curl -y
 
 # 2.5 Grafischen Startmodus und LightDM Dienst erzwingen
 sudo systemctl set-default graphical.target
@@ -62,7 +62,7 @@ if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
 
 if [ ! -f "$BOOT_DIR/settings.json" ]; then
     echo "Erstelle settings.json auf der Boot-Partition..."
-    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
+    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart", "branch": "stable", "mqtt_broker": "broker.emqx.io"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
 fi
 sudo chmod 666 "$BOOT_DIR/settings.json"
 
