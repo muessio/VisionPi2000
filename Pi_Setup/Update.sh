@@ -17,6 +17,12 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
     exit 1
 fi
 
+# 0.5 MQTT-Abhängigkeit prüfen / nachinstallieren falls nötig
+if ! dpkg -s python3-paho-mqtt >/dev/null 2>&1; then
+    echo "Installiere MQTT-Bibliothek (python3-paho-mqtt)..."
+    sudo apt update && sudo apt install python3-paho-mqtt -y
+fi
+
 # Sounds direkt im schnellen RAM vorab generieren
 echo "Generiere Sounds im RAM..."
 cd /tmp/VisionPiRepoUpdate/VisionPi2000
@@ -30,7 +36,7 @@ BOOT_DIR="/boot/firmware"
 if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
 
 if [ ! -f "$BOOT_DIR/settings.json" ]; then
-    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
+    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart", "branch": "stable", "mqtt_broker": "broker.emqx.io"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
     sudo chmod 666 "$BOOT_DIR/settings.json"
 fi
 
