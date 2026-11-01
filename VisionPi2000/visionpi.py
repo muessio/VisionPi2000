@@ -29,6 +29,8 @@ try: import game_service
 except ImportError: game_service = None
 try: import game_about
 except ImportError: game_about = None
+try: import online_manager
+except ImportError: online_manager = None
 
 VERSION = "1.1.0-main"
 
@@ -43,7 +45,9 @@ def load_settings():
         "mapper": "display_mapper_Vision_Dart", 
         "branch": "stable",
         "wifi_ssid": "", 
-        "wifi_password": ""
+        "wifi_password": "",
+        "mqtt_broker": "broker.emqx.io",
+        "mqtt_room": "VP2000-Raum-1"
     }
     path = get_settings_path()
     if not os.path.exists(path): return default_settings
@@ -296,7 +300,15 @@ def main():
         elif m:
             print(f"Warnung: Modul {m.__name__} übersprungen (GAMES oder OPTIONS fehlt)")
 
-    standard_modes = ["Normales Spiel", "Bullseye-Berry (Stufe 1)", "Bullseye-Berry (Stufe 2)", "Bullseye-Berry (Stufe 3)", "Team-Modus"]
+    standard_modes = [
+        "Normales Spiel",
+        "Bullseye-Berry (Stufe 1)",
+        "Bullseye-Berry (Stufe 2)",
+        "Bullseye-Berry (Stufe 3)",
+        "Team-Modus",
+        "Online: Host (Lobby)",
+        "Online: Gast (Beitreten)"
+    ]
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
     combo_press_start = 0
 
@@ -373,7 +385,7 @@ def main():
                 else: screen.fill((0,0,0))
                 
                 box_w = int(TARGET_WIDTH * 0.75)
-                box_h = int(TARGET_HEIGHT * 0.82)
+                box_h = int(TARGET_HEIGHT * 0.85)
                 box_x = (TARGET_WIDTH - box_w) // 2
                 box_y = (TARGET_HEIGHT - box_h) // 2
                 
@@ -384,11 +396,11 @@ def main():
                 
                 t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,215,0))
                 screen.blit(t_surf, (box_x + (box_w - t_surf.get_width()) // 2, cur_y))
-                cur_y += int(box_h * 0.11)
+                cur_y += int(box_h * 0.10)
 
                 main_surf = info_font.render(f"Hauptmenü (visionpi.py): v{VERSION}", True, (255,255,255))
                 screen.blit(main_surf, (box_x + int(box_w * 0.08), cur_y))
-                cur_y += int(box_h * 0.07)
+                cur_y += int(box_h * 0.065)
 
                 modules_to_check = [
                     ("X01", game_x01),
@@ -397,6 +409,7 @@ def main():
                     ("Split Score", game_splitscore),
                     ("Shanghai", game_shanghai),
                     ("Around the Clock", game_aroundclock),
+                    ("Online-Engine", online_manager),
                     ("Spieleanleitung", game_spieleanleitung),
                     ("Service-Menü", game_service),
                     ("Über das Projekt", game_about)
@@ -408,11 +421,10 @@ def main():
                     text_str = f"• {mod_name}: v{mod_ver}" if mod_obj else f"• {mod_name}: Modul fehlt"
                     mod_surf = info_font.render(text_str, True, color)
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
-                    cur_y += int(box_h * 0.06)
+                    cur_y += int(box_h * 0.055)
 
-                # Ohne "(or ESC)" und mit angepasster Schriftgröße
                 hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken", True, (255, 215, 0))
-                screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.09)))
+                screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.08)))
 
                 pygame.display.flip()
                 for ev in pygame.event.get():
@@ -447,8 +459,17 @@ def main():
                         ser.flush()
                     except: pass
                 mod = game_registry[sel_game]["module"]
-                if mod: 
-                    mod.run_game(screen, ser, display, players, g_list[sel_game], c_opts[sel_option], modes[sel_mode])
+                chosen_mode = modes[sel_mode]
+                if mod:
+                    if chosen_mode.startswith("Online:") and online_manager:
+                        is_host_mode = ("Host" in chosen_mode)
+                        online_manager.run_online_lobby_and_match(
+                            screen, ser, display, players,
+                            g_list[sel_game], c_opts[sel_option],
+                            is_host_mode, mod, settings
+                        )
+                    else:
+                        mod.run_game(screen, ser, display, players, g_list[sel_game], c_opts[sel_option], chosen_mode)
                     display.set_light(True)
                     display.clear_all() 
                     update_menu_hardware_display()
