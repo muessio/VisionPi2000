@@ -17,7 +17,7 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
     exit 1
 fi
 
-# 0.5 MQTT-Abhängigkeit prüfen / nachinstallieren falls nötig
+# 0.5 MQTT-Abhängigkeit prüfen und bei Bedarf automatisch nachinstallieren
 if ! dpkg -s python3-paho-mqtt >/dev/null 2>&1; then
     echo "Installiere MQTT-Bibliothek (python3-paho-mqtt)..."
     sudo apt update && sudo apt install python3-paho-mqtt -y
