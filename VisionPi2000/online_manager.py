@@ -1,5 +1,5 @@
 # Datei: online_manager.py
-# Version: 1.1.2
+# Version: 1.1.3
 # P2P / MQTT Online-Engine mit eindeutigen Lobby-IDs, Handshake, Heartbeat & Abbruch-Kontrolle
 
 import sys
@@ -23,7 +23,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 
 # Die 8 festen Online-Spieler-Slots für die Lobby (Die Bullseye-Berrys)
 ONLINE_PLAYER_NAMES = [
@@ -72,11 +72,12 @@ def get_file_signature(filepath):
 
 
 def build_local_manifest(game_name):
-    """Erstellt die Prüfsummen für visionpi.py und das gewählte Spielmodul."""
+    """Erstellt die Prüfsummen für visionpi.py, online_manager.py und das gewählte Spielmodul."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     game_file = GAME_TO_FILE.get(game_name, "game_x01.py")
     return {
         "visionpi.py": get_file_signature(os.path.join(base_dir, "visionpi.py")),
+        "online_manager.py": get_file_signature(os.path.join(base_dir, "online_manager.py")),
         game_file: get_file_signature(os.path.join(base_dir, game_file))
     }
 
@@ -122,6 +123,7 @@ class OnlineSession:
         self.host_manifest = {}
         self.handshake_ok = False
         self.handshake_status = "Suche nach kollisionsfreien Lobbys..."
+        self.reported_mismatch = False
 
         # Abbruch- & Heartbeat-Überwachung
         self.peer_heartbeats = {}
@@ -196,9 +198,9 @@ class OnlineSession:
                 pass
         if self.client:
             try:
-                 time.sleep(0.08)
-                 self.client.loop_stop()
-                 self.client.disconnect()
+                time.sleep(0.08)
+                self.client.loop_stop()
+                self.client.disconnect()
             except:
                 pass
         self.connected = False
@@ -211,6 +213,7 @@ class OnlineSession:
                 pass
         self.room_id = new_room_id
         self.room_topic = f"visionpi2000/v1/room/{new_room_id}"
+        self.reported_mismatch = False
         if self.connected and new_room_id:
             try:
                 self.client.subscribe(self.room_topic, qos=1)
@@ -372,6 +375,7 @@ class OnlineSession:
                         "name": ONLINE_PLAYER_NAMES[idx],
                         "client_id": p["client_id"]
                     })
+                self.handshake_status = f"{self.room_id} bereit – Gast hat die Lobby verlassen."
                 self.broadcast_lobby_state()
             return
 
@@ -387,7 +391,12 @@ class OnlineSession:
                             "name": ONLINE_PLAYER_NAMES[slot_idx],
                             "client_id": sender
                         })
+                self.handshake_status = f"{self.room_id} bereit – {len(self.players)} Spieler verbunden (SHA-256 OK)!"
                 self.broadcast_lobby_state()
+
+            elif msg_type == "guest_version_mismatch" and not self.match_started:
+                err_info = data.get("errors", "Unbekannte Abweichung")
+                self.handshake_status = f"VERSION KONFLIKT (Gast abgelehnt): {err_info}"
 
             elif msg_type == "game_event" and sender != self.client_id:
                 cmd = data.get("cmd")
@@ -408,6 +417,7 @@ class OnlineSession:
                 ok, errors = verify_manifests(self.host_manifest, local_man)
                 self.handshake_ok = ok
                 if ok:
+                    self.reported_mismatch = False
                     if self.local_slots:
                         my_names = ", ".join(
                             [ONLINE_PLAYER_NAMES[s] for s in self.local_slots]
@@ -416,7 +426,14 @@ class OnlineSession:
                     else:
                         self.handshake_status = f"Code verifiziert ({self.room_id})! Fordere Slot an..."
                 else:
-                    self.handshake_status = "VERSION KONFLIKT: " + " | ".join(errors)
+                    err_str = " | ".join(errors)
+                    self.handshake_status = "VERSION KONFLIKT: " + err_str
+                    if not self.reported_mismatch:
+                        self.reported_mismatch = True
+                        self.publish_room({
+                            "type": "guest_version_mismatch",
+                            "errors": err_str
+                        })
 
             elif msg_type == "match_start":
                 if self.handshake_ok and self.local_slots:
@@ -754,7 +771,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             stat_col, stat_txt = HIGHLIGHT, "Verbinde mit MQTT-Broker..."
         else:
             stat_col = GREEN if session.handshake_ok else HIGHLIGHT
-            if not session.handshake_ok and "KONFLIKT" in session.handshake_status:
+            if "KONFLIKT" in session.handshake_status:
                 stat_col = RED_COL
             stat_txt = session.handshake_status
 
