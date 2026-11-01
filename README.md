@@ -59,7 +59,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 | **Nongxiang USB-Ladegerät (2er-Pack)** | 40W Mehrfachstecker (USB-A & USB-C, PD + QC3.0 Netzteile) | ca. 22,99 € |
 | **Hailege E18-D80NK** | 2 Stk. Infrarot-Lichtschranken / Hindernisvermeidungssensoren | ca. 9,79 € |
 | **Youmile Piezoelektrischer Keramik-Vibrationssensor** | 5 Stk. Modul Analogue Controller mit Dupont-Kabel | ca. 7,99 € |
-| **JZK PAM8403 Mini Digital Verstärker** | 5 Stk. 5V 2x3W Dual Channel Mini HiFi Verstärker mit Poti | ca. 7,69 € |
+| **Speedlink TWOXO Stereo PC Lautsprecher klein, 3,5mm Klinke, 10W, schwarz** | ca. 8,00 € |
 | **QWORK Hutschiene (3 Stk.)** | Montageschiene DIN, 35 mm breit, 7,5 mm hoch, 300 mm lang | *Variabel* |
 | **Binmiza Hutschiene Adapter Set** | 20 Stk. (10 Sätze) PCB DIN C45 Halter mit Schrauben | ca. 7,99 € |
 
