@@ -45,12 +45,25 @@ sudo systemctl enable lightdm
 echo "Lade Dateien von GitHub herunter..."
 mkdir -p /home/visionpi2000/VisionPi2000
 rm -rf /tmp/VisionPiRepo
+rm -rf /tmp/paho_temp
 
 git clone --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
 
 if [ ! -d "/tmp/VisionPiRepo/VisionPi2000" ]; then
     echo "FEHLER: Download fehlgeschlagen! Überprüfe die Internetverbindung."
     exit 1
+fi
+
+# 3.2 paho-mqtt direkt in das Spielverzeichnis einbetten (100% Trixie- & OverlayFS-sicher)
+if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/paho" ]; then
+    echo "Bette paho-mqtt Bibliothek direkt in das Spielverzeichnis ein..."
+    mkdir -p /tmp/paho_temp
+    git clone --depth 1 https://github.com/eclipse-paho/paho.mqtt.python.git /tmp/paho_temp
+    if [ -d "/tmp/paho_temp/src/paho" ]; then
+        cp -r /tmp/paho_temp/src/paho /tmp/VisionPiRepo/VisionPi2000/paho
+        echo "paho-mqtt erfolgreich eingebettet!"
+    fi
+    rm -rf /tmp/paho_temp
 fi
 
 cp -r /tmp/VisionPiRepo/VisionPi2000/* /home/visionpi2000/VisionPi2000/
@@ -75,7 +88,7 @@ sudo usermod -a -G audio,dialout visionpi2000
 
 # 5. LightDM Autologin konfigurieren
 sudo mkdir -p /etc/lightdm/lightdm.conf.d
-sudo bash -c 'cat << 'EOF' > /etc/lightdm/lightdm.conf.d/99-autologin.conf
+sudo bash -c 'cat << '\''EOF'\'' > /etc/lightdm/lightdm.conf.d/99-autologin.conf
 [Seat:*]
 autologin-user=visionpi2000
 user-session=openbox
