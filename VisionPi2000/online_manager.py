@@ -1,6 +1,6 @@
 # Datei: online_manager.py
-# Version: 1.1.0
-# P2P / MQTT Online-Engine mit Auto-Room-Discovery, Handshake & Serial-Proxy
+# Version: 1.1.1
+# P2P / MQTT Online-Engine mit eindeutigen Lobby-IDs, Handshake & Serial-Proxy
 
 import os
 import re
@@ -18,7 +18,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 # Die 8 festen Online-Spieler-Slots für die Lobby (Die Bullseye-Berrys)
 ONLINE_PLAYER_NAMES = [
@@ -104,7 +104,7 @@ class OnlineSession:
         self.connected = False
         self.error_msg = ""
 
-        # Auto-Discovery Speicher: { "Raum-1": {"host_id": ..., "state": "OPEN"/"PLAYING", "game": ..., "ts": ...} }
+        # Speichert alle aktiven Lobbys im Netz: { "Lobby-XXXX": { ... info ... } }
         self.active_rooms = {}
 
         # Lobby-Status
@@ -116,7 +116,7 @@ class OnlineSession:
         self.match_started = False
         self.host_manifest = {}
         self.handshake_ok = False
-        self.handshake_status = "Suche automatisch nach offenen Lobbys..."
+        self.handshake_status = "Suche nach kollisionsfreien Lobbys..."
 
         self.incoming_serial_queue = queue.Queue()
 
@@ -178,19 +178,10 @@ class OnlineSession:
             except:
                 pass
 
-    def allocate_free_host_room(self):
-        """Wählt automatisch den ersten unbenutzten Raum (Raum-1 bis Raum-99)."""
-        now = time.time()
-        busy_rooms = {
-            r_id for r_id, info in self.active_rooms.items()
-            if (now - info.get("ts", 0) < 8.0) and info.get("host_id") != self.client_id
-        }
-        for num in range(1, 100):
-            candidate = f"Raum-{num}"
-            if candidate not in busy_rooms:
-                self.join_room_topic(candidate)
-                return candidate
-        return "Raum-1"
+    def generate_unique_room_id(self):
+        """Erzeugt eine absolut kollisionsfreie, eindeutige Lobby-ID mit Zufalls-Hex."""
+        suffix = uuid.uuid4().hex[:4].upper()
+        return f"Lobby-{suffix}"
 
     def get_open_lobbies(self):
         """Liefert alle aktuell offenen Lobbys für Gäste zurück."""
@@ -211,7 +202,7 @@ class OnlineSession:
             pass
 
     def broadcast_discovery_beacon(self):
-        """Sendet als Host den aktuellen Raumstatus auf dem globalen Discovery-Kanal."""
+        """Sendet als Host den Status auf dem globalen Discovery-Kanal."""
         if not self.is_host or not self.connected or not self.room_id:
             return
         state = "PLAYING" if self.match_started else "OPEN"
@@ -247,17 +238,18 @@ class OnlineSession:
         except:
             return
 
-        # 1. Globaler Discovery-Kanal (Raum-Erkennung & Kollisionsschutz)
         if msg.topic == DISCOVERY_TOPIC:
             m_type = data.get("type")
             r_id = data.get("room_id")
             h_id = data.get("host_id")
             if m_type == "room_beacon" and r_id:
-                # Falls ein anderer Host exakt zur selben Sekunde denselben Raum belegt hat:
+                # Kollisions-Schutz: Sollte per extremem Zufall eine Lobby-ID doppelt vergeben werden,
+                # generiert der jüngere Host sofort einen neuen eindeutigen Code.
                 if (self.is_host and not self.match_started and r_id == self.room_id
-                        and h_id and h_id != self.client_id and self.client_id > h_id):
-                    self.active_rooms[r_id] = {"host_id": h_id, "state": data.get("state"), "ts": time.time()}
-                    self.allocate_free_host_room()
+                        and h_id and h_id != self.client_id):
+                    new_id = self.generate_unique_room_id()
+                    self.join_room_topic(new_id)
+                    self.broadcast_discovery_beacon()
                     return
 
                 self.active_rooms[r_id] = {
@@ -272,7 +264,6 @@ class OnlineSession:
                 del self.active_rooms[r_id]
             return
 
-        # 2. Raum-spezifischer Kanal
         sender = data.get("sender_id")
         msg_type = data.get("type")
 
@@ -296,7 +287,6 @@ class OnlineSession:
                     self.incoming_serial_queue.put(cmd)
 
         else:
-            # Gast-Logik im gewählten Raum
             if msg_type == "host_lobby":
                 self.game_name = data.get("game_name", "501")
                 self.option = data.get("option", "Standard")
@@ -348,9 +338,6 @@ class OnlineSession:
 
 
 class OnlineDisplayProxy:
-    """
-    Zeichnet oben ein Online-Banner mit Raum und Bullseye-Berry-Spielernamen.
-    """
     def __init__(self, real_display, session, screen):
         self._real = real_display
         self._session = session
@@ -403,9 +390,6 @@ class OnlineDisplayProxy:
 
 
 class OnlineSerialProxy:
-    """
-    Leitet Würfe und Tastendrücke im laufenden Spiel über den Raum-Kanal weiter.
-    """
     def __init__(self, real_ser, session, display_proxy):
         self._real_ser = real_ser
         self._session = session
@@ -415,7 +399,6 @@ class OnlineSerialProxy:
         self._last_beacon = time.time()
 
     def _poll(self):
-        # Als Host alle 3 Sekunden im Hintergrund signalisieren, dass dieser Raum belegt ist
         if self._session.is_host and (time.time() - self._last_beacon > 3.0):
             self._last_beacon = time.time()
             self._session.broadcast_discovery_beacon()
@@ -521,12 +504,13 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             })
         session.local_slots = list(range(len(session.players)))
         session.handshake_ok = True
-        session.handshake_status = "Prüfe belegte Räume & wähle freien Raum..."
+        # Generiere sofort eine eindeutige, kollisionsfreie Lobby-ID
+        unique_id = session.generate_unique_room_id()
+        session.join_room_topic(unique_id)
+        session.handshake_status = f"{unique_id} geöffnet – SHA-256 bereit!"
 
     session.connect()
 
-    connect_time = None
-    host_room_assigned = False
     last_broadcast = 0
     in_lobby = True
 
@@ -549,7 +533,6 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             return "menu"
 
         elif raw_data == "BTN:BLUE" and not is_host:
-            # Falls mehrere offene Lobbys gleichzeitig existieren, kann der Gast mit BLAU wechseln
             open_lobbies = session.get_open_lobbies()
             if len(open_lobbies) > 1:
                 cur_idx = open_lobbies.index(session.room_id) if session.room_id in open_lobbies else -1
@@ -560,7 +543,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
                 session.join_room_topic(next_room)
                 session.handshake_status = f"Wechsle zu {next_room}..."
 
-        elif raw_data == "BTN:START" and is_host and host_room_assigned:
+        elif raw_data == "BTN:START" and is_host and session.room_id:
             if len(session.players) >= 1 and session.connected:
                 session.match_seed = random.randint(100000, 999999)
                 session.match_started = True
@@ -573,32 +556,18 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
                 time.sleep(0.15)
 
         if session.connected:
-            if connect_time is None:
-                connect_time = time.time()
-
-            # Host wartet 1.2 Sekunden nach dem Connect, um fremde Raum-Beacons zu hören,
-            # und wählt dann vollautomatisch den ersten freien Raum!
-            if is_host and not host_room_assigned and (time.time() - connect_time > 1.2):
-                chosen = session.allocate_free_host_room()
-                host_room_assigned = True
-                session.handshake_status = f"{chosen} automatisch belegt – SHA-256 bereit!"
-                session.broadcast_lobby_state()
-
-            # Gast tritt automatisch der ersten gefundenen offenen Lobby bei
             if not is_host:
                 open_lobbies = session.get_open_lobbies()
                 if not session.room_id and open_lobbies:
                     session.join_room_topic(open_lobbies[0])
                     session.handshake_status = f"Lobby {open_lobbies[0]} gefunden – prüfe Versionen..."
                 elif session.room_id and session.room_id not in open_lobbies and not session.local_slots:
-                    # Falls der bisherige Raum geschlossen wurde, nächsten offenen suchen
                     if open_lobbies:
                         session.join_room_topic(open_lobbies[0])
 
-            # Periodischer Handshake-Austausch alle 1.2 Sekunden
             if time.time() - last_broadcast > 1.2:
                 last_broadcast = time.time()
-                if is_host and host_room_assigned:
+                if is_host and session.room_id:
                     session.broadcast_lobby_state()
                 elif not is_host and session.room_id:
                     if session.handshake_ok and not session.local_slots:
@@ -611,6 +580,97 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             in_lobby = False
             break
 
-        # Lobby-Oberfläche zeichnen
         screen.fill((12, 14, 24))
         box_w, box_h = int(sw * 0.86), int(sh * 0.86)
+        box_x, box_y = (sw - box_w) // 2, (sh - box_h) // 2
+        pygame.draw.rect(screen, (18, 22, 36), (box_x, box_y, box_w, box_h), border_radius=16)
+        pygame.draw.rect(screen, HIGHLIGHT, (box_x, box_y, box_w, box_h), width=3, border_radius=16)
+
+        role_str = "HOST-LOBBY" if is_host else "GAST-BEITRITT"
+        head_surf = title_font.render(f"VISION PI 2000 ONLINE  •  {role_str}", True, HIGHLIGHT)
+        screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, box_y + int(box_h * 0.04)))
+
+        room_disp = session.room_id if session.room_id else "Suche offene Lobbys..."
+        sub_txt = f"Spiel: {session.game_name} ({session.option})   |   Lobby-ID: {room_disp}"
+        sub_surf = sub_font.render(sub_txt, True, WHITE)
+        screen.blit(sub_surf, ((sw - sub_surf.get_width()) // 2, box_y + int(box_h * 0.12)))
+
+        if session.error_msg:
+            stat_col, stat_txt = RED_COL, session.error_msg
+        elif not session.connected:
+            stat_col, stat_txt = HIGHLIGHT, "Verbinde mit MQTT-Broker..."
+        else:
+            stat_col = GREEN if session.handshake_ok else HIGHLIGHT
+            if not session.handshake_ok and "KONFLIKT" in session.handshake_status:
+                stat_col = RED_COL
+            stat_txt = session.handshake_status
+
+        stat_surf = small_font.render(f"Status / Handshake: {stat_txt}", True, stat_col)
+        screen.blit(stat_surf, ((sw - stat_surf.get_width()) // 2, box_y + int(box_h * 0.19)))
+
+        pygame.draw.line(
+            screen, (80, 80, 100),
+            (box_x + 40, box_y + int(box_h * 0.25)),
+            (box_x + box_w - 40, box_y + int(box_h * 0.25)), 2
+        )
+
+        slot_y = box_y + int(box_h * 0.28)
+        slot_h = int(box_h * 0.068)
+        for s_idx in range(8):
+            berry_name = ONLINE_PLAYER_NAMES[s_idx]
+            p_entry = next((p for p in session.players if p["slot"] == s_idx), None)
+            if p_entry:
+                is_me = (p_entry["client_id"] == session.client_id)
+                tag = "LOKAL (Dieser Automat)" if is_me else "ONLINE VERBUNDEN"
+                col = GREEN if is_me else HIGHLIGHT
+                line_str = f"Slot {s_idx + 1}:  {berry_name:<22}  —  [{tag}]"
+            else:
+                col = (90, 90, 110)
+                line_str = f"Slot {s_idx + 1}:  {berry_name:<22}  —  [ Frei / Wartet ]"
+
+            s_surf = list_font.render(line_str, True, col)
+            screen.blit(s_surf, (box_x + int(box_w * 0.10), slot_y + s_idx * slot_h))
+
+        if is_host:
+            hint_str = "START drücken: Online-Match starten   |   SPIELERWECHSEL: Abbrechen"
+        else:
+            open_cnt = len(session.get_open_lobbies())
+            if open_cnt > 1:
+                hint_str = f"BLAU: Lobby wechseln ({open_cnt} offen)   |   SPIELERWECHSEL: Abbrechen"
+            else:
+                hint_str = "Warte auf Spielstart durch den Host...   |   SPIELERWECHSEL: Abbrechen"
+
+        hint_surf = sub_font.render(hint_str, True, HIGHLIGHT)
+        screen.blit(hint_surf, ((sw - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.08)))
+
+        pygame.display.flip()
+        clock.tick(30)
+
+    random.seed(session.match_seed)
+
+    total_online_players = max(1, min(8, len(session.players)))
+    disp_proxy = OnlineDisplayProxy(display, session, screen)
+    ser_proxy = OnlineSerialProxy(ser, session, disp_proxy)
+
+    orig_flip = pygame.display.flip
+
+    def hooked_flip():
+        disp_proxy.draw_online_hud()
+        orig_flip()
+
+    pygame.display.flip = hooked_flip
+    try:
+        game_mod.run_game(
+            screen,
+            ser_proxy,
+            disp_proxy,
+            total_online_players,
+            session.game_name,
+            session.option,
+            "Normales Spiel"
+        )
+    finally:
+        pygame.display.flip = orig_flip
+        session.disconnect()
+
+    return "menu"
