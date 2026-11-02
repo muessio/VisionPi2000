@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 GAMES = ["Cricket"]
 OPTIONS = [
     "Standard",
@@ -121,7 +121,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         except: pass
 
     avatar_path = {"Bullseye-Berry (Stufe 1)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Stufe 2)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Stufe 3)": "Bullseye-Berry_Ninja.png"}.get(mode, "")
-    avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
+    avatar_frames = []
+    if avatar_path and os.path.exists(avatar_path):
+        try:
+            raw_av = pygame.image.load(avatar_path).convert_alpha()
+            base_sz = int(sh * 0.28)
+            for offset in [-10, -5, 0, 5, 10]:
+                sz = base_sz + offset
+                avatar_frames.append(pygame.transform.smoothscale(raw_av, (sz, sz)))
+        except: pass
+
     champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (int(sh*0.45), int(sh*0.45))) if os.path.exists("Bullseye-Berry_Champ.png") else None
 
     sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
@@ -212,7 +221,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
         
         for event in pygame.event.get():
-            if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
+            if event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
                 if screensaver.reset_timer(): raw_data = None; continue
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
@@ -417,9 +426,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     if hits == 3: 
                         pygame.draw.circle(screen, p_color, (mark_x, mark_y), int(c_size * 1.3), lw)
 
-            if is_berrys_turn and avatar_img:
-                anim_size = int((sh*0.28) + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
-                screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (int(sw*0.78), int(sh*0.65)))
+            if is_berrys_turn and avatar_frames:
+                idx_anim = int((math.sin(pygame.time.get_ticks() * 0.005) + 1.0) * 2.49)
+                idx_anim = max(0, min(len(avatar_frames) - 1, idx_anim))
+                screen.blit(avatar_frames[idx_anim], (int(sw*0.78), int(sh*0.65)))
             if pygame.time.get_ticks() < champ_display_until and champ_img:
                 screen.blit(champ_img, ((sw - champ_img.get_width()) // 2, (sh - champ_img.get_height()) // 2))
                 screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((sw - 200) // 2, int(sh*0.75)))
