@@ -8,7 +8,7 @@
 # 1. Nur Paketlisten aktualisieren (KEIN volles apt upgrade, um WLAN nicht zu zerstören!)
 sudo apt update
 
-# 1.5. USB-Stromlimit auf Maximum setzen & USB-Energiesparmodus deaktivieren
+# 1.5. USB-Stromlimit auf Maximum setzen, USB-Energiesparmodus deaktivieren & GPU-RAM optimieren
 CONFIG_FILE="/boot/firmware/config.txt"
 if [ ! -f "$CONFIG_FILE" ] && [ -f "/boot/config.txt" ]; then
     CONFIG_FILE="/boot/config.txt"
@@ -36,6 +36,43 @@ fi
 # 2. Grafische Minimal-Oberfläche, MQTT und Abhängigkeiten installieren
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
 sudo apt install git python3 python3-pygame python3-serial python3-paho-mqtt pulseaudio alsa-utils unclutter curl -y
+
+# 2.2 Unnötige Systemdienste für 1GB RAM Stabilität deaktivieren
+echo "Deaktiviere nicht benötigte Hintergrunddienste (RAM-Optimierung)..."
+UNUSED_SERVICES=(
+    "bluetooth.service"
+    "hciuart.service"
+    "ModemManager.service"
+    "avahi-daemon.service"
+    "avahi-daemon.socket"
+    "cups.service"
+    "cups-browsed.service"
+    "triggerhappy.service"
+    "triggerhappy.socket"
+    "apt-daily.timer"
+    "apt-daily-upgrade.timer"
+    "man-db.timer"
+)
+for svc in "${UNUSED_SERVICES[@]}"; do
+    sudo systemctl stop "$svc" 2>/dev/null
+    sudo systemctl disable "$svc" 2>/dev/null
+done
+
+# 2.3 WLAN-Energiesparmodus deaktivieren (verhindert Verbindungsabbrüche im Online-Spiel)
+sudo mkdir -p /etc/NetworkManager/conf.d
+cat << 'EOF' | sudo tee /etc/NetworkManager/conf.d/default-wifi-powersave-off.conf > /dev/null
+[connection]
+wifi.powersave = 2
+EOF
+
+# 2.4 Systemd-Journal im RAM auf max. 16 MB begrenzen (verhindert OverlayFS-RAM-Crash!)
+sudo mkdir -p /etc/systemd/journald.conf.d
+cat << 'EOF' | sudo tee /etc/systemd/journald.conf.d/size-limit.conf > /dev/null
+[Journal]
+Storage=volatile
+RuntimeMaxUse=16M
+RuntimeMaxFileSize=4M
+EOF
 
 # 2.5 Grafischen Startmodus und LightDM Dienst erzwingen
 sudo systemctl set-default graphical.target
@@ -100,7 +137,7 @@ cat << 'EOF' > /home/visionpi2000/.config/openbox/autostart
 # Mauszeiger nach 0,1 Sekunden Inaktivität komplett ausblenden
 unclutter -idle 0.1 -root &
 
-# Bildschirmschoner und Stromsparmodus deaktivieren
+# Bildschirmschoner und Stromsparmodus von X11 deaktivieren
 xset s off
 xset -dpms
 xset s noblank
