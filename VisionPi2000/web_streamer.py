@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.0
-# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend)
+# Version: 1.1.1
+# Ultra-leichter HTTP-Streamer (Optimierte Schärfe & Bildqualität bei minimaler RAM/CPU-Last)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 PORT = 8080
 
 latest_jpeg = None
@@ -266,30 +266,28 @@ def start_streaming_thread():
 
 def update_stream_frame(screen):
     global latest_jpeg, last_capture_time, _scaled_surface, _scaled_size
-    # KRITISCHE OPTIMIERUNG: Wenn kein Browser verbunden ist, 0% CPU & 0 RAM verbrauchen!
     if active_clients <= 0 or screen is None:
         return
 
     now = time.time()
-    # Begrenzung auf ~7 FPS (alle 0.14s) für minimale Last auf dem Pi 4B (1GB)
     if now - last_capture_time < 0.14:
         return
     last_capture_time = now
 
     try:
         sw, sh = screen.get_width(), screen.get_height()
-        # Automatische 16:9 (640x360) oder 4:3 (640x480) Erkennung
         target_size = (640, 360) if (sw / float(sh)) > 1.5 else (640, 480)
 
         if _scaled_surface is None or _scaled_size != target_size:
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
-        # Schnelles Bilinear-Scaling direkt in das vorab allokierte Surface (kein RAM-Leak!)
-        pygame.transform.scale(screen, target_size, _scaled_surface)
+        # OPTIMIERUNG: smoothscale statt scale für glattere Kanten und lesbarere Schrift
+        pygame.transform.smoothscale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
-        pygame.image.save(_scaled_surface, buf, "frame.jpg")
+        # OPTIMIERUNG: Saubere JPEG-Qualität (85%) für maximale Schärfe ohne den Puffer zu sprengen
+        pygame.image.save(_scaled_surface, buf, "frame.jpg", quality=85)
         with lock:
             latest_jpeg = buf.getvalue()
         buf.close()
