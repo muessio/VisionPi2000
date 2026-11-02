@@ -1,6 +1,7 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Öffentliches UPDATE-Skript (Debian Trixie & OverlayFS)
+# Inkl. rückwirkender RAM-, WLAN- & Systemdienst-Optimierung für Bestandsautomaten
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
@@ -58,10 +59,12 @@ if mountpoint -q /media/root-ro; then
         rm -rf /tmp/VisionPiRepoUpdate
         exit 1
     fi
+    SYS_ROOT="/media/root-ro"
     TARGET_DIR="/media/root-ro/home/visionpi2000/VisionPi2000"
     OVERLAY_ACTIVE=1
 else
     echo "Standard-Dateisystem erkannt. Schreibe direkt..."
+    SYS_ROOT=""
     TARGET_DIR="/home/visionpi2000/VisionPi2000"
     OVERLAY_ACTIVE=0
 fi
@@ -78,6 +81,54 @@ sudo ln -s "$BOOT_DIR/settings.json" "$TARGET_DIR/settings.json"
 # Dateiberechtigungen auf dem Zielsystem glattziehen
 sudo chown -R visionpi2000:visionpi2000 "$TARGET_DIR"
 
+# =====================================================================
+# 5. SYSTEM-OPTIMIERUNGEN FÜR BESTANDSAUTOMATEN PERMANENT NACHRÜSTEN
+# =====================================================================
+echo "Wende RAM-, Journal- und WLAN-Optimierungen dauerhaft auf das System an..."
+
+# 5.1 Systemd-Journal im RAM auf max. 16 MB deckeln (verhindert Volllaufen des 1GB RAM!)
+sudo mkdir -p "${SYS_ROOT}/etc/systemd/journald.conf.d"
+cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/systemd/journald.conf.d/size-limit.conf" > /dev/null
+[Journal]
+Storage=volatile
+RuntimeMaxUse=16M
+RuntimeMaxFileSize=4M
+EOF
+
+# 5.2 WLAN-Powersave dauerhaft abschalten (stabile Online-Matches & Webstream)
+sudo mkdir -p "${SYS_ROOT}/etc/NetworkManager/conf.d"
+cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/NetworkManager/conf.d/default-wifi-powersave-off.conf" > /dev/null
+[connection]
+wifi.powersave = 2
+EOF
+
+# 5.3 Unnötige Hintergrunddienste permanent auf der SD-Karte deaktivieren
+UNUSED_SERVICES=(
+    "bluetooth.service"
+    "hciuart.service"
+    "ModemManager.service"
+    "avahi-daemon.service"
+    "avahi-daemon.socket"
+    "cups.service"
+    "cups-browsed.service"
+    "triggerhappy.service"
+    "triggerhappy.socket"
+    "apt-daily.timer"
+    "apt-daily-upgrade.timer"
+    "man-db.timer"
+)
+
+if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
+    for svc in "${UNUSED_SERVICES[@]}"; do
+        sudo chroot /media/root-ro systemctl disable "$svc" 2>/dev/null
+    done
+else
+    for svc in "${UNUSED_SERVICES[@]}"; do
+        sudo systemctl stop "$svc" 2>/dev/null
+        sudo systemctl disable "$svc" 2>/dev/null
+    done
+fi
+
 # RAM aufräumen
 rm -rf /tmp/VisionPiRepoUpdate
 
@@ -91,7 +142,7 @@ if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
 fi
 
 echo "========================================================================="
-echo "Update erfolgreich! Permanent auf SD-Karte gespeichert."
+echo "Update & System-Optimierung erfolgreich! Permanent auf SD-Karte gespeichert."
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
