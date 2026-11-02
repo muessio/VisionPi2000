@@ -34,7 +34,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.4-main"
+VERSION = "1.1.5-main"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
@@ -407,11 +407,11 @@ def main():
                 
                 t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,215,0))
                 screen.blit(t_surf, (box_x + (box_w - t_surf.get_width()) // 2, cur_y))
-                cur_y += int(box_h * 0.10)
+                cur_y += int(box_h * 0.085)
 
                 main_surf = info_font.render(f"Hauptmenü (visionpi.py): v{VERSION}", True, (255,255,255))
                 screen.blit(main_surf, (box_x + int(box_w * 0.08), cur_y))
-                cur_y += int(box_h * 0.065)
+                cur_y += int(box_h * 0.060)
 
                 modules_to_check = [
                     ("X01", game_x01),
@@ -421,6 +421,7 @@ def main():
                     ("Shanghai", game_shanghai),
                     ("Around the Clock", game_aroundclock),
                     ("Online-Engine", online_manager),
+                    ("Web-Streamer", web_streamer),
                     ("Spieleanleitung", game_spieleanleitung),
                     ("Service-Menü", game_service),
                     ("Über das Projekt", game_about)
@@ -432,7 +433,7 @@ def main():
                     text_str = f"• {mod_name}: v{mod_ver}" if mod_obj else f"• {mod_name}: Modul fehlt"
                     mod_surf = info_font.render(text_str, True, color)
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
-                    cur_y += int(box_h * 0.055)
+                    cur_y += int(box_h * 0.052)
 
                 hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken", True, (255, 215, 0))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.08)))
