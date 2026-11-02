@@ -1,9 +1,13 @@
+# Datei: game_spieleanleitung.py
+# Version: 1.2.0
+# Spieleanleitung im edlen VisionPi2000 Cyber-Box-Design (4:3 & 16:9 Support)
+
 import pygame
 import os
 import random
 import json
 
-VERSION = "1.1.3"
+VERSION = "1.2.0"
 GAMES = ["Spieleanleitung"]
 OPTIONS = [
     "301 / 501 / 701 (X01)", 
@@ -114,10 +118,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    title_font = pygame.font.SysFont("arial", int(sh * 0.042), bold=True)
-    text_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)  # Leicht angepasst für die zusätzliche Zeile
-    hint_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
-    WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
+    title_font = pygame.font.SysFont("arial", int(sh * 0.036), bold=True)
+    sub_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)
+    text_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
+    hint_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
+    
+    WHITE, HIGHLIGHT, GREEN_COL = (255, 255, 255), (255, 215, 0), (100, 220, 100)
 
     if ser:
         try: 
@@ -136,7 +142,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             except: pass
             
         for e in pygame.event.get():
-            if e.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
+            # MOUSEMOTION entfernt, damit Vibrationen den Screensaver nicht stören
+            if e.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
                 if screensaver.reset_timer(): raw_data = None; continue
             if e.type == pygame.KEYDOWN:
                 if e.key in [pygame.K_p, pygame.K_ESCAPE]: running = False
@@ -144,7 +151,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
 
-        if raw_data in ["BTN:PLAYER", "BTN:START"]:
+        if raw_data in ["BTN:PLAYER", "BTN:START", "BTN:COMBO"]:
             running = False
 
         if screensaver.check():
@@ -156,21 +163,43 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0, 0, 0))
 
-        t_surf = title_font.render(f"SPIELEANLEITUNG & REGELN", True, HIGHLIGHT)
-        screen.blit(t_surf, ((sw - t_surf.get_width()) // 2, int(sh * 0.05)))
-        
-        opt_surf = text_font.render(f"Ausgewähltes Spiel: {option}", True, (100, 220, 100))
-        screen.blit(opt_surf, ((sw - opt_surf.get_width()) // 2, int(sh * 0.12)))
+        # Kasten-Dimensionen (wie im Service-Menü)
+        box_w = int(sw * 0.88)
+        box_h = int(sh * 0.88)
+        box_x = (sw - box_w) // 2
+        box_y = (sh - box_h) // 2 - int(sh * 0.02)
 
+        # 1. Schatten unter dem Kasten
+        shadow_rect = pygame.Rect(box_x + 6, box_y + 6, box_w, box_h)
+        pygame.draw.rect(screen, (0, 0, 0), shadow_rect, border_radius=14)
+
+        # 2. Satter, dunkler Hintergrund für den Kasten
+        pygame.draw.rect(screen, (10, 10, 18), (box_x, box_y, box_w, box_h), border_radius=14)
+        
+        # 3. Edler goldener Rahmen
+        pygame.draw.rect(screen, HIGHLIGHT, (box_x, box_y, box_w, box_h), width=2, border_radius=14)
+
+        # Titel & Spiel-Option innerhalb der Box rendern
+        t_surf = title_font.render("SPIELEANLEITUNG & REGELN", True, HIGHLIGHT)
+        screen.blit(t_surf, (box_x + (box_w - t_surf.get_width()) // 2, box_y + int(box_h * 0.04)))
+        
+        opt_surf = sub_font.render(f"Ausgewähltes Spiel: {option}", True, GREEN_COL)
+        screen.blit(opt_surf, (box_x + (box_w - opt_surf.get_width()) // 2, box_y + int(box_h * 0.11)))
+
+        # Trennlinie
+        pygame.draw.line(screen, (60, 70, 90), (box_x + 30, box_y + int(box_h * 0.17)), (box_x + box_w - 30, box_y + int(box_h * 0.17)), 2)
+
+        # Regeltextzeilen zentriert in der Box ausgeben
         lines = EXPLANATIONS.get(option, ["Keine Beschreibung verfügbar."])
-        y_text = int(sh * 0.20)
+        y_text = box_y + int(box_h * 0.21)
         for line in lines:
             line_surf = text_font.render(line, True, WHITE)
-            screen.blit(line_surf, ((sw - line_surf.get_width()) // 2, y_text))
-            y_text += int(sh * 0.043)
+            screen.blit(line_surf, (box_x + (box_w - line_surf.get_width()) // 2, y_text))
+            y_text += int(sh * 0.038)
 
-        back_hint = hint_font.render("Drücke Taste 'Spielerwechsel' (oder ESC), um ins Hauptmenü zurückzukehren.", True, HIGHLIGHT)
-        screen.blit(back_hint, ((sw - back_hint.get_width()) // 2, sh - int(sh * 0.07)))
+        # Schließen-Hinweis ganz unten in der Box
+        back_hint = hint_font.render("Zum Schließen: Spielerwechsel-Taste oder START drücken", True, HIGHLIGHT)
+        screen.blit(back_hint, back_hint.get_rect(center=(sw // 2, box_y + box_h - int(box_h * 0.05))))
 
         pygame.display.flip()
         clock.tick(30)
