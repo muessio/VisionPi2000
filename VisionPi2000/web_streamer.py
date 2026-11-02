@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.0.7
-# Abgesicherter HTTP-Streamer für VisionPi2000 (verhindert Broken-Pipe- und Socket-Abstürze)
+# Version: 1.0.8
+# Performance-optimierter HTTP-Streamer (verhindert RAM-Lecks und Hängend-Werden)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.0.7"
+VERSION = "1.0.8"
 PORT = 8080
 
 latest_jpeg = None
@@ -33,7 +33,7 @@ def find_header_file():
 
 class StreamHandler(http.server.BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        """Unterdrückt die Konsolen-Ausgaben bei jedem HTTP-Aufruf."""
+        """Unterdrückt Logs für maximale Performance."""
         pass
 
     def do_GET(self):
@@ -211,7 +211,7 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                             self.wfile.write(f'Content-Length: {len(frame)}\r\n\r\n'.encode('utf-8'))
                             self.wfile.write(frame)
                             self.wfile.write(b'\r\n')
-                        time.sleep(0.1)
+                        time.sleep(0.125)  # Etwas entspanntere 8 FPS für den Stream
                 except Exception:
                     pass
             else:
@@ -245,15 +245,18 @@ def update_stream_frame(screen):
         return
 
     now = time.time()
-    if now - last_capture_time < 0.1:
+    # Strenge Begrenzung auf max. 8 FPS (alle 0.125s), damit die CPU des Pi nicht heißläuft
+    if now - last_capture_time < 0.125:
         return
     last_capture_time = now
 
     try:
-        surface = pygame.transform.scale(screen, (800, 600))
+        # Auflösung auf speicherschonende 640x480 gedrosselt (reicht völlig für den Browser aus)
+        surface = pygame.transform.smoothscale(screen, (640, 480))
         buf = io.BytesIO()
         pygame.image.save(surface, buf, "frame.jpg")
         with lock:
             latest_jpeg = buf.getvalue()
+        buf.close()
     except Exception:
         pass
