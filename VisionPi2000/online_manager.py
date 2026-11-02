@@ -1,11 +1,10 @@
 # Datei: online_manager.py
-# Version: 1.1.4
-# P2P / MQTT Online-Engine im VisionPi2000 Cyber-Circuit-Design
+# Version: 1.1.5
+# P2P / MQTT Online-Engine im VisionPi2000 Cyber-Circuit-Design mit Header-Bilddatei
 
 import sys
 import os
 
-# Sicherstellen, dass ein lokal eingebettetes paho-Modul (im Spielordner) immer zuerst gefunden wird
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import re
@@ -24,9 +23,8 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 
-# Die 8 festen Online-Spieler-Slots für die Lobby (Die Bullseye-Berrys)
 ONLINE_PLAYER_NAMES = [
     "Bullseye-Berry",       # Slot 0 (Spieler 1 / Host)
     "Triple-Strawberry",    # Slot 1 (Spieler 2)
@@ -52,8 +50,24 @@ GAME_TO_FILE = {
 DISCOVERY_TOPIC = "visionpi2000/v1/discovery"
 
 
+def find_image_file(preferred_names):
+    if isinstance(preferred_names, str):
+        preferred_names = [preferred_names]
+    for name in preferred_names:
+        if os.path.exists(name):
+            return name
+    try:
+        files = os.listdir('.')
+        files_lower = {f.lower(): f for f in files}
+        for name in preferred_names:
+            if name.lower() in files_lower:
+                return files_lower[name.lower()]
+    except Exception:
+        pass
+    return None
+
+
 def get_file_signature(filepath):
-    """Berechnet den SHA-256 Hash und liest den VERSION-String per Regex aus."""
     if not os.path.exists(filepath):
         return {"exists": False, "sha256": "", "version": "missing"}
     try:
@@ -73,7 +87,6 @@ def get_file_signature(filepath):
 
 
 def build_local_manifest(game_name):
-    """Erstellt die Prüfsummen für visionpi.py, online_manager.py und das gewählte Spielmodul."""
     base_dir = os.path.dirname(os.path.abspath(__file__))
     game_file = GAME_TO_FILE.get(game_name, "game_x01.py")
     return {
@@ -84,7 +97,6 @@ def build_local_manifest(game_name):
 
 
 def verify_manifests(host_manifest, local_manifest):
-    """Vergleicht die lokalen Dateien des Gastes mit den Vorgaben des Hosts."""
     mismatches = []
     for fname, h_sig in host_manifest.items():
         l_sig = local_manifest.get(fname, {})
@@ -107,7 +119,6 @@ def draw_cyber_frame(surface, x, y, w, h, cut=24):
     GOLD_TRACE = (180, 140, 40)
     PANEL_BG = (8, 20, 32, 225)
 
-    # Halbtransparentes Innenpanel
     panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
     pts_local = [
         (cut, 0), (w - cut, 0), (w, cut), (w, h - cut),
@@ -115,7 +126,6 @@ def draw_cyber_frame(surface, x, y, w, h, cut=24):
     ]
     pygame.draw.polygon(panel_surf, PANEL_BG, pts_local)
 
-    # Dezente Platinen-Leiterbahnen (Circuit-Traces) in den Ecken
     traces = [
         [(cut + 20, 14), (cut + 90, 14), (cut + 110, 34)],
         [(w - cut - 20, 14), (w - cut - 90, 14), (w - cut - 110, 34)],
@@ -128,28 +138,22 @@ def draw_cyber_frame(surface, x, y, w, h, cut=24):
 
     surface.blit(panel_surf, (x, y))
 
-    # Äußere Konturpunkte
     pts = [(x + px, y + py) for (px, py) in pts_local]
 
-    # Basis-Rahmen in Neon-Grün
     pygame.draw.polygon(surface, (0, 110, 75), pts, 6)
     pygame.draw.polygon(surface, NEON_GREEN, pts, 2)
 
-    # Farbige Eck-Akzente (Rot an den Schrägen, Cyan an den Flanken wie im Artwork)
     c_len = int(h * 0.22)
-    # Oben-Links & Unten-Links Rot/Cyan
     pygame.draw.line(surface, NEON_RED, (x, y + cut), (x + cut, y), 4)
     pygame.draw.line(surface, NEON_RED, (x, y + h - cut), (x + cut, y + h), 4)
     pygame.draw.line(surface, NEON_CYAN, (x, y + cut + 12), (x, y + cut + c_len), 4)
     pygame.draw.line(surface, NEON_CYAN, (x, y + h - cut - 12), (x, y + h - cut - c_len), 4)
 
-    # Oben-Rechts & Unten-Rechts Rot/Cyan
     pygame.draw.line(surface, NEON_RED, (x + w - cut, y), (x + w, y + cut), 4)
     pygame.draw.line(surface, NEON_RED, (x + w - cut, y + h), (x + w, y + h - cut), 4)
     pygame.draw.line(surface, NEON_CYAN, (x + w, y + cut + 12), (x + w, y + cut + c_len), 4)
     pygame.draw.line(surface, NEON_CYAN, (x + w, y + h - cut - 12), (x + w, y + h - cut - c_len), 4)
 
-    # Goldene Lötpunkte als Tech-Detail
     for cx, cy in [(x + cut + 10, y + 8), (x + w - cut - 10, y + 8),
                    (x + cut + 10, y + h - 8), (x + w - cut - 10, y + h - 8)]:
         pygame.draw.circle(surface, GOLD_TRACE, (cx, cy), 4)
@@ -676,39 +680,51 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
     sw, sh = screen.get_width(), screen.get_height()
     clock = pygame.time.Clock()
 
-    # Hintergrund und Assets passend zur grafischen Linie laden
     is_16_9 = (settings.get("format", "4:3") == "16:9")
-    bg_file = "background_16_9.png" if is_16_9 else "background.png"
+    bg_candidates = ["background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.png", "Background.png", "background.PNG"]
+    bg_file = find_image_file(bg_candidates)
     bg_img = None
-    if os.path.exists(bg_file):
+    if bg_file:
         try:
             raw_bg = pygame.image.load(bg_file).convert()
             bg_img = pygame.transform.scale(raw_bg, (sw, sh))
             darker = pygame.Surface((sw, sh))
-            darker.set_alpha(175)
+            darker.set_alpha(165)
             darker.fill((4, 12, 20))
             bg_img.blit(darker, (0, 0))
         except:
             pass
 
+    # Originale header.png Bilddatei wie in visionpi.py laden
+    header_file = find_image_file(["header.png", "Header.png", "HEADER.png"])
+    header_img = None
+    if header_file:
+        try:
+            raw_h = pygame.image.load(header_file).convert_alpha()
+            header_h = int(sh * 0.20)
+            header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
+            header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
+        except:
+            pass
+
     berry_avatar = None
     for b_file in ["Bullseye-Berry_Cyber.png", "Bullseye-Berry_Original.png"]:
-        if os.path.exists(b_file):
+        f_found = find_image_file(b_file)
+        if f_found:
             try:
-                berry_avatar = pygame.image.load(b_file).convert_alpha()
+                berry_avatar = pygame.image.load(f_found).convert_alpha()
                 break
             except:
                 pass
 
-    brand_font = pygame.font.SysFont("arial", int(sh * 0.044), bold=True)
-    sub_brand_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
-    sub_font = pygame.font.SysFont("arial", int(sh * 0.025), bold=True)
-    list_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)
-    small_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
+    brand_font = pygame.font.SysFont("arial", int(sh * 0.040), bold=True)
+    role_font = pygame.font.SysFont("arial", int(sh * 0.028), bold=True)
+    sub_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
+    list_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
+    small_font = pygame.font.SysFont("arial", int(sh * 0.019), bold=True)
     credit_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
 
     GOLD = (255, 205, 45)
-    GOLD_DARK = (160, 110, 10)
     WHITE = (255, 255, 255)
     NEON_GREEN = (0, 255, 157)
     NEON_CYAN = (0, 216, 255)
@@ -815,28 +831,27 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         else:
             screen.fill((6, 17, 28))
 
-        box_w, box_h = int(sw * 0.90), int(sh * 0.86)
-        box_x, box_y = (sw - box_w) // 2, int(sh * 0.05)
+        # Oben die originale header.png Bilddatei einblenden
+        if header_img:
+            screen.blit(header_img, ((sw - header_img.get_width()) // 2, 0))
+            box_y = int(sh * 0.19)
+            box_h = int(sh * 0.75)
+        else:
+            fallback_surf = brand_font.render("VisionPi2000", True, GOLD)
+            screen.blit(fallback_surf, ((sw - fallback_surf.get_width()) // 2, int(sh * 0.02)))
+            box_y = int(sh * 0.10)
+            box_h = int(sh * 0.82)
 
-        draw_cyber_frame(screen, box_x, box_y, box_w, box_h, cut=24)
+        box_w = int(sw * 0.90)
+        box_x = (sw - box_w) // 2
 
-        # Header mit exakter Schreibweise "VisionPi2000" und Golden-Shadow-Effekt
-        role_str = "HOST-LOBBY" if is_host else "GAST-BEITRITT"
-        title_str = f"VisionPi2000  •  ONLINE {role_str}"
-        head_shadow = brand_font.render(title_str, True, (20, 15, 0))
-        head_surf = brand_font.render(title_str, True, GOLD)
-        hx = (sw - head_surf.get_width()) // 2
-        hy = box_y + int(box_h * 0.03)
-        screen.blit(head_shadow, (hx + 2, hy + 2))
-        screen.blit(head_surf, (hx, hy))
+        draw_cyber_frame(screen, box_x, box_y, box_w, box_h, cut=22)
 
-        sub_brand = sub_brand_font.render("Open-Source-Dartsports  •  P2P Network Engine", True, NEON_CYAN)
-        screen.blit(sub_brand, ((sw - sub_brand.get_width()) // 2, hy + head_surf.get_height() + 2))
-
+        role_str = "ONLINE HOST-LOBBY" if is_host else "ONLINE GAST-BEITRITT"
         room_disp = session.room_id if session.room_id else "Suche offene Lobbys..."
-        sub_txt = f"Disziplin: {session.game_name} ({session.option})   |   Lobby-ID: {room_disp}"
-        sub_surf = sub_font.render(sub_txt, True, WHITE)
-        screen.blit(sub_surf, ((sw - sub_surf.get_width()) // 2, box_y + int(box_h * 0.145)))
+        head_str = f"{role_str}  •  Disziplin: {session.game_name} ({session.option})  •  {room_disp}"
+        head_surf = role_font.render(head_str, True, GOLD)
+        screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, box_y + int(box_h * 0.035)))
 
         if session.error_msg:
             stat_col, stat_txt = NEON_RED, session.error_msg
@@ -849,16 +864,14 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             stat_txt = session.handshake_status
 
         stat_surf = small_font.render(f"Status / Handshake: {stat_txt}", True, stat_col)
-        screen.blit(stat_surf, ((sw - stat_surf.get_width()) // 2, box_y + int(box_h * 0.205)))
+        screen.blit(stat_surf, ((sw - stat_surf.get_width()) // 2, box_y + int(box_h * 0.11)))
 
-        # Neon-Trennlinie mit Mittel-Node
-        line_y = box_y + int(box_h * 0.255)
+        line_y = box_y + int(box_h * 0.165)
         pygame.draw.line(screen, NEON_GREEN, (box_x + 35, line_y), (box_x + box_w - 35, line_y), 2)
         pygame.draw.circle(screen, GOLD, (sw // 2, line_y), 5)
 
-        # 8 Spieler-Slots als Cyber-Cards
-        slot_y = box_y + int(box_h * 0.28)
-        slot_h = int(box_h * 0.068)
+        slot_y = box_y + int(box_h * 0.195)
+        slot_h = int(box_h * 0.082)
         card_w = int(box_w * 0.66) if berry_avatar else int(box_w * 0.82)
         card_x = box_x + int(box_w * 0.05)
 
@@ -887,14 +900,13 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             s_surf = list_font.render(line_str, True, txt_c)
             screen.blit(s_surf, (card_x + 16, cy + (ch - s_surf.get_height()) // 2))
 
-        # Bullseye-Berry Artwork rechts in der Lobby animieren
         if berry_avatar:
-            base_sz = int(box_h * 0.34)
+            base_sz = int(box_h * 0.38)
             pulse = int(math.sin(pygame.time.get_ticks() * 0.005) * 8)
             anim_sz = base_sz + pulse
             av_scaled = pygame.transform.smoothscale(berry_avatar, (anim_sz, anim_sz))
             av_x = box_x + box_w - int(box_w * 0.27) + (base_sz - anim_sz) // 2
-            av_y = box_y + int(box_h * 0.40) + (base_sz - anim_sz) // 2
+            av_y = box_y + int(box_h * 0.34) + (base_sz - anim_sz) // 2
             screen.blit(av_scaled, (av_x, av_y))
 
         if is_host:
@@ -907,11 +919,10 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
                 hint_str = "Warte auf Spielstart durch den Host...   |   SPIELERWECHSEL: Abbrechen"
 
         hint_surf = sub_font.render(hint_str, True, GOLD)
-        screen.blit(hint_surf, ((sw - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.085)))
+        screen.blit(hint_surf, ((sw - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.075)))
 
-        # Footer außerhalb des Rahmens exakt wie auf dem Vorlagebild
         credit_surf = credit_font.render(":Grundprogramm & Design entwickelt von Oliver Müssig:", True, WHITE)
-        screen.blit(credit_surf, ((sw - credit_surf.get_width()) // 2, sh - int(sh * 0.038)))
+        screen.blit(credit_surf, ((sw - credit_surf.get_width()) // 2, sh - int(sh * 0.035)))
 
         pygame.display.flip()
         clock.tick(30)
