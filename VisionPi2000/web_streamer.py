@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.2
-# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend, HD-Schärfe)
+# Version: 1.1.0
+# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.2"
+VERSION = "1.1.0"
 PORT = 8080
 
 latest_jpeg = None
@@ -233,7 +233,7 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                             self.wfile.write(frame)
                             self.wfile.write(b"\r\n")
                             self.wfile.flush()
-                        time.sleep(0.08)
+                        time.sleep(0.14)
                 except Exception:
                     pass
                 finally:
@@ -271,25 +271,25 @@ def update_stream_frame(screen):
         return
 
     now = time.time()
-    if now - last_capture_time < 0.08:
+    # Begrenzung auf ~7 FPS (alle 0.14s) für minimale Last auf dem Pi 4B (1GB)
+    if now - last_capture_time < 0.14:
         return
     last_capture_time = now
 
     try:
         sw, sh = screen.get_width(), screen.get_height()
-        # Schärfere Auflösungen (800x450 / 768x576)
-        target_size = (800, 450) if (sw / float(sh)) > 1.5 else (768, 576)
+        # Automatische 16:9 (640x360) oder 4:3 (640x480) Erkennung
+        target_size = (640, 360) if (sw / float(sh)) > 1.5 else (640, 480)
 
         if _scaled_surface is None or _scaled_size != target_size:
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
-        # Sauberes smoothscale für gestochen scharfe Schriften
-        pygame.transform.smoothscale(screen, target_size, _scaled_surface)
+        # Schnelles Bilinear-Scaling direkt in das vorab allokierte Surface (kein RAM-Leak!)
+        pygame.transform.scale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
-        # WICHTIG: In den RAM-Buffer (buf) schreiben statt auf die Festplatte!
-        pygame.image.save(_scaled_surface, buf, "frame.jpg", quality=85)
+        pygame.image.save(_scaled_surface, buf, "frame.jpg")
         with lock:
             latest_jpeg = buf.getvalue()
         buf.close()
