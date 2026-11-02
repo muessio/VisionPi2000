@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.4"
+VERSION = "1.1.2"
 PORT = 8080
 
 latest_jpeg = None
