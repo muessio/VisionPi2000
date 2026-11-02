@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.1-sharp
-# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend, optimierte Schärfe)
+# Version: 1.1.0
+# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.1-sharp"
+VERSION = "1.1.0"
 PORT = 8080
 
 latest_jpeg = None
@@ -285,12 +285,11 @@ def update_stream_frame(screen):
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
-        # OPTIMIERUNG: smoothscale statt scale für glattere, schärfere Schriften und Kanten (ohne RAM-Leak)
-        pygame.transform.smoothscale(screen, target_size, _scaled_surface)
+        # Schnelles Bilinear-Scaling direkt in das vorab allokierte Surface (kein RAM-Leak!)
+        pygame.transform.scale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
-        # OPTIMIERUNG: Sauberere JPEG-Qualität (85%) für gestochen scharfe Anzeigen bei kompakter Größe
-        pygame.image.save(_scaled_surface, buf, "frame.jpg", quality=85)
+        pygame.image.save(_scaled_surface, buf, "frame.jpg")
         with lock:
             latest_jpeg = buf.getvalue()
         buf.close()
