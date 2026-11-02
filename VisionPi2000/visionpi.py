@@ -2,6 +2,7 @@ import pygame
 import serial
 import sys
 import os
+import gc
 import glob
 import random
 import time
@@ -34,7 +35,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.6-main"
+VERSION = "1.1.8-main"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
@@ -61,7 +62,7 @@ def load_settings():
                     if k not in data: data[k] = v
                 data["mapper"] = data["mapper"].replace(".py", "")
                 return data
-    except:
+    except Exception:
         pass
     return default_settings
 
@@ -72,22 +73,22 @@ def ensure_wifi_connection(settings):
         return
     
     try:
-        res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True)
+        res = subprocess.run("nmcli -t -f active,ssid dev wifi | grep '^yes'", shell=True, capture_output=True, text=True, timeout=5)
         current_ssid = res.stdout.split(":", 1)[1].strip() if res.stdout and ":" in res.stdout else ""
         
         if current_ssid != ssid:
             print(f"Erzwinge Verbindung mit WLAN aus settings.json: {ssid}...")
             if current_ssid:
-                subprocess.run(f'sudo nmcli connection modify id "{current_ssid}" connection.autoconnect no >/dev/null 2>&1', shell=True)
-                subprocess.run("sudo nmcli device disconnect wlan0 >/dev/null 2>&1", shell=True)
+                subprocess.run(f'sudo nmcli connection modify id "{current_ssid}" connection.autoconnect no >/dev/null 2>&1', shell=True, timeout=5)
+                subprocess.run("sudo nmcli device disconnect wlan0 >/dev/null 2>&1", shell=True, timeout=5)
             
-            subprocess.run("sudo nmcli device wifi rescan >/dev/null 2>&1", shell=True)
+            subprocess.run("sudo nmcli device wifi rescan >/dev/null 2>&1", shell=True, timeout=5)
             time.sleep(2)
             
             if password:
-                subprocess.run(f'sudo nmcli device wifi connect "{ssid}" password "{password}" >/dev/null 2>&1', shell=True)
+                subprocess.run(f'sudo nmcli device wifi connect "{ssid}" password "{password}" >/dev/null 2>&1', shell=True, timeout=12)
             else:
-                subprocess.run(f'sudo nmcli device wifi connect "{ssid}" >/dev/null 2>&1', shell=True)
+                subprocess.run(f'sudo nmcli device wifi connect "{ssid}" >/dev/null 2>&1', shell=True, timeout=12)
     except Exception as e:
         print(f"WLAN Auto-Connect Fehler: {e}")
 
@@ -105,7 +106,7 @@ def find_image_file(preferred_names):
         for name in preferred_names:
             if name.lower() in files_lower:
                 return files_lower[name.lower()]
-    except:
+    except Exception:
         pass
     return None
 
@@ -120,20 +121,40 @@ class ScreenSaver:
         self.state_timer = pygame.time.get_ticks()
         
         self.avatars = []
+        av_size = int(min(width, height) * 0.13)
         berry_files = ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]
         for file in berry_files:
             f_found = find_image_file(file)
             if f_found:
                 try:
-                    img = pygame.transform.smoothscale(pygame.image.load(f_found).convert_alpha(), (100, 100))
-                    self.avatars.append({"img": img, "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
-                except: pass
+                    img = pygame.transform.smoothscale(pygame.image.load(f_found).convert_alpha(), (av_size, av_size))
+                    self.avatars.append({
+                        "img": img,
+                        "size": av_size,
+                        "x": random.randint(50, max(60, width - av_size - 50)),
+                        "y": random.randint(50, max(60, height - av_size - 50)),
+                        "vx": random.choice([-3, 3]),
+                        "vy": random.choice([-3, 3])
+                    })
+                except Exception:
+                    pass
         self.font = pygame.font.SysFont("arial", int(height * 0.026), bold=True)
+        self.hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (140, 140, 140))
+        self.hint_rect = self.hint_surf.get_rect(center=(self.width // 2, self.height - int(self.height * 0.05)))
 
         if is_16_9:
-            candidates = ["Screensaver_16_9.jpg", "screensaver_16_9.jpg", "Screensaver_16_9.png", "screensaver_16_9.png", "Screensaver.jpg", "Screensaver.png"]
+            candidates = [
+                "Screensaver_16_9.jpg", "screensaver_16_9.jpg",
+                "Screensaver_16_9.png", "screensaver_16_9.png",
+                "Screensaver.jpg", "screensaver.jpg",
+                "Screensaver.png", "screensaver.png"
+            ]
         else:
-            candidates = ["Screensaver.jpg", "screensaver.jpg", "Screensaver.png", "screensaver.png", "Screensaver_16_9.jpg"]
+            candidates = [
+                "Screensaver.jpg", "screensaver.jpg",
+                "Screensaver.png", "screensaver.png",
+                "Screensaver_16_9.jpg", "screensaver_16_9.jpg"
+            ]
 
         self.static_img = None
         img_found = find_image_file(candidates)
@@ -141,7 +162,8 @@ class ScreenSaver:
             try:
                 raw_img = pygame.image.load(img_found).convert()
                 self.static_img = pygame.transform.scale(raw_img, (width, height))
-            except: pass
+            except Exception:
+                pass
 
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
@@ -153,23 +175,25 @@ class ScreenSaver:
         return False
 
     def check(self):
-        if not self.active and pygame.time.get_ticks() - self.last_activity > self.timeout:
+        now = pygame.time.get_ticks()
+        if not self.active and (now - self.last_activity > self.timeout):
             self.active = True
-            self.state = "ANIMATION"
-            self.state_timer = pygame.time.get_ticks()
+            self.state = "IMAGE" if (self.static_img is not None and not self.avatars) else "ANIMATION"
+            self.state_timer = now
         return self.active
 
     def update_and_draw(self, screen):
-        if not self.active: return
+        if not self.active:
+            return
         
         current_time = pygame.time.get_ticks()
         
         if self.state == "ANIMATION":
-            if current_time - self.state_timer > 60000:
+            if self.static_img is not None and (current_time - self.state_timer > 60000):
                 self.state = "IMAGE"
                 self.state_timer = current_time
         elif self.state == "IMAGE":
-            if current_time - self.state_timer > 30000:
+            if self.avatars and (current_time - self.state_timer > 30000):
                 self.state = "ANIMATION"
                 self.state_timer = current_time
 
@@ -178,12 +202,15 @@ class ScreenSaver:
         else:
             screen.fill((0, 0, 0))
             for av in self.avatars:
-                av["x"] += av["vx"]; av["y"] += av["vy"]
-                if av["x"] <= 0 or av["x"] >= self.width - 100: av["vx"] *= -1
-                if av["y"] <= 0 or av["y"] >= self.height - 100: av["vy"] *= -1
+                sz = av["size"]
+                av["x"] += av["vx"]
+                av["y"] += av["vy"]
+                if av["x"] <= 0 or av["x"] >= self.width - sz:
+                    av["vx"] *= -1
+                if av["y"] <= 0 or av["y"] >= self.height - sz:
+                    av["vy"] *= -1
                 screen.blit(av["img"], (av["x"], av["y"]))
-            hint_surf = self.font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
-            screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
+            screen.blit(self.hint_surf, self.hint_rect)
 
 def init_serial():
     for port in glob.glob('/dev/ttyUSB*') + glob.glob('/dev/ttyACM*'):
@@ -191,7 +218,8 @@ def init_serial():
             ser = serial.Serial(port, 115200, timeout=0.01)
             time.sleep(2.5) 
             return ser
-        except: continue
+        except Exception:
+            continue
     return None
 
 def draw_column(screen, font, title_font, x, y, w, h, color, title, items, sel_idx):
@@ -249,7 +277,7 @@ def main():
 
     screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT, is_16_9)
 
-    bg_candidates = ["background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.png", "Background.png", "background.PNG"]
+    bg_candidates = ["background_16_9.jpg", "background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.jpg", "background.png", "Background.png", "background.PNG"]
     bg_file = find_image_file(bg_candidates)
     bg_img = None
     if bg_file:
@@ -259,7 +287,8 @@ def main():
             darker_overlay = pygame.Surface((TARGET_WIDTH, TARGET_HEIGHT))
             darker_overlay.set_alpha(120); darker_overlay.fill((0, 0, 0))
             bg_img.blit(darker_overlay, (0, 0))
-        except: pass
+        except Exception:
+            pass
 
     header_file = find_image_file(["header.png", "Header.png", "HEADER.png"])
     header_img = None
@@ -269,7 +298,8 @@ def main():
             header_h = int(TARGET_HEIGHT * 0.36 * 1.15)
             header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
-        except: pass
+        except Exception:
+            pass
 
     start_candidates = ["Start_16_9.jpg", "start_16_9.jpg", "Start_16_9.JPG", "Start16_9.jpg"] if is_16_9 else ["Start.jpg", "start.jpg", "Start.JPG"]
     start_file = find_image_file(start_candidates)
@@ -279,7 +309,7 @@ def main():
             pygame.display.flip()
             if ser:
                 try: ser.reset_input_buffer()
-                except: pass
+                except Exception: pass
             splash_start = pygame.time.get_ticks()
             waiting = True
             while waiting:
@@ -287,10 +317,12 @@ def main():
                 if ser and ser.in_waiting > 0:
                     try:
                         if ser.readline().decode('utf-8','ignore').strip() == "BTN:START": waiting = False
-                    except: pass
+                    except Exception: pass
                 for e in pygame.event.get():
                     if e.type == pygame.KEYDOWN and e.key in [pygame.K_SPACE, pygame.K_ESCAPE, pygame.K_RETURN]: waiting = False 
-        except: pass
+                time.sleep(0.02)
+        except Exception:
+            pass
 
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.02), bold=True)
@@ -320,6 +352,7 @@ def main():
     ]
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
     combo_press_start = 0
+    last_gc_collect = time.time()
 
     def update_menu_hardware_display():
         g_name = game_registry[sel_game]["name"] if game_registry else "301"
@@ -337,12 +370,19 @@ def main():
                 ser.write(b"LAMP:START:2\n")
                 ser.write(b"LAMP:PLAYER:2\n")
                 ser.flush()
-            except: pass
+            except Exception:
+                pass
 
     display.clear_all()
     update_menu_hardware_display()
+    screensaver.reset_timer()
 
     while running:
+        # Alle 60s im Menü ungenutzten RAM freigeben
+        if time.time() - last_gc_collect > 60.0:
+            last_gc_collect = time.time()
+            gc.collect()
+
         g_list = [g["name"] for g in game_registry]
         current_game_name = g_list[sel_game] if g_list else ""
         
@@ -362,12 +402,24 @@ def main():
         if sel_option >= len(c_opts): sel_option = 0
         if sel_mode >= len(modes): sel_mode = 0
 
-        raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
+        raw_data = None
+        if ser and ser.in_waiting > 0:
+            try:
+                line = ser.readline().decode('utf-8', 'ignore').strip()
+                # Nur gültige Befehle akzeptieren (ignoriert elektrisches Rauschen)
+                if line.startswith(("BTN:", "HIT:", "MISS:", "IR:")):
+                    raw_data = line
+            except Exception:
+                raw_data = None
             
         for e in pygame.event.get():
-            if e.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
-                if screensaver.reset_timer(): raw_data = None; continue
-            if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE): running = False
+            # KEIN MOUSEMOTION mehr, damit Vibrationen den Screensaver nicht blockieren!
+            if e.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
+                if screensaver.reset_timer():
+                    raw_data = None
+                    continue
+            if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE):
+                running = False
             elif e.type == pygame.KEYDOWN:
                 if e.key == pygame.K_r: raw_data = "BTN:RED"
                 elif e.key == pygame.K_b: raw_data = "BTN:BLUE"
@@ -375,20 +427,34 @@ def main():
                 elif e.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
-        if raw_data and screensaver.reset_timer(): raw_data = None; continue
+        if raw_data:
+            # IR:DETECT im Hauptmenü darf den Bildschirmschoner nicht am Starten hindern
+            if raw_data == "IR:DETECT" and not screensaver.active:
+                raw_data = None
+            elif screensaver.reset_timer():
+                raw_data = None
+                continue
 
         keys = pygame.key.get_pressed()
-        if raw_data == "BTN:COMBO": trigger_info = True; raw_data = None
+        if raw_data == "BTN:COMBO":
+            trigger_info = True
+            raw_data = None
         elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
-            if combo_press_start == 0: combo_press_start = pygame.time.get_ticks()
-            elif pygame.time.get_ticks() - combo_press_start >= 2000: trigger_info = True; combo_press_start = 0
-        else: combo_press_start = 0; trigger_info = False
+            if combo_press_start == 0:
+                combo_press_start = pygame.time.get_ticks()
+            elif pygame.time.get_ticks() - combo_press_start >= 2000:
+                trigger_info = True
+                combo_press_start = 0
+        else:
+            combo_press_start = 0
+            trigger_info = False
 
         if trigger_info:
-            screensaver.reset_timer(); showing_info = True
+            screensaver.reset_timer()
+            showing_info = True
             if ser:
                 try: ser.reset_input_buffer()
-                except: pass
+                except Exception: pass
             while showing_info:
                 if bg_img: screen.blit(bg_img, (0, 0))
                 else: screen.fill((0,0,0))
@@ -437,11 +503,19 @@ def main():
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.08)))
 
                 pygame.display.flip()
+                clock.tick(20)
                 for ev in pygame.event.get():
-                    if ev.type == pygame.KEYDOWN and ev.key in [pygame.K_p, pygame.K_ESCAPE]: showing_info = False
+                    if ev.type == pygame.KEYDOWN and ev.key in [pygame.K_p, pygame.K_ESCAPE]:
+                        showing_info = False
                 if ser and ser.in_waiting > 0:
-                    if ser.readline().decode('utf-8','ignore').strip() == "BTN:PLAYER": showing_info = False
-            trigger_info = False; raw_data = None 
+                    try:
+                        if ser.readline().decode('utf-8','ignore').strip() == "BTN:PLAYER":
+                            showing_info = False
+                    except Exception:
+                        pass
+            trigger_info = False
+            raw_data = None
+            screensaver.reset_timer()
 
         if raw_data:
             if raw_data in ["BTN:RED", "BTN:BLUE", "BTN:GREY", "BTN:PLAYER"]:
@@ -467,7 +541,8 @@ def main():
                         ser.write(b"LAMP:START:0\n")
                         ser.write(b"LAMP:PLAYER:0\n")
                         ser.flush()
-                    except: pass
+                    except Exception:
+                        pass
                 mod = game_registry[sel_game]["module"]
                 chosen_mode = modes[sel_mode]
                 if mod:
@@ -483,15 +558,18 @@ def main():
                     display.set_light(True)
                     display.clear_all() 
                     update_menu_hardware_display()
-                    screensaver.reset_timer()
                     if ser:
                         try: ser.reset_input_buffer()
-                        except: pass
+                        except Exception: pass
                     pygame.event.clear()
+                    gc.collect()
+                    screensaver.reset_timer()
 
         if screensaver.check():
             screensaver.update_and_draw(screen)
-            pygame.display.flip(); clock.tick(30); continue
+            pygame.display.flip()
+            clock.tick(30)
+            continue
 
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0,0,0))
@@ -521,7 +599,8 @@ def main():
             screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
             screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
 
-        pygame.display.flip(); clock.tick(30)
+        pygame.display.flip()
+        clock.tick(30)
 
     display.set_light(False) 
     pygame.quit(); sys.exit()
