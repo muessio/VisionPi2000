@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.1-sharp
-# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend)
+# Version: 1.1.2
+# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend, HD-Schärfe)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.1-sharp"
+VERSION = "1.1.4"
 PORT = 8080
 
 latest_jpeg = None
@@ -277,17 +277,18 @@ def update_stream_frame(screen):
 
     try:
         sw, sh = screen.get_width(), screen.get_height()
-        # Erhöhte Auflösungen für schärfere Schriften
+        # Schärfere Auflösungen (800x450 / 768x576)
         target_size = (800, 450) if (sw / float(sh)) > 1.5 else (768, 576)
 
         if _scaled_surface is None or _scaled_size != target_size:
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
-        # Smoothscale für glatte Kanten
+        # Sauberes smoothscale für gestochen scharfe Schriften
         pygame.transform.smoothscale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
+        # WICHTIG: In den RAM-Buffer (buf) schreiben statt auf die Festplatte!
         pygame.image.save(_scaled_surface, buf, "frame.jpg", quality=85)
         with lock:
             latest_jpeg = buf.getvalue()
