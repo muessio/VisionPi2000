@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 GAMES = ["Cricket"]
 OPTIONS = [
     "Standard",
@@ -134,7 +134,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     title_font = pygame.font.SysFont("arial", int(sh * 0.035), bold=True)
     big_font = pygame.font.SysFont("arial", int(sh * 0.05), bold=True)
     
-    # Dynamische Schriftgröße für den Gewinner-Text (4:3 vs 16:9 angepasst)
     win_font_size = int(sh * 0.13) if sh <= 768 else int(sh * 0.23)
     win_font = pygame.font.SysFont("arial", win_font_size, bold=True)
     giant_font = pygame.font.SysFont("arial", int(sh * 0.23), bold=True)
@@ -250,7 +249,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks(); raw_data = None
             elif raw_data == "IR:DETECT":
-                if darts_thrown >= 3 and not is_berrys_turn and switch_delay_timer == 0: switch_delay_timer = pygame.time.get_ticks() + 1000
+                if darts_thrown >= 3 and not is_berrys_turn: switch_delay_timer = pygame.time.get_ticks() + 2000
                 raw_data = None
             
             if is_berrys_turn and darts_thrown >= 3 and switch_delay_timer == 0:
