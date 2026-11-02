@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.1
-# Ultra-leichter HTTP-Streamer (Optimierte Schärfe & Bildqualität bei minimaler RAM/CPU-Last)
+# Version: 1.1.2
+# Fix für hängenden/schwarzen MJPEG-Stream im Browser
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 PORT = 8080
 
 latest_jpeg = None
@@ -19,7 +19,6 @@ last_capture_time = 0.0
 active_clients = 0
 clients_lock = threading.Lock()
 
-# Vorab allokierte Ressourcen gegen RAM-Fragmentierung auf dem 1GB Pi
 _scaled_surface = None
 _scaled_size = (0, 0)
 _cached_header_bytes = None
@@ -210,7 +209,6 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
 
             elif self.path == "/stream.mjpg":
-                self.connection.settimeout(5.0)
                 self.send_response(200)
                 self.send_header("Age", "0")
                 self.send_header("Cache-Control", "no-cache, private")
@@ -233,7 +231,7 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                             self.wfile.write(frame)
                             self.wfile.write(b"\r\n")
                             self.wfile.flush()
-                        time.sleep(0.14)
+                        time.sleep(0.1)
                 except Exception:
                     pass
                 finally:
@@ -266,11 +264,11 @@ def start_streaming_thread():
 
 def update_stream_frame(screen):
     global latest_jpeg, last_capture_time, _scaled_surface, _scaled_size
-    if active_clients <= 0 or screen is None:
+    if screen is None:
         return
 
     now = time.time()
-    if now - last_capture_time < 0.14:
+    if now - last_capture_time < 0.1:
         return
     last_capture_time = now
 
@@ -282,11 +280,9 @@ def update_stream_frame(screen):
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
-        # OPTIMIERUNG: smoothscale statt scale für glattere Kanten und lesbarere Schrift
         pygame.transform.smoothscale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
-        # OPTIMIERUNG: Saubere JPEG-Qualität (85%) für maximale Schärfe ohne den Puffer zu sprengen
         pygame.image.save(_scaled_surface, buf, "frame.jpg", quality=85)
         with lock:
             latest_jpeg = buf.getvalue()
