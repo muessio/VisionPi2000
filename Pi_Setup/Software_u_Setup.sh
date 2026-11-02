@@ -8,6 +8,12 @@
 # 1. Nur Paketlisten aktualisieren (KEIN volles apt upgrade, um WLAN nicht zu zerstören!)
 sudo apt update
 
+# 1.2 Sudo-Passwortabfrage für den Benutzer visionpi2000 direkt am Anfang deaktivieren,
+# damit alle nachfolgenden sudo-Befehle im Skript ohne Blockade durchlaufen!
+echo "Konfiguriere passwortlose Sudo-Rechte für visionpi2000..."
+echo "visionpi2000 ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/visionpi2000
+sudo chmod 0440 /etc/sudoers.d/visionpi2000
+
 # 1.5. USB-Stromlimit auf Maximum setzen, USB-Energiesparmodus deaktivieren & GPU-RAM optimieren
 CONFIG_FILE="/boot/firmware/config.txt"
 if [ ! -f "$CONFIG_FILE" ] && [ -f "/boot/config.txt" ]; then
