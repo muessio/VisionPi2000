@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.1
-# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, HD-Schärfe & butterweiche ~15 FPS)
+# Version: 1.1.1-sharp
+# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.2"
+VERSION = "1.1.1-sharp"
 PORT = 8080
 
 latest_jpeg = None
@@ -23,13 +23,6 @@ clients_lock = threading.Lock()
 _scaled_surface = None
 _scaled_size = (0, 0)
 _cached_header_bytes = None
-
-# Gestochen scharfe HD-Auflösungen für glasklare Schriften
-RES_16_9 = (800, 450)
-RES_4_3  = (768, 576)
-
-# Optimiertes Intervall für flüssige ~15 FPS (statt vorher 7 FPS)
-FRAME_INTERVAL = 0.06
 
 
 def get_header_bytes():
@@ -240,7 +233,7 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                             self.wfile.write(frame)
                             self.wfile.write(b"\r\n")
                             self.wfile.flush()
-                        time.sleep(FRAME_INTERVAL)
+                        time.sleep(0.08)
                 except Exception:
                     pass
                 finally:
@@ -273,26 +266,25 @@ def start_streaming_thread():
 
 def update_stream_frame(screen):
     global latest_jpeg, last_capture_time, _scaled_surface, _scaled_size
+    # KRITISCHE OPTIMIERUNG: Wenn kein Browser verbunden ist, 0% CPU & 0 RAM verbrauchen!
     if active_clients <= 0 or screen is None:
         return
 
     now = time.time()
-    if now - last_capture_time < FRAME_INTERVAL:
+    if now - last_capture_time < 0.08:
         return
     last_capture_time = now
 
     try:
         sw, sh = screen.get_width(), screen.get_height()
-        
-        if (sw / float(sh)) > 1.5:
-            target_size = RES_16_9
-        else:
-            target_size = RES_4_3
+        # Erhöhte Auflösungen für schärfere Schriften
+        target_size = (800, 450) if (sw / float(sh)) > 1.5 else (768, 576)
 
         if _scaled_surface is None or _scaled_size != target_size:
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
+        # Smoothscale für glatte Kanten
         pygame.transform.smoothscale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
