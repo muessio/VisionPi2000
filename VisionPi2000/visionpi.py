@@ -502,8 +502,8 @@ def main():
         if header_img: 
             screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
         else:
-            hx = (TARGET_WIDTH - big_font.render("VISION PI 2000", True, (255,215,0)).get_width()) // 2
-            screen.blit(big_font.render("VISION PI 2000", True, (255,215,0)), (hx, header_y_pos + 10))
+            hx = (TARGET_WIDTH - big_font.render("VisionPi2000", True, (255,215,0)).get_width()) // 2
+            screen.blit(big_font.render("VisionPi2000", True, (255,215,0)), (hx, header_y_pos + 10))
         
         cw = int(TARGET_WIDTH * 0.28)
         ch = int(TARGET_HEIGHT * 0.48)  
