@@ -34,7 +34,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.5-main"
+VERSION = "1.1.6-main"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
@@ -110,7 +110,7 @@ def find_image_file(preferred_names):
     return None
 
 class ScreenSaver:
-    def __init__(self, width, height, is_16_9):
+    def __init__(self, width, height, is_16_9=False):
         self.width, self.height = width, height
         self.timeout = 10 * 60 * 1000  
         self.last_activity = pygame.time.get_ticks()
@@ -234,7 +234,6 @@ def main():
 
     screen = pygame.display.set_mode((TARGET_WIDTH, TARGET_HEIGHT), pygame.FULLSCREEN | pygame.SCALED)
 
-    # Web-Streamer auf Port 8080 starten & globalen Display-Hook setzen
     if web_streamer:
         web_streamer.start_streaming_thread()
         orig_flip = pygame.display.flip
@@ -298,7 +297,6 @@ def main():
     title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.026), bold=True)
     big_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.04), bold=True)
     
-    # Korrigierte Schriftgrößen für das Systeminfo-Fenster
     info_title_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.034), bold=True)
     info_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.032), bold=True)
     info_hint_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.033), bold=True)
