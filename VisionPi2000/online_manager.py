@@ -1,6 +1,6 @@
 # Datei: online_manager.py
-# Version: 1.1.8
-# P2P / MQTT Online-Engine mit absolut stabilen Display- und Event-Hooks
+# Version: 1.2.0
+# P2P / MQTT Online-Engine (Crash-sicher bei Internet-Ausfall, 4:3 & 16:9 Support, Surface-Cache)
 
 import sys
 import os
@@ -15,6 +15,7 @@ import uuid
 import queue
 import random
 import hashlib
+import threading
 import pygame
 
 try:
@@ -23,7 +24,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.1.8"
+VERSION = "1.2.0"
 
 ONLINE_PLAYER_NAMES = [
     "Bullseye-Berry",       # Slot 0 (Spieler 1 / Host)
@@ -49,6 +50,9 @@ GAME_TO_FILE = {
 
 DISCOVERY_TOPIC = "visionpi2000/v1/discovery"
 
+# Cache für Cyber-Frames (verhindert ständige Surface-Allokation im RAM)
+_frame_cache = {}
+
 
 def find_image_file(preferred_names):
     if isinstance(preferred_names, str):
@@ -57,7 +61,7 @@ def find_image_file(preferred_names):
         if os.path.exists(name):
             return name
     try:
-        files = os.listdir('.')
+        files = os.listdir(".")
         files_lower = {f.lower(): f for f in files}
         for name in preferred_names:
             if name.lower() in files_lower:
@@ -112,50 +116,53 @@ def verify_manifests(host_manifest, local_manifest):
 
 
 def draw_cyber_frame(surface, x, y, w, h, cut=24):
-    NEON_GREEN = (0, 255, 157)
-    NEON_CYAN = (0, 216, 255)
-    NEON_RED = (255, 56, 76)
-    GOLD_TRACE = (180, 140, 40)
-    PANEL_BG = (8, 20, 32, 225)
+    key = (w, h, cut)
+    if key not in _frame_cache:
+        if len(_frame_cache) > 6:
+            _frame_cache.clear()
+        NEON_GREEN = (0, 255, 157)
+        NEON_CYAN = (0, 216, 255)
+        NEON_RED = (255, 56, 76)
+        GOLD_TRACE = (180, 140, 40)
+        PANEL_BG = (8, 20, 32, 225)
 
-    panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
-    pts_local = [
-        (cut, 0), (w - cut, 0), (w, cut), (w, h - cut),
-        (w - cut, h), (cut, h), (0, h - cut), (0, cut)
-    ]
-    pygame.draw.polygon(panel_surf, PANEL_BG, pts_local)
+        panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        pts_local = [
+            (cut, 0), (w - cut, 0), (w, cut), (w, h - cut),
+            (w - cut, h), (cut, h), (0, h - cut), (0, cut)
+        ]
+        pygame.draw.polygon(panel_surf, PANEL_BG, pts_local)
 
-    traces = [
-        [(cut + 20, 14), (cut + 90, 14), (cut + 110, 34)],
-        [(w - cut - 20, 14), (w - cut - 90, 14), (w - cut - 110, 34)],
-        [(cut + 20, h - 14), (cut + 90, h - 14), (cut + 110, h - 34)],
-        [(w - cut - 20, h - 14), (w - cut - 90, h - 14), (w - cut - 110, h - 34)]
-    ]
-    for tr in traces:
-        pygame.draw.lines(panel_surf, (20, 65, 60, 160), False, tr, 2)
-        pygame.draw.circle(panel_surf, (0, 255, 157, 160), tr[-1], 4, 1)
+        traces = [
+            [(cut + 20, 14), (cut + 90, 14), (cut + 110, 34)],
+            [(w - cut - 20, 14), (w - cut - 90, 14), (w - cut - 110, 34)],
+            [(cut + 20, h - 14), (cut + 90, h - 14), (cut + 110, h - 34)],
+            [(w - cut - 20, h - 14), (w - cut - 90, h - 14), (w - cut - 110, h - 34)]
+        ]
+        for tr in traces:
+            pygame.draw.lines(panel_surf, (20, 65, 60, 160), False, tr, 2)
+            pygame.draw.circle(panel_surf, (0, 255, 157, 160), tr[-1], 4, 1)
 
-    surface.blit(panel_surf, (x, y))
+        pygame.draw.polygon(panel_surf, (0, 110, 75), pts_local, 6)
+        pygame.draw.polygon(panel_surf, NEON_GREEN, pts_local, 2)
 
-    pts = [(x + px, y + py) for (px, py) in pts_local]
+        c_len = int(h * 0.22)
+        pygame.draw.line(panel_surf, NEON_RED, (0, cut), (cut, 0), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (0, h - cut), (cut, h), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (0, cut + 12), (0, cut + c_len), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (0, h - cut - 12), (0, h - cut - c_len), 4)
 
-    pygame.draw.polygon(surface, (0, 110, 75), pts, 6)
-    pygame.draw.polygon(surface, NEON_GREEN, pts, 2)
+        pygame.draw.line(panel_surf, NEON_RED, (w - cut, 0), (w, cut), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (w - cut, h), (w, h - cut), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (w - 1, cut + 12), (w - 1, cut + c_len), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (w - 1, h - cut - 12), (w - 1, h - cut - c_len), 4)
 
-    c_len = int(h * 0.22)
-    pygame.draw.line(surface, NEON_RED, (x, y + cut), (x + cut, y), 4)
-    pygame.draw.line(surface, NEON_RED, (x, y + h - cut), (x + cut, y + h), 4)
-    pygame.draw.line(surface, NEON_CYAN, (x, y + cut + 12), (x, y + cut + c_len), 4)
-    pygame.draw.line(surface, NEON_CYAN, (x, y + h - cut - 12), (x, y + h - cut - c_len), 4)
+        for cx, cy in [(cut + 10, 8), (w - cut - 10, 8), (cut + 10, h - 8), (w - cut - 10, h - 8)]:
+            pygame.draw.circle(panel_surf, GOLD_TRACE, (cx, cy), 4)
 
-    pygame.draw.line(surface, NEON_RED, (x + w - cut, y), (x + w, y + cut), 4)
-    pygame.draw.line(surface, NEON_RED, (x + w - cut, y + h), (x + w, y + h - cut), 4)
-    pygame.draw.line(surface, NEON_CYAN, (x + w, y + cut + 12), (x + w, y + cut + c_len), 4)
-    pygame.draw.line(surface, NEON_CYAN, (x + w, y + h - cut - 12), (x + w, y + h - cut - c_len), 4)
+        _frame_cache[key] = panel_surf
 
-    for cx, cy in [(x + cut + 10, y + 8), (x + w - cut - 10, y + 8),
-                   (x + cut + 10, y + h - 8), (x + w - cut - 10, y + h - 8)]:
-        pygame.draw.circle(surface, GOLD_TRACE, (cx, cy), 4)
+    surface.blit(_frame_cache[key], (x, y))
 
 
 class OnlineSession:
@@ -168,6 +175,8 @@ class OnlineSession:
 
         self.is_host = False
         self.connected = False
+        self.ever_connected = False
+        self.disconnect_since = 0.0
         self.error_msg = ""
 
         self.active_rooms = {}
@@ -206,7 +215,7 @@ class OnlineSession:
                     "sender_id": self.client_id,
                     "reason": "Verbindung verloren (Timeout)"
                 })
-                self.client.will_set(DISCOVERY_TOPIC, payload=lwt_payload, qos=1, retain=False)
+                self.client.will_set(DISCOVERY_TOPIC, payload=lwt_payload, qos=0, retain=False)
             except Exception as e:
                 self.error_msg = f"MQTT Init Fehler: {e}"
         else:
@@ -216,7 +225,7 @@ class OnlineSession:
         if not self.client:
             return False
         try:
-            self.client.connect_async(self.broker, self.port, 20)
+            self.client.connect_async(self.broker, self.port, 10)
             self.client.loop_start()
             return True
         except Exception as e:
@@ -240,30 +249,40 @@ class OnlineSession:
                 pass
 
     def disconnect(self):
-        try:
-            self.notify_leaving("Automat hat die Sitzung geschlossen")
-            if self.is_host and self.room_id and self.connected:
-                try:
-                    self.client.publish(DISCOVERY_TOPIC, json.dumps({
+        """Nicht-blockierendes Trennen (verhindert Einfrieren bei totem Internet)."""
+        self.connected = False
+        client_ref = self.client
+        self.client = None
+        if not client_ref:
+            return
+
+        def _async_close():
+            try:
+                if self.room_topic:
+                    payload = json.dumps({
+                        "type": "match_abort",
+                        "sender_id": self.client_id,
+                        "reason": "Automat hat die Sitzung geschlossen"
+                    })
+                    client_ref.publish(self.room_topic, payload, qos=0)
+                if self.is_host and self.room_id:
+                    client_ref.publish(DISCOVERY_TOPIC, json.dumps({
                         "type": "room_closed",
                         "room_id": self.room_id,
                         "host_id": self.client_id
-                    }), qos=1)
-                except Exception:
-                    pass
-            if self.client:
-                try:
-                    time.sleep(0.08)
-                    self.client.loop_stop()
-                    self.client.disconnect()
-                except Exception:
-                    pass
-        except Exception:
-            pass
-        self.connected = False
+                    }), qos=0)
+                time.sleep(0.05)
+                client_ref.disconnect()
+                client_ref.loop_stop()
+            except Exception:
+                pass
+
+        t = threading.Thread(target=_async_close, daemon=True)
+        t.start()
+        t.join(timeout=0.35)
 
     def join_room_topic(self, new_room_id):
-        if self.room_topic and self.connected:
+        if self.room_topic and self.connected and self.client:
             try:
                 self.client.unsubscribe(self.room_topic)
             except Exception:
@@ -271,9 +290,9 @@ class OnlineSession:
         self.room_id = new_room_id
         self.room_topic = f"visionpi2000/v1/room/{new_room_id}"
         self.reported_mismatch = False
-        if self.connected and new_room_id:
+        if self.connected and new_room_id and self.client:
             try:
-                self.client.subscribe(self.room_topic, qos=1)
+                self.client.subscribe(self.room_topic, qos=0)
             except Exception:
                 pass
 
@@ -289,17 +308,17 @@ class OnlineSession:
                 open_list.append(r_id)
         return open_list
 
-    def publish_room(self, payload):
+    def publish_room(self, payload, qos=0):
         if not self.client or not self.connected or not self.room_topic:
             return
         payload["sender_id"] = self.client_id
         try:
-            self.client.publish(self.room_topic, json.dumps(payload), qos=1)
+            self.client.publish(self.room_topic, json.dumps(payload), qos=qos)
         except Exception:
             pass
 
     def broadcast_discovery_beacon(self):
-        if not self.is_host or not self.connected or not self.room_id:
+        if not self.is_host or not self.connected or not self.room_id or not self.client:
             return
         state = "PLAYING" if self.match_started else "OPEN"
         beacon = {
@@ -320,26 +339,41 @@ class OnlineSession:
         if not self.match_started or self.remote_aborted:
             return
         now = time.time()
+
+        # 1. Prüfen, ob unsere eigene Internetverbindung länger als 5 Sekunden weg ist
+        if not self.connected and self.disconnect_since > 0:
+            if now - self.disconnect_since > 5.0:
+                self.trigger_remote_abort("Eigene Internetverbindung unterbrochen!")
+                return
+
+        # 2. Prüfen, ob von einem Mitspieler seit > 7.0 Sekunden kein Heartbeat mehr kam
         remote_clients = {
             p["client_id"] for p in self.players if p["client_id"] != self.client_id
         }
         for rc_id in remote_clients:
             last_seen = self.peer_heartbeats.get(rc_id, now)
-            if now - last_seen > 7.5:
+            if now - last_seen > 7.0:
                 self.trigger_remote_abort("Verbindung zum Mitspieler abgebrochen (Timeout)!")
                 break
 
     def _on_connect(self, client, userdata, flags, rc):
         if rc == 0:
             self.connected = True
-            client.subscribe(DISCOVERY_TOPIC, qos=1)
-            if self.room_topic:
-                client.subscribe(self.room_topic, qos=1)
+            self.ever_connected = True
+            self.disconnect_since = 0.0
+            try:
+                client.subscribe(DISCOVERY_TOPIC, qos=0)
+                if self.room_topic:
+                    client.subscribe(self.room_topic, qos=0)
+            except Exception:
+                pass
         else:
             self.error_msg = f"Broker-Fehlercode: {rc}"
 
     def _on_disconnect(self, client, userdata, rc):
         self.connected = False
+        if self.disconnect_since == 0.0:
+            self.disconnect_since = time.time()
 
     def _on_message(self, client, userdata, msg):
         try:
@@ -517,9 +551,10 @@ class OnlineDisplayProxy:
         self._screen = screen
         self.active_player_idx = 0
         self.darts_left = 3
+        self.serial_proxy = None
         sh = screen.get_height()
         self.banner_font = pygame.font.SysFont("arial", int(sh * 0.021), bold=True)
-        self.alert_font = pygame.font.SysFont("arial", int(sh * 0.036), bold=True)
+        self.alert_font = pygame.font.SysFont("arial", int(sh * 0.034), bold=True)
 
     def set_active_player(self, active_player_idx):
         self.active_player_idx = active_player_idx
@@ -540,6 +575,11 @@ class OnlineDisplayProxy:
 
     def draw_online_hud(self):
         try:
+            # WICHTIG: Auch beim Zeichnen (jeden Frame) den Netzwerk-Poll triggern,
+            # falls das Spielmodul gerade in einer Animation steckt!
+            if self.serial_proxy:
+                self.serial_proxy._poll()
+
             if not self._screen or not self._session.players:
                 return
             sw, sh = self._screen.get_width(), self._screen.get_height()
@@ -549,7 +589,7 @@ class OnlineDisplayProxy:
                 msg2 = "Kehre automatisch ins Hauptmenü zurück..."
                 s1 = self.alert_font.render(msg1, True, (255, 255, 255))
                 s2 = self.banner_font.render(msg2, True, (255, 215, 0))
-                bw = max(s1.get_width(), s2.get_width()) + 70
+                bw = min(int(sw * 0.92), max(s1.get_width(), s2.get_width()) + 70)
                 bh = s1.get_height() + s2.get_height() + 56
                 bx, by = (sw - bw) // 2, (sh - bh) // 2
                 draw_cyber_frame(self._screen, bx, by, bw, bh, cut=16)
@@ -592,11 +632,12 @@ class OnlineSerialProxy:
         self._real_ser = real_ser
         self._session = session
         self._disp = display_proxy
+        self._disp.serial_proxy = self
         self._ready_queue = queue.Queue()
-        self._last_ir_sent = 0
+        self._last_ir_sent = 0.0
         self._last_beacon = time.time()
         self._last_heartbeat = time.time()
-        self._abort_combo_sent = False
+        self._last_abort_push = 0.0
 
     def _poll(self):
         try:
@@ -606,15 +647,20 @@ class OnlineSerialProxy:
                 self._last_beacon = now
                 self._session.broadcast_discovery_beacon()
 
-            if now - self._last_heartbeat > 2.0:
+            if now - self._last_heartbeat > 1.8:
                 self._last_heartbeat = now
                 self._session.publish_room({"type": "heartbeat"})
                 self._session.check_peer_timeouts()
 
-            if self._session.remote_aborted and not self._abort_combo_sent:
-                if now - self._session.abort_timestamp > 2.2:
-                    self._abort_combo_sent = True
-                    self._ready_queue.put("BTN:COMBO")
+            # KRITISCHER FIX: Wenn ein Remote-Abbruch aktiv ist, nach 2.0s Einblendzeit
+            # alle 0.4s wiederholt BTN:COMBO senden, bis auch Rundenende-Warteschleifen
+            # im Spielmodul zuverlässig beendet sind!
+            if self._session.remote_aborted:
+                if now - self._session.abort_timestamp > 2.0:
+                    if now - self._last_abort_push > 0.4:
+                        self._last_abort_push = now
+                        if self._ready_queue.qsize() < 3:
+                            self._ready_queue.put("BTN:COMBO")
                 return
 
             while not self._session.incoming_serial_queue.empty():
@@ -635,7 +681,9 @@ class OnlineSerialProxy:
 
                     if raw_line == "BTN:COMBO":
                         self._session.notify_leaving("Mitspieler hat das Match abgebrochen!")
-                        self._ready_queue.put(raw_line)
+                        self._session.trigger_remote_abort("Match lokal abgebrochen!")
+                        self._session.abort_timestamp = now - 2.1
+                        self._ready_queue.put("BTN:COMBO")
 
                     elif is_my_turn:
                         if raw_line.startswith("HIT:") or raw_line == "MISS:1":
@@ -692,19 +740,21 @@ class OnlineSerialProxy:
                 self._real_ser.reset_input_buffer()
             except Exception:
                 pass
-        try:
-            with self._ready_queue.mutex:
-                self._ready_queue.queue.clear()
-        except Exception:
-            pass
+        # Bei aktivem Abbruch darf das Spielmodul das BTN:COMBO nicht aus der Queue löschen!
+        if not self._session.remote_aborted:
+            try:
+                with self._ready_queue.mutex:
+                    self._ready_queue.queue.clear()
+            except Exception:
+                pass
 
 
 def run_online_lobby_and_match(screen, ser, display, local_players, game_name, option, is_host, game_mod, settings):
     sw, sh = screen.get_width(), screen.get_height()
     clock = pygame.time.Clock()
 
-    is_16_9 = (settings.get("format", "4:3") == "16:9")
-    bg_candidates = ["background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.png", "Background.png", "background.PNG"]
+    is_16_9 = (settings.get("format", "4:3") == "16:9") or ((sw / float(sh)) > 1.5)
+    bg_candidates = ["background_16_9.png", "background_16_9.PNG", "background_16_9.jpg"] if is_16_9 else ["background.png", "Background.png", "background.PNG", "background.jpg"]
     bg_file = find_image_file(bg_candidates)
     bg_img = None
     if bg_file:
@@ -729,12 +779,18 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         except Exception:
             pass
 
-    berry_avatar = None
+    berry_avatars_precomputed = []
     for b_file in ["Bullseye-Berry_Cyber.png", "Bullseye-Berry_Original.png"]:
         f_found = find_image_file(b_file)
         if f_found:
             try:
-                berry_avatar = pygame.image.load(f_found).convert_alpha()
+                raw_av = pygame.image.load(f_found).convert_alpha()
+                box_h_est = int(sh * 0.78)
+                base_sz = int(box_h_est * 0.40)
+                # 5 Animationsstufen einmalig vorab berechnen statt 30x pro Sekunde smoothscale!
+                for offset in [-6, -3, 0, 3, 6]:
+                    sz = base_sz + offset
+                    berry_avatars_precomputed.append(pygame.transform.smoothscale(raw_av, (sz, sz)))
                 break
             except Exception:
                 pass
@@ -823,8 +879,8 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
                     "type": "match_start",
                     "players": session.players,
                     "seed": session.match_seed
-                })
-                time.sleep(0.15)
+                }, qos=1)
+                time.sleep(0.12)
 
         if session.connected:
             if not is_host:
@@ -896,7 +952,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
 
         slot_y = box_y + int(box_h * 0.175)
         slot_h = int(box_h * 0.085)
-        card_w = int(box_w * 0.66) if berry_avatar else int(box_w * 0.82)
+        card_w = int(box_w * 0.66) if berry_avatars_precomputed else int(box_w * 0.82)
         card_x = box_x + int(box_w * 0.05)
 
         for s_idx in range(8):
@@ -924,11 +980,12 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             s_surf = list_font.render(line_str, True, txt_c)
             screen.blit(s_surf, (card_x + 16, cy + (ch - s_surf.get_height()) // 2))
 
-        if berry_avatar:
-            base_sz = int(box_h * 0.40)
-            pulse = int(math.sin(pygame.time.get_ticks() * 0.005) * 8)
-            anim_sz = base_sz + pulse
-            av_scaled = pygame.transform.smoothscale(berry_avatar, (anim_sz, anim_sz))
+        if berry_avatars_precomputed:
+            idx_anim = int((math.sin(pygame.time.get_ticks() * 0.005) + 1.0) * 2.49)
+            idx_anim = max(0, min(len(berry_avatars_precomputed) - 1, idx_anim))
+            av_scaled = berry_avatars_precomputed[idx_anim]
+            base_sz = berry_avatars_precomputed[2].get_width()
+            anim_sz = av_scaled.get_width()
             av_x = box_x + box_w - int(box_w * 0.27) + (base_sz - anim_sz) // 2
             av_y = box_y + int(box_h * 0.30) + (base_sz - anim_sz) // 2
             screen.blit(av_scaled, (av_x, av_y))
