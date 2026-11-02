@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.0
-# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend)
+# Version: 1.1.1
+# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, HD-Schärfe & stabile ~10 FPS)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 PORT = 8080
 
 latest_jpeg = None
@@ -23,6 +23,9 @@ clients_lock = threading.Lock()
 _scaled_surface = None
 _scaled_size = (0, 0)
 _cached_header_bytes = None
+
+# Leicht erhöhte Bildfrequenz für flüssigere ~10 FPS (Intervall 0.1s)
+FRAME_INTERVAL = 0.1
 
 
 def get_header_bytes():
@@ -233,7 +236,7 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                             self.wfile.write(frame)
                             self.wfile.write(b"\r\n")
                             self.wfile.flush()
-                        time.sleep(0.14)
+                        time.sleep(FRAME_INTERVAL)
                 except Exception:
                     pass
                 finally:
@@ -271,22 +274,21 @@ def update_stream_frame(screen):
         return
 
     now = time.time()
-    # Begrenzung auf ~7 FPS (alle 0.14s) für minimale Last auf dem Pi 4B (1GB)
-    if now - last_capture_time < 0.14:
+    if now - last_capture_time < FRAME_INTERVAL:
         return
     last_capture_time = now
 
     try:
         sw, sh = screen.get_width(), screen.get_height()
-        # Automatische 16:9 (640x360) oder 4:3 (640x480) Erkennung
-        target_size = (640, 360) if (sw / float(sh)) > 1.5 else (640, 480)
+        # Schärfere Auflösungen (800x450 für 16:9 / 768x576 für 4:3)
+        target_size = (800, 450) if (sw / float(sh)) > 1.5 else (768, 576)
 
         if _scaled_surface is None or _scaled_size != target_size:
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
-        # Schnelles Bilinear-Scaling direkt in das vorab allokierte Surface (kein RAM-Leak!)
-        pygame.transform.scale(screen, target_size, _scaled_surface)
+        # Glattes Skalieren für gestochen scharfe Schriften
+        pygame.transform.smoothscale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
         pygame.image.save(_scaled_surface, buf, "frame.jpg")
