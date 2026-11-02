@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.3
-# Ultra-leichter HTTP-Streamer (Korrigierter MJPEG-Stream & optimierte Schärfe)
+# Version: 1.1.4
+# Stabiler MJPEG-Streamer mit direktem Byte-Flush für den Browser
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 PORT = 8080
 
 latest_jpeg = None
@@ -48,7 +48,7 @@ def get_header_bytes():
 
 
 class StreamHandler(http.server.BaseHTTPRequestHandler):
-    timeout = 5.0
+    timeout = 10.0
 
     def log_message(self, format, *args):
         pass
@@ -211,9 +211,10 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             elif self.path == "/stream.mjpg":
                 self.send_response(200)
                 self.send_header("Age", "0")
-                self.send_header("Cache-Control", "no-cache, private")
+                self.send_header("Cache-Control", "no-cache, private, no-transform")
                 self.send_header("Pragma", "no-cache")
-                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=--jpgboundary")
                 self.end_headers()
 
                 with clients_lock:
@@ -225,13 +226,13 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                             frame = latest_jpeg
                         if frame is not None and frame is not last_sent_frame:
                             last_sent_frame = frame
-                            self.wfile.write(b"--frame\r\n")
+                            self.wfile.write(b"----jpgboundary\r\n")
                             self.wfile.write(b"Content-Type: image/jpeg\r\n")
                             self.wfile.write(f"Content-Length: {len(frame)}\r\n\r\n".encode("utf-8"))
                             self.wfile.write(frame)
                             self.wfile.write(b"\r\n")
                             self.wfile.flush()
-                        time.sleep(0.1)
+                        time.sleep(0.08)
                 except Exception:
                     pass
                 finally:
@@ -268,7 +269,8 @@ def update_stream_frame(screen):
         return
 
     now = time.time()
-    if now - last_capture_time < 0.1:
+    # Bildrate auf flüssige ~12 FPS angehoben für ein sauberes Live-Gefühl bei geringer Last
+    if now - last_capture_time < 0.08:
         return
     last_capture_time = now
 
@@ -280,11 +282,10 @@ def update_stream_frame(screen):
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
-        # Gestochen scharfe Skalierung dank smoothscale
+        # Gestochen scharfe Bilinear-Skalierung
         pygame.transform.smoothscale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
-        # Optimierte JPEG-Qualität (85%) für klare Kanten und Schriften
         pygame.image.save(_scaled_surface, buf, "frame.jpg", quality=85)
         with lock:
             latest_jpeg = buf.getvalue()
