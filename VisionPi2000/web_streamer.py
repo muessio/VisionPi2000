@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.0.4
-# Leichter HTTP-Streamer für VisionPi2000 mit Einbindung der originalen header.png
+# Version: 1.0.5
+# Leichter HTTP-Streamer für VisionPi2000 ohne oberes Logo und ohne Footer-Schriftzug
 
 import http.server
 import socketserver
@@ -10,25 +10,12 @@ import io
 import os
 import pygame
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 PORT = 8080
 
 latest_jpeg = None
 lock = threading.Lock()
 last_capture_time = 0.0
-
-
-def find_header_file():
-    for name in ["header.png", "Header.png", "HEADER.png"]:
-        if os.path.exists(name):
-            return name
-    try:
-        for f in os.listdir('.'):
-            if f.lower() == "header.png":
-                return f
-    except Exception:
-        pass
-    return None
 
 
 class StreamHandler(http.server.BaseHTTPRequestHandler):
@@ -64,48 +51,32 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             color: #ffffff;
             font-family: 'Segoe UI', Arial, sans-serif;
             margin: 0;
-            padding: 10px 20px;
+            padding: 16px 20px;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
         }
         .header-wrap {
             width: 100%;
             max-width: 1280px;
             display: flex;
-            flex-direction: column;
+            justify-content: center;
             align-items: center;
-            margin-bottom: 6px;
-        }
-        .header-logo {
-            max-height: 130px;
-            max-width: 85vw;
-            width: auto;
-            height: auto;
-            filter: drop-shadow(0 4px 14px rgba(0, 255, 157, 0.35));
-        }
-        .header-fallback {
-            display: none;
-            font-size: 2.0rem;
-            font-weight: 900;
-            letter-spacing: 1.5px;
-            color: #ffffff;
-            text-shadow: 0 2px 10px rgba(0, 216, 255, 0.45);
+            margin-bottom: 12px;
         }
         .live-pill {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            margin-top: 4px;
-            padding: 5px 15px;
+            padding: 6px 18px;
             border-radius: 999px;
             background: rgba(8, 28, 44, 0.85);
             border: 2px solid var(--neon-green);
             box-shadow: 0 0 14px rgba(0, 255, 157, 0.35);
             font-weight: 800;
-            font-size: 0.85rem;
+            font-size: 0.9rem;
             letter-spacing: 1px;
             color: var(--gold-bright);
         }
@@ -147,26 +118,15 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
         img.stream-view {
             display: block;
             max-width: 92vw;
-            max-height: 70vh;
+            max-height: 78vh;
             width: auto;
             height: auto;
             border-radius: 6px;
-        }
-        .footer-credit {
-            margin-top: 8px;
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: #ffffff;
-            letter-spacing: 0.5px;
-            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
         }
     </style>
 </head>
 <body>
     <header class="header-wrap">
-        <img class="header-logo" src="/header.png" alt="VisionPi2000"
-             onerror="this.style.display='none'; document.getElementById('fb-title').style.display='block';" />
-        <div id="fb-title" class="header-fallback">VisionPi2000 • Open-Source-Dartsports</div>
         <div class="live-pill">
             <span class="live-dot"></span>
             <span>VisionPi2000 LIVE-STREAM</span>
@@ -178,10 +138,6 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             <img class="stream-view" src="/stream.mjpg" alt="VisionPi2000 Live Stream" />
         </div>
     </main>
-
-    <footer class="footer-credit">
-        :Grundprogramm &amp; Design entwickelt von Oliver Müssig:
-    </footer>
 </body>
 </html>"""
             self.send_response(200)
@@ -189,23 +145,6 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             self.end_headers()
             self.wfile.write(html.encode('utf-8'))
-
-        elif self.path == '/header.png':
-            h_file = find_header_file()
-            if h_file:
-                try:
-                    with open(h_file, 'rb') as f:
-                        data = f.read()
-                    self.send_response(200)
-                    self.send_header('Content-Type', 'image/png')
-                    self.send_header('Content-Length', str(len(data)))
-                    self.end_headers()
-                    self.wfile.write(data)
-                    return
-                except Exception:
-                    pass
-            self.send_response(404)
-            self.end_headers()
 
         elif self.path == '/stream.mjpg':
             self.send_response(200)
