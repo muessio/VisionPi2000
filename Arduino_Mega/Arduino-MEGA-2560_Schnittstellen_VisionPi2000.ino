@@ -50,9 +50,8 @@ unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPr
 bool stateRed, stateBlue, stateGrey, stateStart, statePlayer = true;
 bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
 
-bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
-const unsigned long irDebounceTime = 300;
+const unsigned long irDebounceTime = 300; // Sende-Intervall (300ms), solange IR aktiv ist
 
 inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
   digitalWrite(clkPin, LOW);
@@ -329,13 +328,13 @@ void loop() {
   lastPlayer = statePlayer;
 
   bool currentIrState = digitalRead(irSensorPin);
-  if (currentIrState == HIGH && lastIrState == LOW) {
-    if (currentMillis - lastIrChangeTime > irDebounceTime) {
+  // Solange der IR-Sensor auslöst (LOW), alle 300ms "IR:DETECT" senden zum Nachtriggern
+  if (currentIrState == LOW) {
+    if (currentMillis - lastIrChangeTime >= irDebounceTime) {
       Serial.println("IR:DETECT");
       lastIrChangeTime = currentMillis;
     }
   }
-  lastIrState = currentIrState;
 
   static unsigned long comboTimer = 0;
   static bool comboTriggered = false;
