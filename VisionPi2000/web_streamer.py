@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.2.0
-# Zuverlässiger Live-Streamer mit intelligentem JavaScript-Polling (100% kompatibel & flüssig)
+# Version: 1.2.1
+# High-Compatibility MJPEG-Streamer für alle Browser (Chrome, Safari, Firefox, Edge)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 PORT = 8080
 
 latest_jpeg = None
@@ -178,26 +178,9 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
 
     <main class="cyber-frame">
         <div class="cyber-inner">
-            <img id="liveImage" class="stream-view" src="/current.jpg" alt="VisionPi2000 Live Stream" />
+            <img class="stream-view" src="/stream.mjpg" alt="VisionPi2000 Live Stream" />
         </div>
     </main>
-
-    <script>
-        // Automatisches, flüssiges Neuladen des Bildes im Hintergrund (ca. 10 FPS)
-        function refreshStream() {
-            const img = document.getElementById('liveImage');
-            const newImage = new Image();
-            newImage.onload = function() {
-                img.src = newImage.src;
-                setTimeout(refreshStream, 90); // Nächstes Bild anfordern
-            };
-            newImage.onerror = function() {
-                setTimeout(refreshStream, 500); // Bei Verbindungspause kurz warten
-            };
-            newImage.src = '/current.jpg?t=' + Date.now();
-        }
-        setTimeout(refreshStream, 90);
-    </script>
 </body>
 </html>"""
                 self.send_response(200)
@@ -221,24 +204,38 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
                 return
 
-            elif self.path.startswith("/current.jpg"):
+            elif self.path.startswith("/stream.mjpg"):
+                self.send_response(200)
+                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, pre-check=0, post-check=0, max-age=0")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Connection", "close")
+                self.end_headers()
+
                 with clients_lock:
-                    global active_clients
-                    active_clients = max(1, active_clients) # Aktiv markieren
+                    active_clients += 1
 
-                with lock:
-                    frame = latest_jpeg
+                try:
+                    last_sent_frame = None
+                    while True:
+                        with lock:
+                            frame = latest_jpeg
 
-                if frame:
-                    self.send_response(200)
-                    self.send_header("Content-Type", "image/jpeg")
-                    self.send_header("Content-Length", str(len(frame)))
-                    self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-                    self.end_headers()
-                    self.wfile.write(frame)
-                else:
-                    self.send_response(404)
-                    self.end_headers()
+                        if frame is not None and frame is not last_sent_frame:
+                            last_sent_frame = frame
+                            self.wfile.write(b"--frame\r\n")
+                            self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                            self.wfile.write(f"Content-Length: {len(frame)}\r\n\r\n".encode("utf-8"))
+                            self.wfile.write(frame)
+                            self.wfile.write(b"\r\n")
+                            self.wfile.flush()
+
+                        time.sleep(0.08)
+                except (ConnectionResetError, BrokenPipeError, OSError):
+                    pass
+                finally:
+                    with clients_lock:
+                        active_clients = max(0, active_clients - 1)
                 return
             else:
                 self.send_response(404)
