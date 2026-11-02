@@ -1,6 +1,6 @@
 # Datei: online_manager.py
-# Version: 1.1.5
-# P2P / MQTT Online-Engine im VisionPi2000 Cyber-Circuit-Design mit Header-Bilddatei
+# Version: 1.1.7
+# P2P / MQTT Online-Engine im VisionPi2000 Cyber-Circuit-Design mit robustem Abbruch-Handling
 
 import sys
 import os
@@ -23,7 +23,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.1.5"
+VERSION = "1.1.7"
 
 ONLINE_PLAYER_NAMES = [
     "Bullseye-Berry",       # Slot 0 (Spieler 1 / Host)
@@ -237,34 +237,37 @@ class OnlineSession:
                     "type": "match_abort",
                     "reason": reason
                 })
-            except:
+            except Exception:
                 pass
 
     def disconnect(self):
-        self.notify_leaving("Automat hat die Sitzung geschlossen")
-        if self.is_host and self.room_id and self.connected:
-            try:
-                self.client.publish(DISCOVERY_TOPIC, json.dumps({
-                    "type": "room_closed",
-                    "room_id": self.room_id,
-                    "host_id": self.client_id
-                }), qos=1)
-            except:
-                pass
-        if self.client:
-            try:
-                time.sleep(0.08)
-                self.client.loop_stop()
-                self.client.disconnect()
-            except:
-                pass
+        try:
+            self.notify_leaving("Automat hat die Sitzung geschlossen")
+            if self.is_host and self.room_id and self.connected:
+                try:
+                    self.client.publish(DISCOVERY_TOPIC, json.dumps({
+                        "type": "room_closed",
+                        "room_id": self.room_id,
+                        "host_id": self.client_id
+                    }), qos=1)
+                except Exception:
+                    pass
+            if self.client:
+                try:
+                    time.sleep(0.08)
+                    self.client.loop_stop()
+                    self.client.disconnect()
+                except Exception:
+                    pass
+        except Exception:
+            pass
         self.connected = False
 
     def join_room_topic(self, new_room_id):
         if self.room_topic and self.connected:
             try:
                 self.client.unsubscribe(self.room_topic)
-            except:
+            except Exception:
                 pass
         self.room_id = new_room_id
         self.room_topic = f"visionpi2000/v1/room/{new_room_id}"
@@ -272,7 +275,7 @@ class OnlineSession:
         if self.connected and new_room_id:
             try:
                 self.client.subscribe(self.room_topic, qos=1)
-            except:
+            except Exception:
                 pass
 
     def generate_unique_room_id(self):
@@ -293,7 +296,7 @@ class OnlineSession:
         payload["sender_id"] = self.client_id
         try:
             self.client.publish(self.room_topic, json.dumps(payload), qos=1)
-        except:
+        except Exception:
             pass
 
     def broadcast_discovery_beacon(self):
@@ -311,7 +314,7 @@ class OnlineSession:
         }
         try:
             self.client.publish(DISCOVERY_TOPIC, json.dumps(beacon), qos=0)
-        except:
+        except Exception:
             pass
 
     def check_peer_timeouts(self):
@@ -342,7 +345,7 @@ class OnlineSession:
     def _on_message(self, client, userdata, msg):
         try:
             data = json.loads(msg.payload.decode("utf-8"))
-        except:
+        except Exception:
             return
 
         sender = data.get("sender_id")
@@ -523,54 +526,63 @@ class OnlineDisplayProxy:
         self.active_player_idx = active_player_idx
         self.darts_left = 3
         if self._real:
-            self._real.set_active_player(active_player_idx)
+            try:
+                self._real.set_active_player(active_player_idx)
+            except Exception:
+                pass
 
     def set_dart_arrows(self, arrows_count):
         self.darts_left = arrows_count
         if self._real:
-            self._real.set_dart_arrows(arrows_count)
+            try:
+                self._real.set_dart_arrows(arrows_count)
+            except Exception:
+                pass
 
     def draw_online_hud(self):
-        if not self._screen or not self._session.players:
-            return
-        sw, sh = self._screen.get_width(), self._screen.get_height()
+        try:
+            if not self._screen or not self._session.players:
+                return
+            sw, sh = self._screen.get_width(), self._screen.get_height()
 
-        if self._session.remote_aborted:
-            msg1 = f"ABBRUCH: {self._session.abort_reason}"
-            msg2 = "Kehre automatisch ins Hauptmenü zurück..."
-            s1 = self.alert_font.render(msg1, True, (255, 255, 255))
-            s2 = self.banner_font.render(msg2, True, (255, 215, 0))
-            bw = max(s1.get_width(), s2.get_width()) + 70
-            bh = s1.get_height() + s2.get_height() + 56
-            bx, by = (sw - bw) // 2, (sh - bh) // 2
-            draw_cyber_frame(self._screen, bx, by, bw, bh, cut=16)
-            self._screen.blit(s1, ((sw - s1.get_width()) // 2, by + 18))
-            self._screen.blit(s2, ((sw - s2.get_width()) // 2, by + 26 + s1.get_height()))
-            return
+            if self._session.remote_aborted:
+                msg1 = f"ABBRUCH: {self._session.abort_reason}"
+                msg2 = "Kehre automatisch ins Hauptmenü zurück..."
+                s1 = self.alert_font.render(msg1, True, (255, 255, 255))
+                s2 = self.banner_font.render(msg2, True, (255, 215, 0))
+                bw = max(s1.get_width(), s2.get_width()) + 70
+                bh = s1.get_height() + s2.get_height() + 56
+                bx, by = (sw - bw) // 2, (sh - bh) // 2
+                draw_cyber_frame(self._screen, bx, by, bw, bh, cut=16)
+                self._screen.blit(s1, ((sw - s1.get_width()) // 2, by + 18))
+                self._screen.blit(s2, ((sw - s2.get_width()) // 2, by + 26 + s1.get_height()))
+                return
 
-        idx = self.active_player_idx
-        if 0 <= idx < len(self._session.players):
-            p_info = self._session.players[idx]
-            p_name = p_info["name"]
-            is_local = (idx in self._session.local_slots)
-            status_txt = "DU BIST AM WURF" if is_local else "ONLINE-GEGNER WIRFT"
-            border_col = (0, 255, 157) if is_local else (255, 56, 76)
-            bg_col = (8, 36, 30) if is_local else (45, 12, 18)
+            idx = self.active_player_idx
+            if 0 <= idx < len(self._session.players):
+                p_info = self._session.players[idx]
+                p_name = p_info["name"]
+                is_local = (idx in self._session.local_slots)
+                status_txt = "DU BIST AM WURF" if is_local else "ONLINE-GEGNER WIRFT"
+                border_col = (0, 255, 157) if is_local else (255, 56, 76)
+                bg_col = (8, 36, 30) if is_local else (45, 12, 18)
 
-            text = f"VisionPi2000 [{self._session.room_id}]  •  Spieler {idx + 1}: {p_name} ({status_txt})"
-            surf = self.banner_font.render(text, True, (255, 255, 255))
-            pad_x, pad_y = 20, 5
-            rect_w = surf.get_width() + pad_x * 2
-            rect_h = surf.get_height() + pad_y * 2
-            rect_x = (sw - rect_w) // 2
+                text = f"VisionPi2000 [{self._session.room_id}]  •  Spieler {idx + 1}: {p_name} ({status_txt})"
+                surf = self.banner_font.render(text, True, (255, 255, 255))
+                pad_x, pad_y = 20, 5
+                rect_w = surf.get_width() + pad_x * 2
+                rect_h = surf.get_height() + pad_y * 2
+                rect_x = (sw - rect_w) // 2
 
-            pygame.draw.rect(
-                self._screen, bg_col, (rect_x, 4, rect_w, rect_h), border_radius=8
-            )
-            pygame.draw.rect(
-                self._screen, border_col, (rect_x, 4, rect_w, rect_h), width=2, border_radius=8
-            )
-            self._screen.blit(surf, (rect_x + pad_x, 4 + pad_y))
+                pygame.draw.rect(
+                    self._screen, bg_col, (rect_x, 4, rect_w, rect_h), border_radius=8
+                )
+                pygame.draw.rect(
+                    self._screen, border_col, (rect_x, 4, rect_w, rect_h), width=2, border_radius=8
+                )
+                self._screen.blit(surf, (rect_x + pad_x, 4 + pad_y))
+        except Exception:
+            pass
 
     def __getattr__(self, name):
         return getattr(self._real, name)
@@ -588,92 +600,104 @@ class OnlineSerialProxy:
         self._abort_combo_sent = False
 
     def _poll(self):
-        now = time.time()
+        try:
+            now = time.time()
 
-        if self._session.is_host and (now - self._last_beacon > 3.0):
-            self._last_beacon = now
-            self._session.broadcast_discovery_beacon()
+            if self._session.is_host and (now - self._last_beacon > 3.0):
+                self._last_beacon = now
+                self._session.broadcast_discovery_beacon()
 
-        if now - self._last_heartbeat > 2.0:
-            self._last_heartbeat = now
-            self._session.publish_room({"type": "heartbeat"})
-            self._session.check_peer_timeouts()
+            if now - self._last_heartbeat > 2.0:
+                self._last_heartbeat = now
+                self._session.publish_room({"type": "heartbeat"})
+                self._session.check_peer_timeouts()
 
-        if self._session.remote_aborted and not self._abort_combo_sent:
-            if now - self._session.abort_timestamp > 2.2:
-                self._abort_combo_sent = True
-                self._ready_queue.put("BTN:COMBO")
-            return
+            if self._session.remote_aborted and not self._abort_combo_sent:
+                if now - self._session.abort_timestamp > 2.2:
+                    self._abort_combo_sent = True
+                    self._ready_queue.put("BTN:COMBO")
+                return
 
-        while not self._session.incoming_serial_queue.empty():
-            try:
-                net_cmd = self._session.incoming_serial_queue.get_nowait()
-                self._ready_queue.put(net_cmd)
-            except:
-                break
+            while not self._session.incoming_serial_queue.empty():
+                try:
+                    net_cmd = self._session.incoming_serial_queue.get_nowait()
+                    self._ready_queue.put(net_cmd)
+                except Exception:
+                    break
 
-        if self._real_ser and self._real_ser.in_waiting > 0:
-            try:
-                raw_line = self._real_ser.readline().decode("utf-8", "ignore").strip()
-            except:
-                raw_line = ""
+            if self._real_ser and self._real_ser.in_waiting > 0:
+                try:
+                    raw_line = self._real_ser.readline().decode("utf-8", "ignore").strip()
+                except Exception:
+                    raw_line = ""
 
-            if raw_line:
-                is_my_turn = (self._disp.active_player_idx in self._session.local_slots)
+                if raw_line:
+                    is_my_turn = (self._disp.active_player_idx in self._session.local_slots)
 
-                if raw_line == "BTN:COMBO":
-                    self._session.notify_leaving("Mitspieler hat das Match abgebrochen!")
-                    self._ready_queue.put(raw_line)
-
-                elif is_my_turn:
-                    if raw_line.startswith("HIT:") or raw_line == "MISS:1":
-                        self._session.publish_room({"type": "game_event", "cmd": raw_line})
+                    if raw_line == "BTN:COMBO":
+                        self._session.notify_leaving("Mitspieler hat das Match abgebrochen!")
                         self._ready_queue.put(raw_line)
 
-                    elif raw_line in ["BTN:PLAYER", "BTN:START"]:
-                        self._session.publish_room({"type": "game_event", "cmd": raw_line})
-                        self._ready_queue.put(raw_line)
+                    elif is_my_turn:
+                        if raw_line.startswith("HIT:") or raw_line == "MISS:1":
+                            self._session.publish_room({"type": "game_event", "cmd": raw_line})
+                            self._ready_queue.put(raw_line)
 
-                    elif raw_line == "IR:DETECT":
-                        if self._disp.darts_left <= 0 and (now - self._last_ir_sent >= 0.28):
-                            self._last_ir_sent = now
-                            self._session.publish_room({"type": "game_event", "cmd": "IR:DETECT"})
-                            self._ready_queue.put("IR:DETECT")
+                        elif raw_line in ["BTN:PLAYER", "BTN:START"]:
+                            self._session.publish_room({"type": "game_event", "cmd": raw_line})
+                            self._ready_queue.put(raw_line)
+
+                        elif raw_line == "IR:DETECT":
+                            if self._disp.darts_left <= 0 and (now - self._last_ir_sent >= 0.28):
+                                self._last_ir_sent = now
+                                self._session.publish_room({"type": "game_event", "cmd": "IR:DETECT"})
+                                self._ready_queue.put("IR:DETECT")
+        except Exception:
+            pass
 
     @property
     def in_waiting(self):
-        self._poll()
-        return self._ready_queue.qsize()
+        try:
+            self._poll()
+            return self._ready_queue.qsize()
+        except Exception:
+            return 0
 
     def readline(self):
-        self._poll()
-        if not self._ready_queue.empty():
-            cmd = self._ready_queue.get_nowait()
-            return (cmd + "\n").encode("utf-8")
+        try:
+            self._poll()
+            if not self._ready_queue.empty():
+                cmd = self._ready_queue.get_nowait()
+                return (cmd + "\n").encode("utf-8")
+        except Exception:
+            pass
         return b""
 
     def write(self, data):
         if self._real_ser:
             try:
                 return self._real_ser.write(data)
-            except:
+            except Exception:
                 pass
 
     def flush(self):
         if self._real_ser:
             try:
                 return self._real_ser.flush()
-            except:
+            except Exception:
                 pass
 
     def reset_input_buffer(self):
         if self._real_ser:
             try:
                 self._real_ser.reset_input_buffer()
-            except:
+            except Exception:
                 pass
-        with self._ready_queue.mutex:
-            self._ready_queue.queue.clear()
+        try:
+            with self._ready_queue.mutex:
+                self._ready_queue.queue.clear()
+        except Exception:
+            pass
 
 
 def run_online_lobby_and_match(screen, ser, display, local_players, game_name, option, is_host, game_mod, settings):
@@ -692,19 +716,18 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             darker.set_alpha(165)
             darker.fill((4, 12, 20))
             bg_img.blit(darker, (0, 0))
-        except:
+        except Exception:
             pass
 
-    # Originale header.png Bilddatei wie in visionpi.py laden
     header_file = find_image_file(["header.png", "Header.png", "HEADER.png"])
     header_img = None
     if header_file:
         try:
             raw_h = pygame.image.load(header_file).convert_alpha()
-            header_h = int(sh * 0.20)
+            header_h = int(sh * 0.18)
             header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
             header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
-        except:
+        except Exception:
             pass
 
     berry_avatar = None
@@ -714,15 +737,13 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             try:
                 berry_avatar = pygame.image.load(f_found).convert_alpha()
                 break
-            except:
+            except Exception:
                 pass
 
-    brand_font = pygame.font.SysFont("arial", int(sh * 0.040), bold=True)
-    role_font = pygame.font.SysFont("arial", int(sh * 0.028), bold=True)
+    role_font = pygame.font.SysFont("arial", int(sh * 0.026), bold=True)
     sub_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
     list_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
     small_font = pygame.font.SysFont("arial", int(sh * 0.019), bold=True)
-    credit_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
 
     GOLD = (255, 205, 45)
     WHITE = (255, 255, 255)
@@ -757,7 +778,12 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
     in_lobby = True
 
     while in_lobby:
-        raw_data = ser.readline().decode("utf-8", "ignore").strip() if ser and ser.in_waiting > 0 else None
+        raw_data = None
+        try:
+            raw_data = ser.readline().decode("utf-8", "ignore").strip() if ser and ser.in_waiting > 0 else None
+        except Exception:
+            raw_data = None
+
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 session.disconnect()
@@ -831,16 +857,15 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         else:
             screen.fill((6, 17, 28))
 
-        # Oben die originale header.png Bilddatei einblenden
         if header_img:
-            screen.blit(header_img, ((sw - header_img.get_width()) // 2, 0))
-            box_y = int(sh * 0.19)
-            box_h = int(sh * 0.75)
+            screen.blit(header_img, ((sw - header_img.get_width()) // 2, 8))
+            box_y = int(sh * 0.17)
+            box_h = int(sh * 0.78)
         else:
-            fallback_surf = brand_font.render("VisionPi2000", True, GOLD)
-            screen.blit(fallback_surf, ((sw - fallback_surf.get_width()) // 2, int(sh * 0.02)))
-            box_y = int(sh * 0.10)
-            box_h = int(sh * 0.82)
+            fallback_surf = role_font.render("VisionPi2000", True, GOLD)
+            screen.blit(fallback_surf, ((sw - fallback_surf.get_width()) // 2, 10))
+            box_y = int(sh * 0.08)
+            box_h = int(sh * 0.86)
 
         box_w = int(sw * 0.90)
         box_x = (sw - box_w) // 2
@@ -851,7 +876,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         room_disp = session.room_id if session.room_id else "Suche offene Lobbys..."
         head_str = f"{role_str}  •  Disziplin: {session.game_name} ({session.option})  •  {room_disp}"
         head_surf = role_font.render(head_str, True, GOLD)
-        screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, box_y + int(box_h * 0.035)))
+        screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, box_y + int(box_h * 0.025)))
 
         if session.error_msg:
             stat_col, stat_txt = NEON_RED, session.error_msg
@@ -864,14 +889,14 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             stat_txt = session.handshake_status
 
         stat_surf = small_font.render(f"Status / Handshake: {stat_txt}", True, stat_col)
-        screen.blit(stat_surf, ((sw - stat_surf.get_width()) // 2, box_y + int(box_h * 0.11)))
+        screen.blit(stat_surf, ((sw - stat_surf.get_width()) // 2, box_y + int(box_h * 0.095)))
 
-        line_y = box_y + int(box_h * 0.165)
+        line_y = box_y + int(box_h * 0.145)
         pygame.draw.line(screen, NEON_GREEN, (box_x + 35, line_y), (box_x + box_w - 35, line_y), 2)
         pygame.draw.circle(screen, GOLD, (sw // 2, line_y), 5)
 
-        slot_y = box_y + int(box_h * 0.195)
-        slot_h = int(box_h * 0.082)
+        slot_y = box_y + int(box_h * 0.175)
+        slot_h = int(box_h * 0.085)
         card_w = int(box_w * 0.66) if berry_avatar else int(box_w * 0.82)
         card_x = box_x + int(box_w * 0.05)
 
@@ -901,12 +926,12 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             screen.blit(s_surf, (card_x + 16, cy + (ch - s_surf.get_height()) // 2))
 
         if berry_avatar:
-            base_sz = int(box_h * 0.38)
+            base_sz = int(box_h * 0.40)
             pulse = int(math.sin(pygame.time.get_ticks() * 0.005) * 8)
             anim_sz = base_sz + pulse
             av_scaled = pygame.transform.smoothscale(berry_avatar, (anim_sz, anim_sz))
             av_x = box_x + box_w - int(box_w * 0.27) + (base_sz - anim_sz) // 2
-            av_y = box_y + int(box_h * 0.34) + (base_sz - anim_sz) // 2
+            av_y = box_y + int(box_h * 0.30) + (base_sz - anim_sz) // 2
             screen.blit(av_scaled, (av_x, av_y))
 
         if is_host:
@@ -920,9 +945,6 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
 
         hint_surf = sub_font.render(hint_str, True, GOLD)
         screen.blit(hint_surf, ((sw - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.075)))
-
-        credit_surf = credit_font.render(":Grundprogramm & Design entwickelt von Oliver Müssig:", True, WHITE)
-        screen.blit(credit_surf, ((sw - credit_surf.get_width()) // 2, sh - int(sh * 0.035)))
 
         pygame.display.flip()
         clock.tick(30)
@@ -950,6 +972,8 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             session.option,
             "Normales Spiel"
         )
+    except Exception:
+        pass
     finally:
         pygame.display.flip = orig_flip
         session.disconnect()
