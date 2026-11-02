@@ -3,7 +3,7 @@ import os
 import random
 import json
 
-VERSION = "1.1.0"
+VERSION = "1.1.3"
 GAMES = ["Spieleanleitung"]
 OPTIONS = [
     "301 / 501 / 701 (X01)", 
@@ -16,15 +16,21 @@ OPTIONS = [
 
 EXPLANATIONS = {
     "301 / 501 / 701 (X01)": [
-        "Das Standard-Dartspiel schlechthin. Jeder Spieler startet mit",
-        "einem Startscore (z.B. 501 Punkten) und wirft abwechselnd 3 Darts.",
-        "Die geworfenen Punkte werden vom Score abgezogen. Ziel ist",
-        "es, exakt auf 0 Punkte zu kommen (je nach Option mit Double Out)."
+        "Das Standard-Dartspiel. Ziel: Exakt 0 Punkte von 301/501/701 abziehen.",
+        "Optionen für den Ein- und Auswurf:",
+        "• Open In/Out: Beliebiger Treffer zum Start und Ende (auch Single).",
+        "• Double In: Das Spiel beginnt erst mit einem Treffer im Doppelring/Bull.",
+        "• Double Out: Das Spiel muss mit einem Doppel- oder Bullseye-Treffer beendet werden.",
+        "• Master Out: Beenden mit Double, Triple oder Bullseye möglich.",
+        "• Team-Modus: 2er-Teams spielen mit gemeinsamem Punktestand.",
+        "  Die Spieler werfen abwechselnd (z.B. P1 -> P3 -> P2 -> P4).",
+        "• Überwerfen (Bust): Wirst du mehr Punkte als Rest oder bleibst auf 1,",
+        "zählt die Runde nicht und der Punktestand des Teams wird zurückgesetzt."
     ],
     "Cricket": [
-        "Ein taktisches Team- und Taktikspiel. Gespielt wird standardmäßig",
+        "Ein Taktikspiel. Gespielt wird standardmäßig",
         "auf die Zahlen 15 bis 20 sowie das Bullseye (jeweils 3 Treffer zum Schließen).",
-        "• Standard/Cut Throat: Feste Zahlenvorgabe.",
+        "• Standard / Cut Throat: Feste Zahlenvorgabe mit Punktewertung.",
         "• You Pick It: Die ersten Felder sind frei wählbar durch eigene Treffer!",
         "• Crazy (Zufall): Die 6 Zielfelder werden zu Beginn per Zufall bestimmt.",
         "Wer als Erster alles schließt und die meisten Punkte hat, gewinnt."
@@ -108,8 +114,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             bg_img.blit(darker_overlay, (0, 0))
         except: pass
 
-    title_font = pygame.font.SysFont("arial", int(sh * 0.045), bold=True)
-    text_font = pygame.font.SysFont("arial", int(sh * 0.03), bold=True)
+    title_font = pygame.font.SysFont("arial", int(sh * 0.042), bold=True)
+    text_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)  # Leicht angepasst für die zusätzliche Zeile
     hint_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
     WHITE, HIGHLIGHT, RED_COL = (255, 255, 255), (255, 215, 0), (180, 30, 30)
 
@@ -151,20 +157,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         t_surf = title_font.render(f"SPIELEANLEITUNG & REGELN", True, HIGHLIGHT)
-        screen.blit(t_surf, ((sw - t_surf.get_width()) // 2, int(sh * 0.08)))
+        screen.blit(t_surf, ((sw - t_surf.get_width()) // 2, int(sh * 0.05)))
         
         opt_surf = text_font.render(f"Ausgewähltes Spiel: {option}", True, (100, 220, 100))
-        screen.blit(opt_surf, ((sw - opt_surf.get_width()) // 2, int(sh * 0.15)))
+        screen.blit(opt_surf, ((sw - opt_surf.get_width()) // 2, int(sh * 0.12)))
 
         lines = EXPLANATIONS.get(option, ["Keine Beschreibung verfügbar."])
-        y_text = int(sh * 0.28)
+        y_text = int(sh * 0.20)
         for line in lines:
             line_surf = text_font.render(line, True, WHITE)
             screen.blit(line_surf, ((sw - line_surf.get_width()) // 2, y_text))
-            y_text += int(sh * 0.055)
+            y_text += int(sh * 0.043)
 
         back_hint = hint_font.render("Drücke Taste 'Spielerwechsel' (oder ESC), um ins Hauptmenü zurückzukehren.", True, HIGHLIGHT)
-        screen.blit(back_hint, ((sw - back_hint.get_width()) // 2, sh - int(sh * 0.08)))
+        screen.blit(back_hint, ((sw - back_hint.get_width()) // 2, sh - int(sh * 0.07)))
 
         pygame.display.flip()
         clock.tick(30)
