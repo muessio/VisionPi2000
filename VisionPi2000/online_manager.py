@@ -1,6 +1,6 @@
 # Datei: online_manager.py
-# Version: 1.1.7
-# P2P / MQTT Online-Engine im VisionPi2000 Cyber-Circuit-Design mit robustem Abbruch-Handling
+# Version: 1.1.8
+# P2P / MQTT Online-Engine mit absolut stabilen Display- und Event-Hooks
 
 import sys
 import os
@@ -23,7 +23,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.1.7"
+VERSION = "1.1.8"
 
 ONLINE_PLAYER_NAMES = [
     "Bullseye-Berry",       # Slot 0 (Spieler 1 / Host)
@@ -112,7 +112,6 @@ def verify_manifests(host_manifest, local_manifest):
 
 
 def draw_cyber_frame(surface, x, y, w, h, cut=24):
-    """Zeichnet den VisionPi2000 Cyber-Tech-Rahmen mit abgeschrägten Ecken und Neon-Akzenten."""
     NEON_GREEN = (0, 255, 157)
     NEON_CYAN = (0, 216, 255)
     NEON_RED = (255, 56, 76)
