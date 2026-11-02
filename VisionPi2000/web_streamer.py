@@ -1,20 +1,34 @@
 # Datei: web_streamer.py
-# Version: 1.0.3
-# Leichter HTTP-Streamer für VisionPi2000 im Cyber-Circuit-Design
+# Version: 1.0.4
+# Leichter HTTP-Streamer für VisionPi2000 mit Einbindung der originalen header.png
 
 import http.server
 import socketserver
 import threading
 import time
 import io
+import os
 import pygame
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 PORT = 8080
 
 latest_jpeg = None
 lock = threading.Lock()
 last_capture_time = 0.0
+
+
+def find_header_file():
+    for name in ["header.png", "Header.png", "HEADER.png"]:
+        if os.path.exists(name):
+            return name
+    try:
+        for f in os.listdir('.'):
+            if f.lower() == "header.png":
+                return f
+    except Exception:
+        pass
+    return None
 
 
 class StreamHandler(http.server.BaseHTTPRequestHandler):
@@ -37,7 +51,6 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             --neon-cyan: #00d8ff;
             --neon-red: #ff384c;
             --gold-bright: #ffe066;
-            --gold-mid: #f5a623;
         }
         * {
             box-sizing: border-box;
@@ -51,78 +64,54 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             color: #ffffff;
             font-family: 'Segoe UI', Arial, sans-serif;
             margin: 0;
-            padding: 16px 24px;
+            padding: 10px 20px;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             align-items: center;
         }
-        .topbar {
+        .header-wrap {
             width: 100%;
             max-width: 1280px;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
-        .brand-wrap {
-            display: flex;
-            align-items: center;
-            gap: 14px;
+        .header-logo {
+            max-height: 130px;
+            max-width: 85vw;
+            width: auto;
+            height: auto;
+            filter: drop-shadow(0 4px 14px rgba(0, 255, 157, 0.35));
         }
-        .logo-badge {
-            width: 54px;
-            height: 54px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #0e6b45 0%, #073824 75%);
-            border: 2.5px solid #ffffff;
-            box-shadow: 0 0 14px rgba(0, 255, 157, 0.65);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-        }
-        .logo-badge::after {
-            content: "🎯";
-            font-size: 28px;
-        }
-        .brand-text {
-            text-align: left;
-        }
-        .brand-title {
-            font-size: 1.9rem;
+        .header-fallback {
+            display: none;
+            font-size: 2.0rem;
             font-weight: 900;
             letter-spacing: 1.5px;
             color: #ffffff;
             text-shadow: 0 2px 10px rgba(0, 216, 255, 0.45);
-            line-height: 1.05;
-        }
-        .brand-sub {
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: #e0f2f1;
-            letter-spacing: 0.6px;
         }
         .live-pill {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 7px 16px;
+            margin-top: 4px;
+            padding: 5px 15px;
             border-radius: 999px;
             background: rgba(8, 28, 44, 0.85);
             border: 2px solid var(--neon-green);
             box-shadow: 0 0 14px rgba(0, 255, 157, 0.35);
             font-weight: 800;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             letter-spacing: 1px;
             color: var(--gold-bright);
         }
         .live-dot {
-            width: 11px;
-            height: 11px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             background: var(--neon-red);
             box-shadow: 0 0 10px var(--neon-red);
@@ -158,14 +147,14 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
         img.stream-view {
             display: block;
             max-width: 92vw;
-            max-height: 74vh;
+            max-height: 70vh;
             width: auto;
             height: auto;
             border-radius: 6px;
         }
         .footer-credit {
-            margin-top: 12px;
-            font-size: 1.0rem;
+            margin-top: 8px;
+            font-size: 0.95rem;
             font-weight: 700;
             color: #ffffff;
             letter-spacing: 0.5px;
@@ -174,17 +163,13 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
     </style>
 </head>
 <body>
-    <header class="topbar">
-        <div class="brand-wrap">
-            <div class="logo-badge"></div>
-            <div class="brand-text">
-                <div class="brand-title">VisionPi2000</div>
-                <div class="brand-sub">Open-Source-Dartsports</div>
-            </div>
-        </div>
+    <header class="header-wrap">
+        <img class="header-logo" src="/header.png" alt="VisionPi2000"
+             onerror="this.style.display='none'; document.getElementById('fb-title').style.display='block';" />
+        <div id="fb-title" class="header-fallback">VisionPi2000 • Open-Source-Dartsports</div>
         <div class="live-pill">
             <span class="live-dot"></span>
-            <span>LIVE-STREAM • PORT 8080</span>
+            <span>VisionPi2000 LIVE-STREAM</span>
         </div>
     </header>
 
@@ -205,6 +190,23 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(html.encode('utf-8'))
 
+        elif self.path == '/header.png':
+            h_file = find_header_file()
+            if h_file:
+                try:
+                    with open(h_file, 'rb') as f:
+                        data = f.read()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'image/png')
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
+                except Exception:
+                    pass
+            self.send_response(404)
+            self.end_headers()
+
         elif self.path == '/stream.mjpg':
             self.send_response(200)
             self.send_header('Age', '0')
@@ -222,7 +224,7 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                         self.wfile.write(f'Content-Length: {len(frame)}\r\n\r\n'.encode('utf-8'))
                         self.wfile.write(frame)
                         self.wfile.write(b'\r\n')
-                    time.sleep(0.1)  # ~10 FPS im Browser
+                    time.sleep(0.1)
             except Exception:
                 pass
         else:
@@ -244,17 +246,11 @@ def background_server():
 
 
 def start_streaming_thread():
-    """Startet den Webserver als Hintergrund-Thread."""
     t = threading.Thread(target=background_server, daemon=True)
     t.start()
 
 
 def update_stream_frame(screen):
-    """
-    Wird durch den globalen Hook bei jedem pygame.display.flip() aufgerufen.
-    Begrenzt die Bildaufnahme auf max. 10 FPS (alle 0.1s), damit die Spiel-Engine
-    zu 100 % flüssig bleibt, und kodiert nativ über Pygame als JPEG im RAM.
-    """
     global latest_jpeg, last_capture_time
     if screen is None:
         return
