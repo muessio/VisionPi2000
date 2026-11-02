@@ -1,6 +1,6 @@
 # Datei: online_manager.py
-# Version: 1.2.0
-# P2P / MQTT Online-Engine (Crash-sicher bei Internet-Ausfall, 4:3 & 16:9 Support, Surface-Cache)
+# Version: 1.2.1
+# P2P / MQTT Online-Engine (Zwei-Stufen-Exit für alle Spielmodule, Crash-sicher, Surface-Cache)
 
 import sys
 import os
@@ -24,7 +24,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 ONLINE_PLAYER_NAMES = [
     "Bullseye-Berry",       # Slot 0 (Spieler 1 / Host)
@@ -652,15 +652,16 @@ class OnlineSerialProxy:
                 self._session.publish_room({"type": "heartbeat"})
                 self._session.check_peer_timeouts()
 
-            # KRITISCHER FIX: Wenn ein Remote-Abbruch aktiv ist, nach 2.0s Einblendzeit
-            # alle 0.4s wiederholt BTN:COMBO senden, bis auch Rundenende-Warteschleifen
-            # im Spielmodul zuverlässig beendet sind!
+            # ZWEI-STUFEN-EXIT FÜR ALLE SPIELMODULE:
+            # 1. BTN:COMBO öffnet das ABORT_MENU im Spielmodul
+            # 2. BTN:PLAYER bestätigt im ABORT_MENU sofort "Beenden -> return 'menu'"
             if self._session.remote_aborted:
                 if now - self._session.abort_timestamp > 2.0:
-                    if now - self._last_abort_push > 0.4:
+                    if now - self._last_abort_push > 0.35:
                         self._last_abort_push = now
-                        if self._ready_queue.qsize() < 3:
+                        if self._ready_queue.qsize() < 4:
                             self._ready_queue.put("BTN:COMBO")
+                            self._ready_queue.put("BTN:PLAYER")
                 return
 
             while not self._session.incoming_serial_queue.empty():
@@ -684,6 +685,7 @@ class OnlineSerialProxy:
                         self._session.trigger_remote_abort("Match lokal abgebrochen!")
                         self._session.abort_timestamp = now - 2.1
                         self._ready_queue.put("BTN:COMBO")
+                        self._ready_queue.put("BTN:PLAYER")
 
                     elif is_my_turn:
                         if raw_line.startswith("HIT:") or raw_line == "MISS:1":
@@ -740,7 +742,7 @@ class OnlineSerialProxy:
                 self._real_ser.reset_input_buffer()
             except Exception:
                 pass
-        # Bei aktivem Abbruch darf das Spielmodul das BTN:COMBO nicht aus der Queue löschen!
+        # Bei aktivem Abbruch darf das Spielmodul die Exit-Signale nicht aus der Queue löschen!
         if not self._session.remote_aborted:
             try:
                 with self._ready_queue.mutex:
