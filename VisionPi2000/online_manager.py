@@ -1,6 +1,6 @@
 # Datei: online_manager.py
-# Version: 1.1.3
-# P2P / MQTT Online-Engine mit eindeutigen Lobby-IDs, Handshake, Heartbeat & Abbruch-Kontrolle
+# Version: 1.1.4
+# P2P / MQTT Online-Engine im VisionPi2000 Cyber-Circuit-Design
 
 import sys
 import os
@@ -9,6 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import re
+import math
 import json
 import time
 import uuid
@@ -23,7 +24,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.1.3"
+VERSION = "1.1.4"
 
 # Die 8 festen Online-Spieler-Slots für die Lobby (Die Bullseye-Berrys)
 ONLINE_PLAYER_NAMES = [
@@ -98,6 +99,62 @@ def verify_manifests(host_manifest, local_manifest):
     return (len(mismatches) == 0), mismatches
 
 
+def draw_cyber_frame(surface, x, y, w, h, cut=24):
+    """Zeichnet den VisionPi2000 Cyber-Tech-Rahmen mit abgeschrägten Ecken und Neon-Akzenten."""
+    NEON_GREEN = (0, 255, 157)
+    NEON_CYAN = (0, 216, 255)
+    NEON_RED = (255, 56, 76)
+    GOLD_TRACE = (180, 140, 40)
+    PANEL_BG = (8, 20, 32, 225)
+
+    # Halbtransparentes Innenpanel
+    panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+    pts_local = [
+        (cut, 0), (w - cut, 0), (w, cut), (w, h - cut),
+        (w - cut, h), (cut, h), (0, h - cut), (0, cut)
+    ]
+    pygame.draw.polygon(panel_surf, PANEL_BG, pts_local)
+
+    # Dezente Platinen-Leiterbahnen (Circuit-Traces) in den Ecken
+    traces = [
+        [(cut + 20, 14), (cut + 90, 14), (cut + 110, 34)],
+        [(w - cut - 20, 14), (w - cut - 90, 14), (w - cut - 110, 34)],
+        [(cut + 20, h - 14), (cut + 90, h - 14), (cut + 110, h - 34)],
+        [(w - cut - 20, h - 14), (w - cut - 90, h - 14), (w - cut - 110, h - 34)]
+    ]
+    for tr in traces:
+        pygame.draw.lines(panel_surf, (20, 65, 60, 160), False, tr, 2)
+        pygame.draw.circle(panel_surf, (0, 255, 157, 160), tr[-1], 4, 1)
+
+    surface.blit(panel_surf, (x, y))
+
+    # Äußere Konturpunkte
+    pts = [(x + px, y + py) for (px, py) in pts_local]
+
+    # Basis-Rahmen in Neon-Grün
+    pygame.draw.polygon(surface, (0, 110, 75), pts, 6)
+    pygame.draw.polygon(surface, NEON_GREEN, pts, 2)
+
+    # Farbige Eck-Akzente (Rot an den Schrägen, Cyan an den Flanken wie im Artwork)
+    c_len = int(h * 0.22)
+    # Oben-Links & Unten-Links Rot/Cyan
+    pygame.draw.line(surface, NEON_RED, (x, y + cut), (x + cut, y), 4)
+    pygame.draw.line(surface, NEON_RED, (x, y + h - cut), (x + cut, y + h), 4)
+    pygame.draw.line(surface, NEON_CYAN, (x, y + cut + 12), (x, y + cut + c_len), 4)
+    pygame.draw.line(surface, NEON_CYAN, (x, y + h - cut - 12), (x, y + h - cut - c_len), 4)
+
+    # Oben-Rechts & Unten-Rechts Rot/Cyan
+    pygame.draw.line(surface, NEON_RED, (x + w - cut, y), (x + w, y + cut), 4)
+    pygame.draw.line(surface, NEON_RED, (x + w - cut, y + h), (x + w, y + h - cut), 4)
+    pygame.draw.line(surface, NEON_CYAN, (x + w, y + cut + 12), (x + w, y + cut + c_len), 4)
+    pygame.draw.line(surface, NEON_CYAN, (x + w, y + h - cut - 12), (x + w, y + h - cut - c_len), 4)
+
+    # Goldene Lötpunkte als Tech-Detail
+    for cx, cy in [(x + cut + 10, y + 8), (x + w - cut - 10, y + 8),
+                   (x + cut + 10, y + h - 8), (x + w - cut - 10, y + h - 8)]:
+        pygame.draw.circle(surface, GOLD_TRACE, (cx, cy), 4)
+
+
 class OnlineSession:
     def __init__(self, broker="broker.emqx.io", port=1883):
         self.broker = broker
@@ -110,10 +167,8 @@ class OnlineSession:
         self.connected = False
         self.error_msg = ""
 
-        # Speichert alle aktiven Lobbys im Netz: { "Lobby-XXXX": { ... info ... } }
         self.active_rooms = {}
 
-        # Lobby- & Match-Status
         self.players = []
         self.local_slots = []
         self.game_name = "501"
@@ -125,7 +180,6 @@ class OnlineSession:
         self.handshake_status = "Suche nach kollisionsfreien Lobbys..."
         self.reported_mismatch = False
 
-        # Abbruch- & Heartbeat-Überwachung
         self.peer_heartbeats = {}
         self.remote_aborted = False
         self.abort_reason = ""
@@ -144,7 +198,6 @@ class OnlineSession:
                 self.client.on_message = self._on_message
                 self.client.on_disconnect = self._on_disconnect
 
-                # Last Will & Testament (falls Strom/WLAN komplett abreißt)
                 lwt_payload = json.dumps({
                     "type": "peer_left",
                     "sender_id": self.client_id,
@@ -168,14 +221,12 @@ class OnlineSession:
             return False
 
     def trigger_remote_abort(self, reason="Mitspieler hat das Spiel verlassen!"):
-        """Markiert das laufende Spiel als abgebrochen, damit der Proxy sauber beendet."""
         if not self.remote_aborted:
             self.remote_aborted = True
             self.abort_reason = reason
             self.abort_timestamp = time.time()
 
     def notify_leaving(self, reason="Spieler hat das Match beendet"):
-        """Sendet beim Verlassen aktiv ein Abbruchsignal an alle anderen Automaten im Raum."""
         if self.connected and self.room_topic:
             try:
                 self.publish_room({
@@ -221,12 +272,10 @@ class OnlineSession:
                 pass
 
     def generate_unique_room_id(self):
-        """Erzeugt eine absolut kollisionsfreie, eindeutige Lobby-ID mit Zufalls-Hex."""
         suffix = uuid.uuid4().hex[:4].upper()
         return f"Lobby-{suffix}"
 
     def get_open_lobbies(self):
-        """Liefert alle aktuell offenen Lobbys für Gäste zurück."""
         now = time.time()
         open_list = []
         for r_id, info in sorted(self.active_rooms.items()):
@@ -244,7 +293,6 @@ class OnlineSession:
             pass
 
     def broadcast_discovery_beacon(self):
-        """Sendet als Host den Status auf dem globalen Discovery-Kanal."""
         if not self.is_host or not self.connected or not self.room_id:
             return
         state = "PLAYING" if self.match_started else "OPEN"
@@ -263,7 +311,6 @@ class OnlineSession:
             pass
 
     def check_peer_timeouts(self):
-        """Prüft im laufenden Spiel, ob von allen vernetzten Automaten noch Heartbeats kommen."""
         if not self.match_started or self.remote_aborted:
             return
         now = time.time()
@@ -298,7 +345,6 @@ class OnlineSession:
         if sender and sender != self.client_id:
             self.peer_heartbeats[sender] = time.time()
 
-        # 1. Globaler Discovery-Kanal
         if msg.topic == DISCOVERY_TOPIC:
             m_type = data.get("type")
             r_id = data.get("room_id")
@@ -324,7 +370,6 @@ class OnlineSession:
             elif m_type == "room_closed" and r_id:
                 if r_id in self.active_rooms:
                     del self.active_rooms[r_id]
-                # Wenn wir als Gast in diesem Raum waren -> Abbruch auslösen!
                 if r_id == self.room_id and not self.is_host:
                     if self.match_started:
                         self.trigger_remote_abort("Host hat das Spiel verlassen!")
@@ -335,13 +380,11 @@ class OnlineSession:
                         self.handshake_status = "Host hat die Lobby geschlossen. Suche neue..."
 
             elif m_type == "peer_left" and sender:
-                # LWT: Ein Automat im Spiel hat die Verbindung verloren
                 in_our_game = any(p["client_id"] == sender for p in self.players)
                 if in_our_game:
                     if self.match_started:
                         self.trigger_remote_abort("Mitspieler-Verbindung abgebrochen!")
                     elif self.is_host:
-                        # In der Lobby: Spieler wieder aus der Liste entfernen und Slots neu ordnen
                         remaining = [p for p in self.players if p["client_id"] != sender]
                         self.players = []
                         for idx, p in enumerate(remaining):
@@ -353,20 +396,16 @@ class OnlineSession:
                         self.broadcast_lobby_state()
             return
 
-        # 2. Raum-Kanal Nachrichten
         msg_type = data.get("type")
 
-        # Herzschlag von Mitspielern
         if msg_type == "heartbeat":
             return
 
-        # Expliziter Spielabbruch durch einen der Automaten (z.B. BTN:COMBO oder Lobby-Exit)
         if msg_type == "match_abort" and sender != self.client_id:
             reason = data.get("reason", "Mitspieler hat das Spiel beendet!")
             if self.match_started:
                 self.trigger_remote_abort(reason)
             elif self.is_host:
-                # Falls ein Gast noch vor Spielstart in der Lobby aussteigt: Slots bereinigen
                 remaining = [p for p in self.players if p["client_id"] != sender]
                 self.players = []
                 for idx, p in enumerate(remaining):
@@ -473,7 +512,7 @@ class OnlineDisplayProxy:
         self.active_player_idx = 0
         self.darts_left = 3
         sh = screen.get_height()
-        self.banner_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
+        self.banner_font = pygame.font.SysFont("arial", int(sh * 0.021), bold=True)
         self.alert_font = pygame.font.SysFont("arial", int(sh * 0.036), bold=True)
 
     def set_active_player(self, active_player_idx):
@@ -492,17 +531,15 @@ class OnlineDisplayProxy:
             return
         sw, sh = self._screen.get_width(), self._screen.get_height()
 
-        # Falls ein Spieler ausgestiegen ist: Großes Warn-Banner in der Bildschirmmitte!
         if self._session.remote_aborted:
             msg1 = f"ABBRUCH: {self._session.abort_reason}"
             msg2 = "Kehre automatisch ins Hauptmenü zurück..."
             s1 = self.alert_font.render(msg1, True, (255, 255, 255))
             s2 = self.banner_font.render(msg2, True, (255, 215, 0))
-            bw = max(s1.get_width(), s2.get_width()) + 60
-            bh = s1.get_height() + s2.get_height() + 50
+            bw = max(s1.get_width(), s2.get_width()) + 70
+            bh = s1.get_height() + s2.get_height() + 56
             bx, by = (sw - bw) // 2, (sh - bh) // 2
-            pygame.draw.rect(self._screen, (150, 20, 20), (bx, by, bw, bh), border_radius=14)
-            pygame.draw.rect(self._screen, (255, 215, 0), (bx, by, bw, bh), width=4, border_radius=14)
+            draw_cyber_frame(self._screen, bx, by, bw, bh, cut=16)
             self._screen.blit(s1, ((sw - s1.get_width()) // 2, by + 18))
             self._screen.blit(s2, ((sw - s2.get_width()) // 2, by + 26 + s1.get_height()))
             return
@@ -513,11 +550,12 @@ class OnlineDisplayProxy:
             p_name = p_info["name"]
             is_local = (idx in self._session.local_slots)
             status_txt = "DU BIST AM WURF" if is_local else "ONLINE-GEGNER WIRFT"
-            bg_col = (20, 110, 40) if is_local else (130, 30, 30)
+            border_col = (0, 255, 157) if is_local else (255, 56, 76)
+            bg_col = (8, 36, 30) if is_local else (45, 12, 18)
 
-            text = f"ONLINE [{self._session.room_id}]  •  Spieler {idx + 1}: {p_name} ({status_txt})"
+            text = f"VisionPi2000 [{self._session.room_id}]  •  Spieler {idx + 1}: {p_name} ({status_txt})"
             surf = self.banner_font.render(text, True, (255, 255, 255))
-            pad_x, pad_y = 18, 4
+            pad_x, pad_y = 20, 5
             rect_w = surf.get_width() + pad_x * 2
             rect_h = surf.get_height() + pad_y * 2
             rect_x = (sw - rect_w) // 2
@@ -526,7 +564,7 @@ class OnlineDisplayProxy:
                 self._screen, bg_col, (rect_x, 4, rect_w, rect_h), border_radius=8
             )
             pygame.draw.rect(
-                self._screen, (255, 215, 0), (rect_x, 4, rect_w, rect_h), width=2, border_radius=8
+                self._screen, border_col, (rect_x, 4, rect_w, rect_h), width=2, border_radius=8
             )
             self._screen.blit(surf, (rect_x + pad_x, 4 + pad_y))
 
@@ -548,25 +586,21 @@ class OnlineSerialProxy:
     def _poll(self):
         now = time.time()
 
-        # 1. Als Host alle 3 Sekunden Raum-Beacon aktualisieren
         if self._session.is_host and (now - self._last_beacon > 3.0):
             self._last_beacon = now
             self._session.broadcast_discovery_beacon()
 
-        # 2. Alle 2 Sekunden Heartbeat an alle Mitspieler senden & Timeouts prüfen
         if now - self._last_heartbeat > 2.0:
             self._last_heartbeat = now
             self._session.publish_room({"type": "heartbeat"})
             self._session.check_peer_timeouts()
 
-        # 3. Wenn ein Remote-Abbruch erkannt wurde: nach 2.2s Einblendzeit automatisch BTN:COMBO feuern!
         if self._session.remote_aborted and not self._abort_combo_sent:
             if now - self._session.abort_timestamp > 2.2:
                 self._abort_combo_sent = True
                 self._ready_queue.put("BTN:COMBO")
             return
 
-        # 4. Eingehende Netzwerk-Kommandos abarbeiten
         while not self._session.incoming_serial_queue.empty():
             try:
                 net_cmd = self._session.incoming_serial_queue.get_nowait()
@@ -574,7 +608,6 @@ class OnlineSerialProxy:
             except:
                 break
 
-        # 5. Lokale Hardware-Eingaben vom Arduino lesen
         if self._real_ser and self._real_ser.in_waiting > 0:
             try:
                 raw_line = self._real_ser.readline().decode("utf-8", "ignore").strip()
@@ -584,7 +617,6 @@ class OnlineSerialProxy:
             if raw_line:
                 is_my_turn = (self._disp.active_player_idx in self._session.local_slots)
 
-                # Wenn lokal die Abbruch-Kombination gedrückt wird -> sofort anderen Automaten Bescheid geben!
                 if raw_line == "BTN:COMBO":
                     self._session.notify_leaving("Mitspieler hat das Match abgebrochen!")
                     self._ready_queue.put(raw_line)
@@ -599,7 +631,7 @@ class OnlineSerialProxy:
                         self._ready_queue.put(raw_line)
 
                     elif raw_line == "IR:DETECT":
-                        if self._disp.darts_left <= 0 and (now - self._last_ir_sent > 2.0):
+                        if self._disp.darts_left <= 0 and (now - self._last_ir_sent >= 0.28):
                             self._last_ir_sent = now
                             self._session.publish_room({"type": "game_event", "cmd": "IR:DETECT"})
                             self._ready_queue.put("IR:DETECT")
@@ -644,15 +676,43 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
     sw, sh = screen.get_width(), screen.get_height()
     clock = pygame.time.Clock()
 
-    title_font = pygame.font.SysFont("arial", int(sh * 0.040), bold=True)
-    sub_font = pygame.font.SysFont("arial", int(sh * 0.026), bold=True)
-    list_font = pygame.font.SysFont("arial", int(sh * 0.028), bold=True)
-    small_font = pygame.font.SysFont("arial", int(sh * 0.021), bold=True)
+    # Hintergrund und Assets passend zur grafischen Linie laden
+    is_16_9 = (settings.get("format", "4:3") == "16:9")
+    bg_file = "background_16_9.png" if is_16_9 else "background.png"
+    bg_img = None
+    if os.path.exists(bg_file):
+        try:
+            raw_bg = pygame.image.load(bg_file).convert()
+            bg_img = pygame.transform.scale(raw_bg, (sw, sh))
+            darker = pygame.Surface((sw, sh))
+            darker.set_alpha(175)
+            darker.fill((4, 12, 20))
+            bg_img.blit(darker, (0, 0))
+        except:
+            pass
 
-    HIGHLIGHT = (255, 215, 0)
+    berry_avatar = None
+    for b_file in ["Bullseye-Berry_Cyber.png", "Bullseye-Berry_Original.png"]:
+        if os.path.exists(b_file):
+            try:
+                berry_avatar = pygame.image.load(b_file).convert_alpha()
+                break
+            except:
+                pass
+
+    brand_font = pygame.font.SysFont("arial", int(sh * 0.044), bold=True)
+    sub_brand_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
+    sub_font = pygame.font.SysFont("arial", int(sh * 0.025), bold=True)
+    list_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)
+    small_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
+    credit_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
+
+    GOLD = (255, 205, 45)
+    GOLD_DARK = (160, 110, 10)
     WHITE = (255, 255, 255)
-    GREEN = (80, 255, 80)
-    RED_COL = (220, 50, 50)
+    NEON_GREEN = (0, 255, 157)
+    NEON_CYAN = (0, 216, 255)
+    NEON_RED = (255, 56, 76)
 
     broker = settings.get("mqtt_broker", "broker.emqx.io")
 
@@ -750,56 +810,92 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             in_lobby = False
             break
 
-        screen.fill((12, 14, 24))
-        box_w, box_h = int(sw * 0.86), int(sh * 0.86)
-        box_x, box_y = (sw - box_w) // 2, (sh - box_h) // 2
-        pygame.draw.rect(screen, (18, 22, 36), (box_x, box_y, box_w, box_h), border_radius=16)
-        pygame.draw.rect(screen, HIGHLIGHT, (box_x, box_y, box_w, box_h), width=3, border_radius=16)
+        if bg_img:
+            screen.blit(bg_img, (0, 0))
+        else:
+            screen.fill((6, 17, 28))
 
+        box_w, box_h = int(sw * 0.90), int(sh * 0.86)
+        box_x, box_y = (sw - box_w) // 2, int(sh * 0.05)
+
+        draw_cyber_frame(screen, box_x, box_y, box_w, box_h, cut=24)
+
+        # Header mit exakter Schreibweise "VisionPi2000" und Golden-Shadow-Effekt
         role_str = "HOST-LOBBY" if is_host else "GAST-BEITRITT"
-        head_surf = title_font.render(f"VISION PI 2000 ONLINE  •  {role_str}", True, HIGHLIGHT)
-        screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, box_y + int(box_h * 0.04)))
+        title_str = f"VisionPi2000  •  ONLINE {role_str}"
+        head_shadow = brand_font.render(title_str, True, (20, 15, 0))
+        head_surf = brand_font.render(title_str, True, GOLD)
+        hx = (sw - head_surf.get_width()) // 2
+        hy = box_y + int(box_h * 0.03)
+        screen.blit(head_shadow, (hx + 2, hy + 2))
+        screen.blit(head_surf, (hx, hy))
+
+        sub_brand = sub_brand_font.render("Open-Source-Dartsports  •  P2P Network Engine", True, NEON_CYAN)
+        screen.blit(sub_brand, ((sw - sub_brand.get_width()) // 2, hy + head_surf.get_height() + 2))
 
         room_disp = session.room_id if session.room_id else "Suche offene Lobbys..."
-        sub_txt = f"Spiel: {session.game_name} ({session.option})   |   Lobby-ID: {room_disp}"
+        sub_txt = f"Disziplin: {session.game_name} ({session.option})   |   Lobby-ID: {room_disp}"
         sub_surf = sub_font.render(sub_txt, True, WHITE)
-        screen.blit(sub_surf, ((sw - sub_surf.get_width()) // 2, box_y + int(box_h * 0.12)))
+        screen.blit(sub_surf, ((sw - sub_surf.get_width()) // 2, box_y + int(box_h * 0.145)))
 
         if session.error_msg:
-            stat_col, stat_txt = RED_COL, session.error_msg
+            stat_col, stat_txt = NEON_RED, session.error_msg
         elif not session.connected:
-            stat_col, stat_txt = HIGHLIGHT, "Verbinde mit MQTT-Broker..."
+            stat_col, stat_txt = GOLD, "Verbinde mit MQTT-Broker..."
         else:
-            stat_col = GREEN if session.handshake_ok else HIGHLIGHT
+            stat_col = NEON_GREEN if session.handshake_ok else GOLD
             if "KONFLIKT" in session.handshake_status:
-                stat_col = RED_COL
+                stat_col = NEON_RED
             stat_txt = session.handshake_status
 
         stat_surf = small_font.render(f"Status / Handshake: {stat_txt}", True, stat_col)
-        screen.blit(stat_surf, ((sw - stat_surf.get_width()) // 2, box_y + int(box_h * 0.19)))
+        screen.blit(stat_surf, ((sw - stat_surf.get_width()) // 2, box_y + int(box_h * 0.205)))
 
-        pygame.draw.line(
-            screen, (80, 80, 100),
-            (box_x + 40, box_y + int(box_h * 0.25)),
-            (box_x + box_w - 40, box_y + int(box_h * 0.25)), 2
-        )
+        # Neon-Trennlinie mit Mittel-Node
+        line_y = box_y + int(box_h * 0.255)
+        pygame.draw.line(screen, NEON_GREEN, (box_x + 35, line_y), (box_x + box_w - 35, line_y), 2)
+        pygame.draw.circle(screen, GOLD, (sw // 2, line_y), 5)
 
+        # 8 Spieler-Slots als Cyber-Cards
         slot_y = box_y + int(box_h * 0.28)
         slot_h = int(box_h * 0.068)
+        card_w = int(box_w * 0.66) if berry_avatar else int(box_w * 0.82)
+        card_x = box_x + int(box_w * 0.05)
+
         for s_idx in range(8):
             berry_name = ONLINE_PLAYER_NAMES[s_idx]
             p_entry = next((p for p in session.players if p["slot"] == s_idx), None)
+            cy = slot_y + s_idx * slot_h
+            ch = slot_h - 6
+
             if p_entry:
                 is_me = (p_entry["client_id"] == session.client_id)
                 tag = "LOKAL (Dieser Automat)" if is_me else "ONLINE VERBUNDEN"
-                col = GREEN if is_me else HIGHLIGHT
-                line_str = f"Slot {s_idx + 1}:  {berry_name:<22}  —  [{tag}]"
+                border_c = NEON_GREEN if is_me else NEON_CYAN
+                bg_c = (12, 50, 42) if is_me else (12, 38, 56)
+                txt_c = WHITE
+                line_str = f"Slot {s_idx + 1}:  {berry_name:<20}  •  [{tag}]"
             else:
-                col = (90, 90, 110)
-                line_str = f"Slot {s_idx + 1}:  {berry_name:<22}  —  [ Frei / Wartet ]"
+                border_c = (35, 65, 80)
+                bg_c = (10, 22, 34)
+                txt_c = (110, 130, 145)
+                line_str = f"Slot {s_idx + 1}:  {berry_name:<20}  •  [ Frei / Wartet ]"
 
-            s_surf = list_font.render(line_str, True, col)
-            screen.blit(s_surf, (box_x + int(box_w * 0.10), slot_y + s_idx * slot_h))
+            pygame.draw.rect(screen, bg_c, (card_x, cy, card_w, ch), border_radius=8)
+            pygame.draw.rect(screen, border_c, (card_x, cy, card_w, ch), width=2, border_radius=8)
+
+            s_surf = list_font.render(line_str, True, txt_c)
+            screen.blit(s_surf, (card_x + 16, cy + (ch - s_surf.get_height()) // 2))
+
+        # Bullseye-Berry Artwork rechts in der Lobby animieren
+        if berry_avatar:
+            base_sz = int(box_h * 0.34)
+            pulse = int(math.sin(pygame.time.get_ticks() * 0.005) * 8)
+            anim_sz = base_sz + pulse
+            av_scaled = pygame.transform.smoothscale(berry_avatar, (anim_sz, anim_sz))
+            av_x = box_x + box_w - int(box_w * 0.27) + (base_sz - anim_sz) // 2
+            av_y = box_y + int(box_h * 0.40) + (base_sz - anim_sz) // 2
+            screen.blit(av_scaled, (av_x, av_y))
 
         if is_host:
             hint_str = "START drücken: Online-Match starten   |   SPIELERWECHSEL: Abbrechen"
@@ -810,8 +906,12 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             else:
                 hint_str = "Warte auf Spielstart durch den Host...   |   SPIELERWECHSEL: Abbrechen"
 
-        hint_surf = sub_font.render(hint_str, True, HIGHLIGHT)
-        screen.blit(hint_surf, ((sw - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.08)))
+        hint_surf = sub_font.render(hint_str, True, GOLD)
+        screen.blit(hint_surf, ((sw - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.085)))
+
+        # Footer außerhalb des Rahmens exakt wie auf dem Vorlagebild
+        credit_surf = credit_font.render(":Grundprogramm & Design entwickelt von Oliver Müssig:", True, WHITE)
+        screen.blit(credit_surf, ((sw - credit_surf.get_width()) // 2, sh - int(sh * 0.038)))
 
         pygame.display.flip()
         clock.tick(30)
