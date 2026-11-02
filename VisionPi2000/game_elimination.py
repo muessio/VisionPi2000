@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 GAMES = ["Elimination"]
 OPTIONS = ["Standard", "3 Leben"]
 
@@ -166,7 +166,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks(); raw_data = None
             elif raw_data == "IR:DETECT":
-                if darts_thrown >= 3 and not is_berrys_turn and switch_delay_timer == 0: switch_delay_timer = pygame.time.get_ticks() + 1000
+                if darts_thrown >= 3 and not is_berrys_turn: switch_delay_timer = pygame.time.get_ticks() + 2000
                 raw_data = None
             
             if is_berrys_turn and darts_thrown >= 3 and switch_delay_timer == 0:
