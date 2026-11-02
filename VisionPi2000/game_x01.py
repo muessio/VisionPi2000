@@ -5,7 +5,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -89,9 +89,50 @@ class ScreenSaver:
         hint_surf = font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
         screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
+def build_turn_order(total_players, is_team_mode):
+    """Erstellt die Wurfreihenfolge: Im Team-Modus werfen die Teams abwechselnd (z.B. P1 -> P3 -> P2 -> P4)."""
+    if not is_team_mode:
+        return list(range(1, total_players + 1))
+    num_teams = (total_players + 1) // 2
+    order = []
+    for member_slot in range(2):
+        for t in range(num_teams):
+            p = t * 2 + 1 + member_slot
+            if p <= total_players:
+                order.append(p)
+    return order
+
 def run_game(screen, ser, display, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
+    is_team_mode = ("Team" in mode) and (players >= 2)
     total_players = players + 1 if is_berry_game else players
+    num_teams = (total_players + 1) // 2 if is_team_mode else total_players
+
+    turn_order = build_turn_order(total_players, is_team_mode)
+    turn_idx = 0
+    active_player = turn_order[turn_idx]
+
+    def get_team_idx(p_idx):
+        return (p_idx // 2) if is_team_mode else p_idx
+
+    def set_team_score(p_idx, val):
+        if is_team_mode:
+            t = p_idx // 2
+            for m in (t * 2, t * 2 + 1):
+                if m < total_players:
+                    player_scores[m] = val
+        else:
+            player_scores[p_idx] = val
+
+    def set_team_in_checked(p_idx, val):
+        if is_team_mode:
+            t = p_idx // 2
+            for m in (t * 2, t * 2 + 1):
+                if m < total_players:
+                    player_in_checked[m] = val
+        else:
+            player_in_checked[p_idx] = val
+
     sw, sh = screen.get_width(), screen.get_height()
     screensaver = ScreenSaver(sw, sh)
     display.clear_all()
@@ -139,7 +180,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     has_master_out = option in ["Master Out", "Double In / Master Out"]
     player_in_checked = [not has_double_in for _ in range(total_players)]
     
-    darts_thrown, active_player, round_num, round_points = 0, 1, 1, 0
+    darts_thrown, round_num, round_points = 0, 1, 0
     round_start_score, round_start_in_checked = start_score, player_in_checked[0]
     switch_delay_timer = 0
 
@@ -216,8 +257,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
-                if active_player == total_players: round_num += 1
-                active_player = (active_player % total_players) + 1
+                turn_idx = (turn_idx + 1) % len(turn_order)
+                if turn_idx == 0:
+                    round_num += 1
+                active_player = turn_order[turn_idx]
                 round_start_score = player_scores[active_player - 1]
                 round_start_in_checked = player_in_checked[active_player - 1]
                 if sound_switch: sound_switch.play()
@@ -255,7 +298,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 bust = False
                 if not player_in_checked[p_idx] and hit_segment != "MISS":
                     if hit_segment == "WIN_CHEAT" or is_double: 
-                        player_in_checked[p_idx] = True
+                        set_team_in_checked(p_idx, True)
                     else: 
                         points = 0  
 
@@ -276,8 +319,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     sync_hw_display()
                 elif bust: 
                     if sound_bust: sound_bust.play()
-                    player_scores[p_idx] = round_start_score
-                    player_in_checked[p_idx] = round_start_in_checked
+                    set_team_score(p_idx, round_start_score)
+                    set_team_in_checked(p_idx, round_start_in_checked)
                     round_points = 0
                     darts_thrown = 3 
                     if ser:
@@ -285,7 +328,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         except: pass
                     sync_hw_display()
                 else:
-                    player_scores[p_idx] = new_score
+                    set_team_score(p_idx, new_score)
                     round_points += points
                     darts_thrown += 1
                     
@@ -320,7 +363,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     if sound_switch: sound_switch.play()
                     player_scores = [start_score] * total_players
                     player_in_checked = [not has_double_in for _ in range(total_players)]
-                    darts_thrown, active_player, round_num, round_points = 0, 1, 1, 0
+                    turn_idx = 0
+                    active_player = turn_order[turn_idx]
+                    darts_thrown, round_num, round_points = 0, 1, 0
                     round_start_score, round_start_in_checked = start_score, player_in_checked[0]
                     switch_delay_timer = 0
                     current_state = "GAME"
@@ -338,8 +383,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         if current_state in ["GAME", "ABORT_MENU", "WIN"]:
-            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}  |  Runde {round_num}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.08)))
-            name_surf = big_font.render(mode if is_berrys_turn else f"Spieler {active_player}", True, RED_COL if is_berrys_turn else WHITE)
+            mode_tag = "  |  Team-Modus" if is_team_mode else ""
+            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}{mode_tag}  |  Runde {round_num}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.08)))
+            
+            if is_berrys_turn:
+                active_label = mode
+            elif is_team_mode:
+                active_label = f"Spieler {active_player} (Team {get_team_idx(active_player - 1) + 1})"
+            else:
+                active_label = f"Spieler {active_player}"
+                
+            name_surf = big_font.render(active_label, True, RED_COL if is_berrys_turn else WHITE)
             screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.14)))
             temp_score_surf = title_font.render(f"(Temp Score: {round_points})", True, (200, 200, 200))
             screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.20)))
@@ -358,11 +412,23 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.78)))
 
             y_base = int(sh * 0.86)
-            for i in range(total_players):
-                p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
-                surf = title_font.render(f"{p_n}: {player_scores[i]}", True, HIGHLIGHT if i == (active_player - 1) else WHITE)
-                row, col = i % 2, i // 2
-                screen.blit(surf, ((col + 1) * (sw // ((total_players + 1) // 2 + 1 if row == 0 else total_players // 2 + 1)) - surf.get_width() // 2, y_base + (row * int(sh*0.05))))
+            if is_team_mode:
+                active_team = get_team_idx(active_player - 1)
+                for t in range(num_teams):
+                    p1 = t * 2 + 1
+                    p2 = t * 2 + 2
+                    members_str = f"P{p1}/P{p2}" if p2 <= total_players else f"P{p1}"
+                    t_score = player_scores[t * 2]
+                    surf = title_font.render(f"T{t+1} ({members_str}): {t_score}", True, HIGHLIGHT if t == active_team else WHITE)
+                    row, col = t % 2, t // 2
+                    cols_in_row = (num_teams + 1) // 2 if row == 0 else num_teams // 2
+                    screen.blit(surf, ((col + 1) * (sw // (cols_in_row + 1)) - surf.get_width() // 2, y_base + (row * int(sh*0.05))))
+            else:
+                for i in range(total_players):
+                    p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
+                    surf = title_font.render(f"{p_n}: {player_scores[i]}", True, HIGHLIGHT if i == (active_player - 1) else WHITE)
+                    row, col = i % 2, i // 2
+                    screen.blit(surf, ((col + 1) * (sw // ((total_players + 1) // 2 + 1 if row == 0 else total_players // 2 + 1)) - surf.get_width() // 2, y_base + (row * int(sh*0.05))))
 
             if is_berrys_turn and avatar_img:
                 anim_size = int((sh*0.28) + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
@@ -397,7 +463,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 txt_head = win_font.render("GEWONNEN!", True, (50, 255, 50))
                 screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
                 
-                winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
+                if is_berrys_turn:
+                    winner_name = mode
+                elif is_team_mode:
+                    win_t = get_team_idx(active_player - 1)
+                    p1 = win_t * 2 + 1
+                    p2 = win_t * 2 + 2
+                    m_str = f"Spieler {p1} & {p2}" if p2 <= total_players else f"Spieler {p1}"
+                    winner_name = f"Team {win_t + 1} ({m_str})"
+                else:
+                    winner_name = f"Spieler {active_player}"
+                    
                 txt_winner = big_font.render(f"{winner_name} beendet!", True, WHITE)
                 screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
                 
