@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.3.0
-# Stabiler, blockierungsfreier MJPEG-Streamer mit optimiertem Frame-Buffer
+# Version: 1.1.0
+# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend)
 
 import http.server
 import socketserver
@@ -10,16 +10,16 @@ import io
 import os
 import pygame
 
-VERSION = "1.3.0"
+VERSION = "1.1.0"
 PORT = 8080
 
 latest_jpeg = None
 lock = threading.Lock()
 last_capture_time = 0.0
-
 active_clients = 0
 clients_lock = threading.Lock()
 
+# Vorab allokierte Ressourcen gegen RAM-Fragmentierung auf dem 1GB Pi
 _scaled_surface = None
 _scaled_size = (0, 0)
 _cached_header_bytes = None
@@ -49,7 +49,7 @@ def get_header_bytes():
 
 
 class StreamHandler(http.server.BaseHTTPRequestHandler):
-    timeout = 10.0
+    timeout = 5.0
 
     def log_message(self, format, *args):
         pass
@@ -210,30 +210,30 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
 
             elif self.path == "/stream.mjpg":
+                self.connection.settimeout(5.0)
                 self.send_response(200)
-                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=--myboundary")
-                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.send_header("Age", "0")
+                self.send_header("Cache-Control", "no-cache, private")
                 self.send_header("Pragma", "no-cache")
-                self.send_header("Connection", "close")
+                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
                 self.end_headers()
 
                 with clients_lock:
                     active_clients += 1
-
                 try:
+                    last_sent_frame = None
                     while True:
                         with lock:
                             frame = latest_jpeg
-
-                        if frame is not None:
-                            self.wfile.write(b"--myboundary\r\n")
+                        if frame is not None and frame is not last_sent_frame:
+                            last_sent_frame = frame
+                            self.wfile.write(b"--FRAME\r\n")
                             self.wfile.write(b"Content-Type: image/jpeg\r\n")
                             self.wfile.write(f"Content-Length: {len(frame)}\r\n\r\n".encode("utf-8"))
                             self.wfile.write(frame)
                             self.wfile.write(b"\r\n")
                             self.wfile.flush()
-
-                        time.sleep(0.08)
+                        time.sleep(0.14)
                 except Exception:
                     pass
                 finally:
@@ -266,31 +266,32 @@ def start_streaming_thread():
 
 def update_stream_frame(screen):
     global latest_jpeg, last_capture_time, _scaled_surface, _scaled_size
-    if screen is None:
+    # KRITISCHE OPTIMIERUNG: Wenn kein Browser verbunden ist, 0% CPU & 0 RAM verbrauchen!
+    if active_clients <= 0 or screen is None:
         return
 
     now = time.time()
-    if now - last_capture_time < 0.08:
+    # Begrenzung auf ~7 FPS (alle 0.14s) für minimale Last auf dem Pi 4B (1GB)
+    if now - last_capture_time < 0.14:
         return
     last_capture_time = now
 
     try:
         sw, sh = screen.get_width(), screen.get_height()
+        # Automatische 16:9 (640x360) oder 4:3 (640x480) Erkennung
         target_size = (640, 360) if (sw / float(sh)) > 1.5 else (640, 480)
 
         if _scaled_surface is None or _scaled_size != target_size:
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
-        pygame.transform.smoothscale(screen, target_size, _scaled_surface)
+        # Schnelles Bilinear-Scaling direkt in das vorab allokierte Surface (kein RAM-Leak!)
+        pygame.transform.scale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
-        pygame.image.save(_scaled_surface, buf, "frame.jpg", quality=85)
-        jpeg_data = buf.getvalue()
+        pygame.image.save(_scaled_surface, buf, "frame.jpg")
+        with lock:
+            latest_jpeg = buf.getvalue()
         buf.close()
-
-        if jpeg_data:
-            with lock:
-                latest_jpeg = jpeg_data
     except Exception:
         pass
