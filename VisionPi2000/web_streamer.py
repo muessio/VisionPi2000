@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.0.8
-# Performance-optimierter HTTP-Streamer (verhindert RAM-Lecks und Hängend-Werden)
+# Version: 1.1.0
+# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, 4:3 & 16:9 Support, RAM-schonend)
 
 import http.server
 import socketserver
@@ -10,35 +10,54 @@ import io
 import os
 import pygame
 
-VERSION = "1.0.8"
+VERSION = "1.1.0"
 PORT = 8080
 
 latest_jpeg = None
 lock = threading.Lock()
 last_capture_time = 0.0
+active_clients = 0
+clients_lock = threading.Lock()
+
+# Vorab allokierte Ressourcen gegen RAM-Fragmentierung auf dem 1GB Pi
+_scaled_surface = None
+_scaled_size = (0, 0)
+_cached_header_bytes = None
 
 
-def find_header_file():
+def get_header_bytes():
+    global _cached_header_bytes
+    if _cached_header_bytes is not None:
+        return _cached_header_bytes
     for name in ["header.png", "Header.png", "HEADER.png"]:
         if os.path.exists(name):
-            return name
+            try:
+                with open(name, "rb") as f:
+                    _cached_header_bytes = f.read()
+                return _cached_header_bytes
+            except Exception:
+                pass
     try:
-        for f in os.listdir('.'):
+        for f in os.listdir("."):
             if f.lower() == "header.png":
-                return f
+                with open(f, "rb") as fp:
+                    _cached_header_bytes = fp.read()
+                return _cached_header_bytes
     except Exception:
         pass
     return None
 
 
 class StreamHandler(http.server.BaseHTTPRequestHandler):
+    timeout = 5.0
+
     def log_message(self, format, *args):
-        """Unterdrückt Logs für maximale Performance."""
         pass
 
     def do_GET(self):
+        global active_clients
         try:
-            if self.path == '/' or self.path == '/stream.html':
+            if self.path == "/" or self.path.startswith("/stream.html"):
                 html = """<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -172,48 +191,54 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
 </body>
 </html>"""
                 self.send_response(200)
-                self.send_header('Content-Type', 'text/html; charset=utf-8')
-                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
                 self.end_headers()
-                self.wfile.write(html.encode('utf-8'))
+                self.wfile.write(html.encode("utf-8"))
 
-            elif self.path == '/header.png':
-                h_file = find_header_file()
-                if h_file:
-                    try:
-                        with open(h_file, 'rb') as f:
-                            data = f.read()
-                        self.send_response(200)
-                        self.send_header('Content-Type', 'image/png')
-                        self.send_header('Content-Length', str(len(data)))
-                        self.end_headers()
-                        self.wfile.write(data)
-                        return
-                    except Exception:
-                        pass
+            elif self.path == "/header.png":
+                data = get_header_bytes()
+                if data:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "image/png")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.send_header("Cache-Control", "public, max-age=3600")
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
                 self.send_response(404)
                 self.end_headers()
 
-            elif self.path == '/stream.mjpg':
+            elif self.path == "/stream.mjpg":
+                self.connection.settimeout(5.0)
                 self.send_response(200)
-                self.send_header('Age', '0')
-                self.send_header('Cache-Control', 'no-cache, private')
-                self.send_header('Pragma', 'no-cache')
-                self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
+                self.send_header("Age", "0")
+                self.send_header("Cache-Control", "no-cache, private")
+                self.send_header("Pragma", "no-cache")
+                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
                 self.end_headers()
+
+                with clients_lock:
+                    active_clients += 1
                 try:
+                    last_sent_frame = None
                     while True:
                         with lock:
                             frame = latest_jpeg
-                        if frame:
-                            self.wfile.write(b'--FRAME\r\n')
-                            self.wfile.write(b'Content-Type: image/jpeg\r\n')
-                            self.wfile.write(f'Content-Length: {len(frame)}\r\n\r\n'.encode('utf-8'))
+                        if frame is not None and frame is not last_sent_frame:
+                            last_sent_frame = frame
+                            self.wfile.write(b"--FRAME\r\n")
+                            self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                            self.wfile.write(f"Content-Length: {len(frame)}\r\n\r\n".encode("utf-8"))
                             self.wfile.write(frame)
-                            self.wfile.write(b'\r\n')
-                        time.sleep(0.125)  # Etwas entspanntere 8 FPS für den Stream
+                            self.wfile.write(b"\r\n")
+                            self.wfile.flush()
+                        time.sleep(0.14)
                 except Exception:
                     pass
+                finally:
+                    with clients_lock:
+                        active_clients = max(0, active_clients - 1)
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -228,7 +253,7 @@ class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 def background_server():
     try:
-        server = ThreadedHTTPServer(('0.0.0.0', PORT), StreamHandler)
+        server = ThreadedHTTPServer(("0.0.0.0", PORT), StreamHandler)
         server.serve_forever()
     except Exception as e:
         print(f"Web-Streamer Fehler auf Port {PORT}: {e}")
@@ -240,21 +265,31 @@ def start_streaming_thread():
 
 
 def update_stream_frame(screen):
-    global latest_jpeg, last_capture_time
-    if screen is None:
+    global latest_jpeg, last_capture_time, _scaled_surface, _scaled_size
+    # KRITISCHE OPTIMIERUNG: Wenn kein Browser verbunden ist, 0% CPU & 0 RAM verbrauchen!
+    if active_clients <= 0 or screen is None:
         return
 
     now = time.time()
-    # Strenge Begrenzung auf max. 8 FPS (alle 0.125s), damit die CPU des Pi nicht heißläuft
-    if now - last_capture_time < 0.125:
+    # Begrenzung auf ~7 FPS (alle 0.14s) für minimale Last auf dem Pi 4B (1GB)
+    if now - last_capture_time < 0.14:
         return
     last_capture_time = now
 
     try:
-        # Auflösung auf speicherschonende 640x480 gedrosselt (reicht völlig für den Browser aus)
-        surface = pygame.transform.smoothscale(screen, (640, 480))
+        sw, sh = screen.get_width(), screen.get_height()
+        # Automatische 16:9 (640x360) oder 4:3 (640x480) Erkennung
+        target_size = (640, 360) if (sw / float(sh)) > 1.5 else (640, 480)
+
+        if _scaled_surface is None or _scaled_size != target_size:
+            _scaled_surface = pygame.Surface(target_size)
+            _scaled_size = target_size
+
+        # Schnelles Bilinear-Scaling direkt in das vorab allokierte Surface (kein RAM-Leak!)
+        pygame.transform.scale(screen, target_size, _scaled_surface)
+
         buf = io.BytesIO()
-        pygame.image.save(surface, buf, "frame.jpg")
+        pygame.image.save(_scaled_surface, buf, "frame.jpg")
         with lock:
             latest_jpeg = buf.getvalue()
         buf.close()
