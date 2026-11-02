@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.2
-# Fix für hängenden/schwarzen MJPEG-Stream im Browser
+# Version: 1.1.3
+# Ultra-leichter HTTP-Streamer (Korrigierter MJPEG-Stream & optimierte Schärfe)
 
 import http.server
 import socketserver
@@ -10,7 +10,7 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.2"
+VERSION = "1.1.3"
 PORT = 8080
 
 latest_jpeg = None
@@ -213,7 +213,7 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                 self.send_header("Age", "0")
                 self.send_header("Cache-Control", "no-cache, private")
                 self.send_header("Pragma", "no-cache")
-                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
+                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=frame")
                 self.end_headers()
 
                 with clients_lock:
@@ -225,7 +225,7 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                             frame = latest_jpeg
                         if frame is not None and frame is not last_sent_frame:
                             last_sent_frame = frame
-                            self.wfile.write(b"--FRAME\r\n")
+                            self.wfile.write(b"--frame\r\n")
                             self.wfile.write(b"Content-Type: image/jpeg\r\n")
                             self.wfile.write(f"Content-Length: {len(frame)}\r\n\r\n".encode("utf-8"))
                             self.wfile.write(frame)
@@ -280,9 +280,11 @@ def update_stream_frame(screen):
             _scaled_surface = pygame.Surface(target_size)
             _scaled_size = target_size
 
+        # Gestochen scharfe Skalierung dank smoothscale
         pygame.transform.smoothscale(screen, target_size, _scaled_surface)
 
         buf = io.BytesIO()
+        # Optimierte JPEG-Qualität (85%) für klare Kanten und Schriften
         pygame.image.save(_scaled_surface, buf, "frame.jpg", quality=85)
         with lock:
             latest_jpeg = buf.getvalue()
