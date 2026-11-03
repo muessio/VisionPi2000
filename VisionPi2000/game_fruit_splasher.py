@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.2.0
+# Version: 1.2.1
 # VisionPi2000 - Fruit Slasher (Juice Press & Berry Hunt Edition)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 GAMES = ["Fruit Slasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -19,7 +19,6 @@ OPTIONS = [
     "Berry Hunt (15 Runden)"
 ]
 
-# Die 8 Beeren-Charaktere
 BERRY_PROFILES = [
     {"name": "Bullseye-Berry",     "fruit": "Raspberry",   "color": (255, 0, 90),    "hi": (255, 130, 170), "style": "cluster"},
     {"name": "Triple-Strawberry",  "fruit": "Strawberry",  "color": (255, 45, 45),   "hi": (255, 160, 160), "style": "strawberry"},
@@ -68,7 +67,6 @@ def trigger_victory(ser, display=None):
 
 
 def draw_berry_icon(surface, cx, cy, radius, profile, pump_stage=0, max_stage=7):
-    """Zeichnet eine skalierbare Cyber-Beere inkl. Blattkrone und Glanzeffekt."""
     scale = 1.0 + (pump_stage / float(max(1, max_stage))) * 0.55
     r = max(8, int(radius * scale))
     col = profile["color"]
@@ -268,9 +266,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
     sound_miss = pygame.mixer.Sound("sounds/miss.wav") if os.path.exists("sounds/miss.wav") else None
 
-    small_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)
+    small_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
     title_font = pygame.font.SysFont("arial", int(sh * 0.033), bold=True)
-    big_font = pygame.font.SysFont("arial", int(sh * 0.048), bold=True)
+    big_font = pygame.font.SysFont("arial", int(sh * 0.044), bold=True)
     win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.20)
     win_font = pygame.font.SysFont("arial", win_font_size, bold=True)
 
@@ -340,6 +338,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             t_str = f"{t_val:2d}"
                             display.set_disp_char(d_ten, t_str[0])
                             display.set_disp_char(d_unit, t_str[1])
+                
+                # Hardware-Befehl an den Arduino senden, damit das Bullseye beleuchtet wird
+                if ser:
+                    ser.write(b"LAMP:BULL:ON\n")
+                    ser.flush()
             else:
                 for s_idx, hw_key in enumerate(hw_keys):
                     t_val = hunt_targets[s_idx]
@@ -618,7 +621,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 screen.blit(block_hint, ((sw - block_hint.get_width()) // 2, int(sh * 0.22)))
 
             if not is_hunt_mode:
-                # --- ANSICHT A: JUICE PRESS ---
+                # --- ANSICHT A: JUICE PRESS (Sauberes 2-Zeilen-Layout ohne Überlappung) ---
                 cols = min(4, total_players)
                 rows = math.ceil(total_players / float(cols))
                 card_w = int(sw * 0.88 / cols) - 16
@@ -641,28 +644,33 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
                     lbl = "Bullseye-Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
                     t_s = title_font.render(lbl, True, prof["color"] if is_act else WHITE)
-                    screen.blit(t_s, (cx + (card_w - t_s.get_width()) // 2, cy + 10))
+                    screen.blit(t_s, (cx + (card_w - t_s.get_width()) // 2, cy + 8))
 
-                    target_txt = f"ZIEL: {player_targets[i]} | BULL"
-                    badge_txt = big_font.render(target_txt, True, HIGHLIGHT)
-                    screen.blit(badge_txt, (cx + (card_w - badge_txt.get_width()) // 2, cy + int(card_h * 0.18)))
+                    # 2-Zeilen-Zielanzeige (Zeile 1: Segment-Ziel, Zeile 2: Bullseye-Status) sauber untereinander
+                    target_txt1 = f"ZIEL: {player_targets[i]}"
+                    target_txt2 = "BULLSEYE AKTIV"
+                    badge_txt1 = small_font.render(target_txt1, True, HIGHLIGHT)
+                    badge_txt2 = small_font.render(target_txt2, True, (0, 220, 255))
+                    
+                    screen.blit(badge_txt1, (cx + (card_w - badge_txt1.get_width()) // 2, cy + int(card_h * 0.15)))
+                    screen.blit(badge_txt2, (cx + (card_w - badge_txt2.get_width()) // 2, cy + int(card_h * 0.25)))
 
-                    base_rad = int(min(card_w, card_h) * 0.17)
-                    draw_berry_icon(screen, cx + card_w // 2, cy + int(card_h * 0.54), base_rad, prof, pump_levels[i], max_pump)
+                    base_rad = int(min(card_w, card_h) * 0.15)
+                    draw_berry_icon(screen, cx + card_w // 2, cy + int(card_h * 0.53), base_rad, prof, pump_levels[i], max_pump)
 
                     bar_w = int(card_w * 0.82)
                     bar_h = int(card_h * 0.08)
                     bar_x = cx + (card_w - bar_w) // 2
-                    bar_y = cy + card_h - bar_h - int(card_h * 0.15)
+                    bar_y = cy + card_h - bar_h - int(card_h * 0.18)
                     pygame.draw.rect(screen, (30, 30, 40), (bar_x, bar_y, bar_w, bar_h), border_radius=6)
                     fill_w = int(bar_w * (pump_levels[i] / float(max_pump)))
                     if fill_w > 0:
                         pygame.draw.rect(screen, prof["color"], (bar_x, bar_y, fill_w, bar_h), border_radius=6)
                     pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_w, bar_h), 1, border_radius=6)
 
-                    # Geänderte Anzeige: Juice Level anstelle von Druck
-                    score_str = small_font.render(f"Splashes: {scores[i]} / {target_splashes}   (Juice Level: {pump_levels[i]}/{max_pump})", True, NEON_GREEN if scores[i] > 0 else (190, 190, 190))
-                    screen.blit(score_str, (cx + (card_w - score_str.get_width()) // 2, cy + card_h - int(card_h * 0.08)))
+                    # Saubere Trennung von Splashes und Juice Level
+                    score_str = small_font.render(f"Splashes: {scores[i]}/{target_splashes}  |  Juice Level: {pump_levels[i]}/{max_pump}", True, NEON_GREEN if scores[i] > 0 else (190, 190, 190))
+                    screen.blit(score_str, (cx + (card_w - score_str.get_width()) // 2, cy + card_h - int(card_h * 0.09)))
 
             else:
                 # --- ANSICHT B: BERRY HUNT ---
@@ -759,7 +767,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
                 win_y = int(sh * 0.22)
                 txt_head = win_font.render("BERRY SPLASH!", True, NEON_GREEN)
-                screen.blit(txt_head, ((sw - win_font.get_width() if 'win_font' in locals() else sw // 2) // 2, win_y))
+                screen.blit(txt_head, ((sw - win_head.get_width()) // 2 if 'win_head' in locals() else (sw - txt_head.get_width()) // 2, win_y))
 
                 win_prof = BERRY_PROFILES[0] if (is_berry_game and winner_idx == total_players - 1) else BERRY_PROFILES[winner_idx % len(BERRY_PROFILES)]
                 winner_name = "Bullseye-Berry" if (is_berry_game and winner_idx == total_players - 1) else f"Spieler {winner_idx + 1}"
