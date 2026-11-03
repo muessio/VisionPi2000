@@ -1,6 +1,6 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.0.0
-# VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition)
+# Version: 1.2.0
+# VisionPi2000 - Fruit Slasher (Juice Press & Berry Hunt Edition)
 
 import pygame
 import math
@@ -9,8 +9,8 @@ import random
 import time
 import json
 
-VERSION = "1.0.0"
-GAMES = ["Fruit Splasher"]
+VERSION = "1.2.0"
+GAMES = ["Fruit Slasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
     "Juice Press (Party - 5 Beeren)",
@@ -19,7 +19,7 @@ OPTIONS = [
     "Berry Hunt (15 Runden)"
 ]
 
-# Die 8 Beeren-Charaktere passend zu den Online-Namen
+# Die 8 Beeren-Charaktere
 BERRY_PROFILES = [
     {"name": "Bullseye-Berry",     "fruit": "Raspberry",   "color": (255, 0, 90),    "hi": (255, 130, 170), "style": "cluster"},
     {"name": "Triple-Strawberry",  "fruit": "Strawberry",  "color": (255, 45, 45),   "hi": (255, 160, 160), "style": "strawberry"},
@@ -75,12 +75,10 @@ def draw_berry_icon(surface, cx, cy, radius, profile, pump_stage=0, max_stage=7)
     hi = profile["hi"]
     style = profile["style"]
 
-    # Pulsierender Warnring kurz vor dem Platzen
     if pump_stage >= max_stage - 1:
         pulse = int(abs(math.sin(pygame.time.get_ticks() * 0.015)) * 8)
         pygame.draw.circle(surface, (255, 255, 255), (cx, cy), r + 6 + pulse, 2)
 
-    # Stiel & grünes Blatt oben
     leaf_col = (0, 230, 110)
     pygame.draw.line(surface, (120, 220, 90), (cx, cy - r + 2), (cx + 4, cy - r - int(r * 0.38)), max(2, r // 7))
     pygame.draw.polygon(surface, leaf_col, [
@@ -95,7 +93,6 @@ def draw_berry_icon(surface, cx, cy, radius, profile, pump_stage=0, max_stage=7)
     ])
 
     if style == "cluster":
-        # Himbeere / Brombeere / Maulbeere aus kleinen Drupelets
         sub_r = max(4, int(r * 0.38))
         offsets = [
             (0, -int(r * 0.52)),
@@ -110,7 +107,6 @@ def draw_berry_icon(surface, cx, cy, radius, profile, pump_stage=0, max_stage=7)
             pygame.draw.circle(surface, hi, (cx + ox - sub_r // 3, cy + oy - sub_r // 3), max(2, sub_r // 4))
 
     elif style == "strawberry":
-        # Erdbeere mit kleinen gelben Nüsschen (Samen)
         pts = [
             (cx - int(r * 0.85), cy - int(r * 0.45)),
             (cx + int(r * 0.85), cy - int(r * 0.45)),
@@ -124,7 +120,6 @@ def draw_berry_icon(surface, cx, cy, radius, profile, pump_stage=0, max_stage=7)
             pygame.draw.circle(surface, (255, 230, 90), (cx + int(r * sx), cy + int(r * sy)), max(2, r // 10))
 
     elif style == "cherry":
-        # Doppel-Kirsche
         r_ch = max(5, int(r * 0.58))
         c1 = (cx - int(r * 0.45), cy + int(r * 0.22))
         c2 = (cx + int(r * 0.45), cy + int(r * 0.22))
@@ -136,7 +131,6 @@ def draw_berry_icon(surface, cx, cy, radius, profile, pump_stage=0, max_stage=7)
             pygame.draw.circle(surface, hi, (c_pos[0] - r_ch // 3, c_pos[1] - r_ch // 3), max(2, r_ch // 4))
 
     else:
-        # Kugelförmige Beere (Blueberry, Huckleberry, Snowberry)
         pygame.draw.circle(surface, col, (cx, cy), r)
         pygame.draw.circle(surface, (30, 30, 30), (cx, cy), r, 2)
         pygame.draw.circle(surface, hi, (cx - r // 3, cy - r // 3), max(3, r // 4))
@@ -282,7 +276,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     HIGHLIGHT, WHITE, RED_COL, NEON_GREEN = (255, 215, 0), (255, 255, 255), (255, 60, 80), (0, 255, 157)
 
-    # Spielzustand initialisieren
     scores = [0] * total_players
     pump_levels = [0] * total_players
     player_targets = []
@@ -293,11 +286,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         used_t.append(pick)
         player_targets.append(pick)
 
-    # Für Berry Hunt: 6 Zufallsbeeren (1-20) + Golden Raspberry (25)
     hunt_targets = random.sample(range(1, 21), 6) + [25]
     hunt_profiles = [BERRY_PROFILES[i % len(BERRY_PROFILES)] for i in range(6)] + [GOLDEN_BERRY]
 
-    # Splash-Partikel für saftige Explosionen auf dem Bildschirm
     particles = []
     splash_banner_text = ""
     splash_banner_col = HIGHLIGHT
@@ -339,7 +330,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             hw_keys = [20, 19, 18, 17, 16, 15]
             if not is_hunt_mode:
-                # Im Juice Press Modus zeigen die Cricket-Anzeigen die Zielzahl & den Füllstand (bis 3 Kreuze)
                 for s_idx, hw_key in enumerate(hw_keys):
                     if s_idx < total_players:
                         t_val = player_targets[s_idx]
@@ -351,7 +341,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             display.set_disp_char(d_ten, t_str[0])
                             display.set_disp_char(d_unit, t_str[1])
             else:
-                # Im Berry Hunt Modus zeigen die Cricket-Displays die 6 aktiven Frucht-Segmente
                 for s_idx, hw_key in enumerate(hw_keys):
                     t_val = hunt_targets[s_idx]
                     if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
@@ -421,7 +410,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 return "menu"
 
         elif current_state == "GAME":
-            # Umschalt-Logik: Button sofort, IR-Sensor 1 Sekunde nach 3 geworfenen Pfeilen
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks()
                 raw_data = None
@@ -481,16 +469,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     mult = 3 if "t" in hit_segment else (2 if ("d" in hit_segment or hit_segment == "db") else 1)
 
                     if not is_hunt_mode:
-                        # === MODUS 1: JUICE PRESS (Aufpumpen & Platzen) ===
                         my_target = player_targets[p_idx]
                         pumped = 0
 
                         if seg == my_target:
                             pumped = mult
                         elif seg == 25:
-                            pumped = mult  # Single Bull = +1, Double Bull = +2 Joker-Pumpen
+                            pumped = mult
                             if is_battle_press and total_players > 1:
-                                # Im Battle-Modus klaut Bullseye dem führenden Gegner Pump-Stufen
                                 rivals = [i for i in range(total_players) if i != p_idx and pump_levels[i] > 0]
                                 if rivals:
                                     victim = max(rivals, key=lambda i: (scores[i], pump_levels[i]))
@@ -505,14 +491,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             round_points += pumped
 
                             if pump_levels[p_idx] >= max_pump:
-                                # FRUCHT PLATZT!
                                 pump_levels[p_idx] = 0
                                 scores[p_idx] += 1
                                 avail = [n for n in range(1, 21) if n not in player_targets]
                                 player_targets[p_idx] = random.choice(avail) if avail else random.randint(1, 20)
 
                                 spawn_splash(sw // 2, int(sh * 0.52), p_profile["color"], count=48)
-                                splash_banner_text = f"{p_profile['fruit'].upper()} SPLASH! (+1)"
+                                splash_banner_text = f"SPLASH! (+1)"
                                 splash_banner_col = p_profile["color"]
                                 splash_banner_until = pygame.time.get_ticks() + 2200
                                 champ_display_until = pygame.time.get_ticks() + 1600
@@ -536,7 +521,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             trigger_victory(ser, display)
 
                     else:
-                        # === MODUS 2: BERRY HUNT (Früchte auf dem Board crashen) ===
                         if seg in hunt_targets:
                             h_idx = hunt_targets.index(seg)
                             hit_prof = hunt_profiles[h_idx]
@@ -546,11 +530,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             round_points += pts
 
                             spawn_splash(sw // 2, int(sh * 0.55), hit_prof["color"], count=38)
-                            splash_banner_text = f"{hit_prof['fruit'].upper()} CRUSHED! +{pts} PTS"
+                            splash_banner_text = f"CRUSHED! +{pts} PTS"
                             splash_banner_col = hit_prof["color"]
                             splash_banner_until = pygame.time.get_ticks() + 1800
 
-                            # Getroffene Frucht spawnt sofort auf einer freien Zahl neu
                             if seg != 25:
                                 free_nums = [n for n in range(1, 21) if n not in hunt_targets]
                                 if free_nums:
@@ -614,18 +597,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else:
             screen.fill((6, 17, 28))
 
-        # === HAUPT-RENDERING ===
         if current_state in ["GAME", "ABORT_MENU", "WIN"]:
             rnd_txt = f"Runde {round_num}/{max_rounds}" if is_hunt_mode else f"Runde {round_num} (Ziel: {target_splashes} Splashes)"
             screen.blit(title_font.render(f"FRUIT SPLASHER | {option} | {rnd_txt}", True, HIGHLIGHT), (int(sw * 0.04), int(sh * 0.035)))
 
             active_prof = BERRY_PROFILES[0] if is_berrys_turn else BERRY_PROFILES[(active_player - 1) % len(BERRY_PROFILES)]
-            p_title = f"{mode} ({active_prof['fruit']})" if is_berrys_turn else f"Spieler {active_player} • {active_prof['name']}"
+            p_title = f"Bullseye-Berry" if is_berrys_turn else f"Spieler {active_player}"
             name_surf = big_font.render(p_title, True, active_prof["color"])
             screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh * 0.095)))
 
             if not is_hunt_mode:
-                sub_str = f"Triff Segment [ {player_targets[active_player - 1]} ] oder [ BULLSEYE ] zum Aufpumpen!   |   Pfeile: {darts_thrown} / 3"
+                sub_str = f"Triff Segment [ {player_targets[active_player - 1]} ] oder [ BULL ] zum Aufpumpen!   |   Pfeile: {darts_thrown} / 3"
             else:
                 sub_str = f"Runden-Punkte: {round_points}   |   Triff die markierten Beeren-Segmente!   |   Pfeile: {darts_thrown} / 3"
             sub_surf = title_font.render(sub_str, True, (220, 220, 220))
@@ -636,7 +618,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 screen.blit(block_hint, ((sw - block_hint.get_width()) // 2, int(sh * 0.22)))
 
             if not is_hunt_mode:
-                # --- ANSICHT A: JUICE PRESS (Spieler-Karten mit wachsenden Beeren) ---
+                # --- ANSICHT A: JUICE PRESS ---
                 cols = min(4, total_players)
                 rows = math.ceil(total_players / float(cols))
                 card_w = int(sw * 0.88 / cols) - 16
@@ -657,19 +639,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     pygame.draw.rect(screen, card_bg, (cx, cy, card_w, card_h), border_radius=14)
                     pygame.draw.rect(screen, border_col, (cx, cy, card_w, card_h), width=4 if is_act else 2, border_radius=14)
 
-                    lbl = "Bullseye-Berry" if (is_berry_game and i == total_players - 1) else f"P{i + 1}: {prof['fruit']}"
+                    lbl = "Bullseye-Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
                     t_s = title_font.render(lbl, True, prof["color"] if is_act else WHITE)
                     screen.blit(t_s, (cx + (card_w - t_s.get_width()) // 2, cy + 10))
 
-                    # Ziel-Badge
-                    badge_txt = big_font.render(f"ZIEL: {player_targets[i]}", True, HIGHLIGHT)
+                    target_txt = f"ZIEL: {player_targets[i]} | BULL"
+                    badge_txt = big_font.render(target_txt, True, HIGHLIGHT)
                     screen.blit(badge_txt, (cx + (card_w - badge_txt.get_width()) // 2, cy + int(card_h * 0.18)))
 
-                    # Beeren-Grafik in der Kartenmitte (wächst mit pump_levels[i])
                     base_rad = int(min(card_w, card_h) * 0.17)
                     draw_berry_icon(screen, cx + card_w // 2, cy + int(card_h * 0.54), base_rad, prof, pump_levels[i], max_pump)
 
-                    # Saft-Füllbalken unten in der Karte
                     bar_w = int(card_w * 0.82)
                     bar_h = int(card_h * 0.08)
                     bar_x = cx + (card_w - bar_w) // 2
@@ -680,11 +660,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         pygame.draw.rect(screen, prof["color"], (bar_x, bar_y, fill_w, bar_h), border_radius=6)
                     pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_w, bar_h), 1, border_radius=6)
 
-                    score_str = small_font.render(f"Splashes: {scores[i]} / {target_splashes}   (Druck: {pump_levels[i]}/{max_pump})", True, NEON_GREEN if scores[i] > 0 else (190, 190, 190))
+                    # Geänderte Anzeige: Juice Level anstelle von Druck
+                    score_str = small_font.render(f"Splashes: {scores[i]} / {target_splashes}   (Juice Level: {pump_levels[i]}/{max_pump})", True, NEON_GREEN if scores[i] > 0 else (190, 190, 190))
                     screen.blit(score_str, (cx + (card_w - score_str.get_width()) // 2, cy + card_h - int(card_h * 0.08)))
 
             else:
-                # --- ANSICHT B: BERRY HUNT (7 aktive Früchte auf dem Board + Scoreboard) ---
+                # --- ANSICHT B: BERRY HUNT ---
                 hunt_y = int(sh * 0.28)
                 card_w = int(sw * 0.12)
                 card_h = int(sh * 0.32)
@@ -710,7 +691,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     p_surf = small_font.render(pts_lbl, True, h_prof["color"])
                     screen.blit(p_surf, (hx + (card_w - p_surf.get_width()) // 2, hunt_y + card_h - int(sh * 0.045)))
 
-                # Spieler-Scoreboard darunter
                 sb_y = int(sh * 0.65)
                 p_box_w = int(sw * 0.88 / total_players) - 10
                 sb_x = (sw - (total_players * (p_box_w + 10) - 10)) // 2
@@ -728,11 +708,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     sc_surf = big_font.render(str(scores[i]), True, HIGHLIGHT if is_act else WHITE)
                     screen.blit(sc_surf, (px + (p_box_w - sc_surf.get_width()) // 2, sb_y + int(sh * 0.095)))
 
-            # Partikel-Animation (Saft-Spritzer) zeichnen
             for pt in particles[:]:
                 pt["x"] += pt["vx"]
                 pt["y"] += pt["vy"]
-                pt["vy"] += 0.45  # Schwerkraft
+                pt["vy"] += 0.45
                 pt["life"] -= 1
                 if pt["life"] <= 0:
                     particles.remove(pt)
@@ -740,7 +719,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     pygame.draw.circle(screen, pt["color"], (int(pt["x"]), int(pt["y"])), pt["r"])
                     pygame.draw.circle(screen, WHITE, (int(pt["x"]) - 2, int(pt["y"]) - 2), max(1, pt["r"] // 3))
 
-            # Splash-Banner einblenden
             if pygame.time.get_ticks() < splash_banner_until and splash_banner_text:
                 b_surf = big_font.render(splash_banner_text, True, splash_banner_col)
                 bx = (sw - b_surf.get_width()) // 2
@@ -781,10 +759,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
                 win_y = int(sh * 0.22)
                 txt_head = win_font.render("BERRY SPLASH!", True, NEON_GREEN)
-                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
+                screen.blit(txt_head, ((sw - win_font.get_width() if 'win_font' in locals() else sw // 2) // 2, win_y))
 
                 win_prof = BERRY_PROFILES[0] if (is_berry_game and winner_idx == total_players - 1) else BERRY_PROFILES[winner_idx % len(BERRY_PROFILES)]
-                winner_name = mode if (is_berry_game and winner_idx == total_players - 1) else f"Spieler {winner_idx + 1} ({win_prof['name']})"
+                winner_name = "Bullseye-Berry" if (is_berry_game and winner_idx == total_players - 1) else f"Spieler {winner_idx + 1}"
                 txt_winner = big_font.render(f"{winner_name} gewinnt!", True, win_prof["color"])
                 screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
 
