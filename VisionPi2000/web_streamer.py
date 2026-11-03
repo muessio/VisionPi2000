@@ -1,31 +1,37 @@
 # Datei: web_streamer.py
-# Version: 1.1.1
-# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, HD-Schärfe & stabile ~10 FPS)
+# Version: 1.1.2
+# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, Asynchroner Encoder, RAM-gepiniet, TCP_NODELAY)
 
 import http.server
 import socketserver
+import socket
 import threading
 import time
 import io
 import os
 import pygame
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 PORT = 8080
 
+# Leicht erhöhte Bildfrequenz (~11 FPS / 0.09s) – dank Hintergrund-Thread ohne Ruckeln im Hauptprogramm
+FRAME_INTERVAL = 0.09
+MAX_CLIENTS = 4
+
 latest_jpeg = None
-lock = threading.Lock()
-last_capture_time = 0.0
+frame_id = 0
+frame_condition = threading.Condition()
+
 active_clients = 0
 clients_lock = threading.Lock()
 
-# Vorab allokierte Ressourcen gegen RAM-Fragmentierung auf dem 1GB Pi
-_scaled_surface = None
-_scaled_size = (0, 0)
-_cached_header_bytes = None
+# Asynchroner Übergabe-Puffer zwischen Pygame-Mainloop und Encoder-Thread
+_raw_frame = None
+_raw_event = threading.Event()
+_raw_lock = threading.Lock()
+_last_capture_time = 0.0
 
-# Leicht erhöhte Bildfrequenz für flüssigere ~10 FPS (Intervall 0.1s)
-FRAME_INTERVAL = 0.1
+_cached_header_bytes = None
 
 
 def get_header_bytes():
@@ -49,6 +55,51 @@ def get_header_bytes():
     except Exception:
         pass
     return None
+
+
+def _encoder_worker():
+    """Hintergrund-Thread: Skaliert und komprimiert Bilder, ohne Pygame auszubremsen."""
+    global latest_jpeg, frame_id
+    scaled_surface = None
+    scaled_size = (0, 0)
+    # Einmalig allokierter RAM-Puffer verhindert Speicher-Fragmentierung auf dem 1GB Pi
+    jpeg_buffer = io.BytesIO()
+
+    while True:
+        _raw_event.wait()
+        _raw_event.clear()
+
+        if active_clients <= 0:
+            continue
+
+        with _raw_lock:
+            src = _raw_frame
+
+        if src is None:
+            continue
+
+        try:
+            sw, sh = src.get_width(), src.get_height()
+            target_size = (800, 450) if (sw / float(sh)) > 1.5 else (768, 576)
+
+            # 24-Bit Surface (ohne Alpha-Kanal) spart 25% RAM und beschleunigt den JPEG-Export
+            if scaled_surface is None or scaled_size != target_size:
+                scaled_surface = pygame.Surface(target_size, 0, 24)
+                scaled_size = target_size
+
+            pygame.transform.smoothscale(src, target_size, scaled_surface)
+
+            jpeg_buffer.seek(0)
+            jpeg_buffer.truncate(0)
+            pygame.image.save(scaled_surface, jpeg_buffer, "frame.jpg")
+            jpg_bytes = jpeg_buffer.getvalue()
+
+            with frame_condition:
+                latest_jpeg = jpg_bytes
+                frame_id += 1
+                frame_condition.notify_all()
+        except Exception:
+            pass
 
 
 class StreamHandler(http.server.BaseHTTPRequestHandler):
@@ -213,30 +264,43 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                 self.end_headers()
 
             elif self.path == "/stream.mjpg":
-                self.connection.settimeout(5.0)
-                self.send_response(200)
-                self.send_header("Age", "0")
-                self.send_header("Cache-Control", "no-cache, private")
-                self.send_header("Pragma", "no-cache")
-                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
-                self.end_headers()
-
                 with clients_lock:
+                    if active_clients >= MAX_CLIENTS:
+                        self.send_response(503)
+                        self.end_headers()
+                        return
                     active_clients += 1
+
                 try:
-                    last_sent_frame = None
+                    self.connection.settimeout(5.0)
+                    # TCP_NODELAY schickt MJPEG-Frames sofort ohne Puffer-Verzögerung auf die Reise
+                    self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+                    self.send_response(200)
+                    self.send_header("Age", "0")
+                    self.send_header("Cache-Control", "no-cache, private")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=FRAME")
+                    self.end_headers()
+
+                    my_last_id = -1
                     while True:
-                        with lock:
+                        with frame_condition:
+                            if frame_id == my_last_id:
+                                frame_condition.wait(timeout=1.0)
+                            if frame_id == my_last_id or latest_jpeg is None:
+                                continue
                             frame = latest_jpeg
-                        if frame is not None and frame is not last_sent_frame:
-                            last_sent_frame = frame
-                            self.wfile.write(b"--FRAME\r\n")
-                            self.wfile.write(b"Content-Type: image/jpeg\r\n")
-                            self.wfile.write(f"Content-Length: {len(frame)}\r\n\r\n".encode("utf-8"))
-                            self.wfile.write(frame)
-                            self.wfile.write(b"\r\n")
-                            self.wfile.flush()
-                        time.sleep(FRAME_INTERVAL)
+                            my_last_id = frame_id
+
+                        # Kompakter Write-Aufruf in einem Stück spart Syscalls
+                        header = (
+                            f"--FRAME\r\n"
+                            f"Content-Type: image/jpeg\r\n"
+                            f"Content-Length: {len(frame)}\r\n\r\n"
+                        ).encode("ascii")
+                        self.wfile.write(header + frame + b"\r\n")
+                        self.wfile.flush()
                 except Exception:
                     pass
                 finally:
@@ -263,37 +327,31 @@ def background_server():
 
 
 def start_streaming_thread():
-    t = threading.Thread(target=background_server, daemon=True)
-    t.start()
+    t_enc = threading.Thread(target=_encoder_worker, daemon=True)
+    t_enc.start()
+    t_srv = threading.Thread(target=background_server, daemon=True)
+    t_srv.start()
 
 
 def update_stream_frame(screen):
-    global latest_jpeg, last_capture_time, _scaled_surface, _scaled_size
-    # KRITISCHE OPTIMIERUNG: Wenn kein Browser verbunden ist, 0% CPU & 0 RAM verbrauchen!
+    global _raw_frame, _last_capture_time
+    # 0% CPU & 0 RAM wenn kein Zuschauer verbunden ist
     if active_clients <= 0 or screen is None:
         return
 
     now = time.time()
-    if now - last_capture_time < FRAME_INTERVAL:
+    if now - _last_capture_time < FRAME_INTERVAL:
         return
-    last_capture_time = now
+    _last_capture_time = now
 
     try:
         sw, sh = screen.get_width(), screen.get_height()
-        # Schärfere Auflösungen (800x450 für 16:9 / 768x576 für 4:3)
-        target_size = (800, 450) if (sw / float(sh)) > 1.5 else (768, 576)
-
-        if _scaled_surface is None or _scaled_size != target_size:
-            _scaled_surface = pygame.Surface(target_size)
-            _scaled_size = target_size
-
-        # Glattes Skalieren für gestochen scharfe Schriften
-        pygame.transform.smoothscale(screen, target_size, _scaled_surface)
-
-        buf = io.BytesIO()
-        pygame.image.save(_scaled_surface, buf, "frame.jpg")
-        with lock:
-            latest_jpeg = buf.getvalue()
-        buf.close()
+        # Schneller Blit in den Übergabe-Puffer (< 1ms), die teure Skalierung macht der Hintergrund-Thread!
+        with _raw_lock:
+            if _raw_frame is None or _raw_frame.get_size() != (sw, sh):
+                _raw_frame = pygame.Surface((sw, sh), 0, 24)
+            _raw_frame.blit(screen, (0, 0))
+        _raw_event.set()
     except Exception:
         pass
+ 
