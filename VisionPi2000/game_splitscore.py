@@ -1,3 +1,7 @@
+# Datei: game_splitscore.py
+# Version: 1.1.3
+# VisionPi2000 - Split Score
+
 import pygame
 import math
 import os
@@ -5,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.1"
+VERSION = "1.1.3"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 
@@ -66,7 +70,7 @@ class ScreenSaver:
 
 def run_game(screen, ser, display, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
-    total_players = players + 1 if is_berry_game else players
+    total_players = min(8, players + 1 if is_berry_game else players)
     sw, sh = screen.get_width(), screen.get_height()
     screensaver = ScreenSaver(sw, sh)
     display.clear_all()
@@ -86,7 +90,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         except: pass
 
     avatar_path = {"Bullseye-Berry (Stufe 1)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Stufe 2)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Stufe 3)": "Bullseye-Berry_Ninja.png"}.get(mode, "")
-    avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
+    avatar_frames = []
+    if avatar_path and os.path.exists(avatar_path):
+        try:
+            raw_av = pygame.image.load(avatar_path).convert_alpha()
+            base_sz = int(sh * 0.28)
+            for offset in [-10, -5, 0, 5, 10]:
+                sz = base_sz + offset
+                avatar_frames.append(pygame.transform.smoothscale(raw_av, (sz, sz)))
+        except: pass
+
     champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (int(sh*0.45), int(sh*0.45))) if os.path.exists("Bullseye-Berry_Champ.png") else None
 
     sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
@@ -97,12 +110,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_miss = pygame.mixer.Sound("sounds/miss.wav") if os.path.exists("sounds/miss.wav") else None
     sound_bust = pygame.mixer.Sound("sounds/bust.wav") if os.path.exists("sounds/bust.wav") else None
 
-    title_font = pygame.font.SysFont("arial", int(sh * 0.035), bold=True)
-    big_font = pygame.font.SysFont("arial", int(sh * 0.05), bold=True)
+    title_font = pygame.font.SysFont("arial", int(sh * 0.032), bold=True)
+    big_font = pygame.font.SysFont("arial", int(sh * 0.045), bold=True)
     
-    win_font_size = int(sh * 0.13) if sh <= 768 else int(sh * 0.23)
+    sb_font_size = int(sh * 0.026) if total_players <= 4 else (int(sh * 0.022) if total_players <= 6 else int(sh * 0.018))
+    scoreboard_font = pygame.font.SysFont("arial", sb_font_size, bold=True)
+
+    win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.20)
     win_font = pygame.font.SysFont("arial", win_font_size, bold=True)
-    giant_font = pygame.font.SysFont("arial", int(sh * 0.23), bold=True)
+    giant_font = pygame.font.SysFont("arial", int(sh * 0.20), bold=True)
     
     HIGHLIGHT, WHITE, RED_COL = (255, 215, 0), (255, 255, 255), (180, 30, 30)
 
@@ -133,7 +149,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
         
         for event in pygame.event.get():
-            if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
+            if event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
                 if screensaver.reset_timer(): raw_data = None; continue
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
@@ -235,7 +251,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     except: pass
                     if round_points == 0:
                         scores[p_idx] //= 2
-                        if sound_bust: sound_bust.play()  # <--- Hier ertönt die Burst-Melodie bei Halbierung!
+                        if sound_bust: sound_bust.play()
                 
                 sync_hw_display()
 
@@ -264,34 +280,48 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if current_state in ["GAME", "ABORT_MENU", "WIN"]:
             target_str = str(targets[current_round]) if current_round < len(targets) else "Ende"
-            screen.blit(title_font.render(f"SPIEL: Split Score | Ziel: {target_str}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.08)))
+            screen.blit(title_font.render(f"SPIEL: Split Score | Ziel: {target_str}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.04)))
             name_surf = big_font.render(mode if is_berrys_turn else f"Spieler {active_player}", True, RED_COL if is_berrys_turn else WHITE)
-            screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.14)))
-            temp_score_surf = title_font.render(f"(Temp Score: {round_points})", True, (200, 200, 200))
-            screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.20)))
+            screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.09)))
+            temp_score_surf = title_font.render(f"Ziel-Modus: {target_str}", True, (200, 200, 200))
+            screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.14)))
             score_surf = giant_font.render(str(scores[active_player-1]), True, WHITE)
-            screen.blit(score_surf, ((sw - score_surf.get_width()) // 2, int(sh*0.27)))
+            screen.blit(score_surf, ((sw - score_surf.get_width()) // 2, int(sh*0.19)))
             
             if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
-                block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
-                screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.70)))
+                block_hint = title_font.render("Bitte Pfeile ziehen -> IR-Sensor oder Spielerwechsel drücken!", True, RED_COL)
+                screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.56)))
 
-            darts_surf = big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150))
-            screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.78)))
+            darts_surf = title_font.render(f"Pfeile: {darts_thrown} / 3", True, (180, 180, 180))
+            screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.62)))
 
-            y_base = int(sh * 0.86)
+            # --- UNTERES SCOREBOARD (Modernes Kartendesign) ---
+            sb_y = int(sh * 0.68)
+            box_h = int(sh * 0.28)
+            p_box_w = int(sw * 0.88 / total_players) - 10
+            sb_x = (sw - (total_players * (p_box_w + 10) - 10)) // 2
+            
             for i in range(total_players):
-                p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
-                surf = title_font.render(f"{p_n}: {scores[i]}", True, HIGHLIGHT if i == (active_player - 1) else WHITE)
-                row, col = i % 2, i // 2
-                screen.blit(surf, ((col + 1) * (sw // ((total_players + 1) // 2 + 1 if row == 0 else total_players // 2 + 1)) - surf.get_width() // 2, y_base + (row * int(sh*0.05))))
+                px = sb_x + i * (p_box_w + 10)
+                is_act = (i == (active_player - 1))
+                p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i+1}"
+                
+                pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (px, sb_y, p_box_w, box_h), border_radius=12)
+                pygame.draw.rect(screen, HIGHLIGHT if is_act else (70, 90, 110), (px, sb_y, p_box_w, box_h), 3 if is_act else 1, border_radius=12)
 
-            if is_berrys_turn and avatar_img:
-                anim_size = int((sh*0.28) + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
-                screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (int(sw*0.78), int(sh*0.65)))
+                pn_surf = scoreboard_font.render(p_n, True, HIGHLIGHT if is_act else WHITE)
+                screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + 10))
+
+                sc_surf = big_font.render(str(scores[i]), True, HIGHLIGHT if is_act else WHITE)
+                screen.blit(sc_surf, (px + (p_box_w - sc_surf.get_width()) // 2, sb_y + int(box_h * 0.40)))
+
+            if is_berrys_turn and avatar_frames:
+                idx_anim = int((math.sin(pygame.time.get_ticks() * 0.005) + 1.0) * 2.49)
+                idx_anim = max(0, min(len(avatar_frames) - 1, idx_anim))
+                screen.blit(avatar_frames[idx_anim], (int(sw*0.78), int(sh*0.38)))
             if pygame.time.get_ticks() < champ_display_until and champ_img:
                 screen.blit(champ_img, ((sw - champ_img.get_width()) // 2, (sh - champ_img.get_height()) // 2))
-                screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((sw - 200) // 2, int(sh*0.75)))
+                screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((sw - 200) // 2, int(sh*0.45)))
 
             if current_state == "ABORT_MENU":
                 overlay = pygame.Surface((sw, sh))
