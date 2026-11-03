@@ -1,5 +1,5 @@
 # Datei: online_manager.py
-# Version: 1.2.1
+# Version: 1.2.2
 # P2P / MQTT Online-Engine (Zwei-Stufen-Exit für alle Spielmodule, Crash-sicher, Surface-Cache)
 
 import sys
@@ -24,7 +24,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 ONLINE_PLAYER_NAMES = [
     "Bullseye-Berry",       # Slot 0 (Spieler 1 / Host)
@@ -45,7 +45,8 @@ GAME_TO_FILE = {
     "Elimination": "game_elimination.py",
     "Split Score": "game_splitscore.py",
     "Shanghai": "game_shanghai.py",
-    "Around the Clock": "game_aroundclock.py"
+    "Around the Clock": "game_aroundclock.py",
+    "Fruit Splasher": "game_fruit_splasher.py"
 }
 
 DISCOVERY_TOPIC = "visionpi2000/v1/discovery"
@@ -1037,3 +1038,4 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         session.disconnect()
 
     return "menu"
+ 
