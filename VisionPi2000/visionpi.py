@@ -24,6 +24,8 @@ try: import game_shanghai
 except ImportError: game_shanghai = None
 try: import game_aroundclock
 except ImportError: game_aroundclock = None
+try: import game_fruit_splasher
+except ImportError: game_fruit_splasher = None
 try: import game_spieleanleitung
 except ImportError: game_spieleanleitung = None
 try: import game_service
@@ -35,7 +37,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.8-main"
+VERSION = "1.1.9-main"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
@@ -334,7 +336,7 @@ def main():
     info_hint_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.033), bold=True)
 
     game_registry = []
-    for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_spieleanleitung, game_service, game_about]:
+    for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_fruit_splasher, game_spieleanleitung, game_service, game_about]:
         if m and hasattr(m, 'GAMES') and hasattr(m, 'OPTIONS'):
             for g in m.GAMES: 
                 game_registry.append({"name": g, "options": m.OPTIONS, "module": m})
@@ -471,11 +473,11 @@ def main():
                 
                 t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,215,0))
                 screen.blit(t_surf, (box_x + (box_w - t_surf.get_width()) // 2, cur_y))
-                cur_y += int(box_h * 0.085)
+                cur_y += int(box_h * 0.08)
 
                 main_surf = info_font.render(f"Hauptmenü (visionpi.py): v{VERSION}", True, (255,255,255))
                 screen.blit(main_surf, (box_x + int(box_w * 0.08), cur_y))
-                cur_y += int(box_h * 0.060)
+                cur_y += int(box_h * 0.055)
 
                 modules_to_check = [
                     ("X01", game_x01),
@@ -484,6 +486,7 @@ def main():
                     ("Split Score", game_splitscore),
                     ("Shanghai", game_shanghai),
                     ("Around the Clock", game_aroundclock),
+                    ("Fruit Splasher", game_fruit_splasher),
                     ("Online-Engine", online_manager),
                     ("Web-Streamer", web_streamer),
                     ("Spieleanleitung", game_spieleanleitung),
@@ -497,7 +500,7 @@ def main():
                     text_str = f"• {mod_name}: v{mod_ver}" if mod_obj else f"• {mod_name}: Modul fehlt"
                     mod_surf = info_font.render(text_str, True, color)
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
-                    cur_y += int(box_h * 0.052)
+                    cur_y += int(box_h * 0.048)
 
                 hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken", True, (255, 215, 0))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.08)))
@@ -606,3 +609,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
+ 
