@@ -1,3 +1,6 @@
+# Datei: visionpi.py
+# Version: 1.1.10-main
+
 import pygame
 import serial
 import sys
@@ -37,7 +40,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.9-main"
+VERSION = "1.1.11-main"
 
 def get_settings_path():
     if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
@@ -343,7 +346,18 @@ def main():
         elif m:
             print(f"Warnung: Modul {m.__name__} übersprungen (GAMES oder OPTIONS fehlt)")
 
-    standard_modes = [
+    # Standard-Modi ohne Team für alle Nicht-X01 Spiele (wie Cricket etc.)
+    standard_modes_no_team = [
+        "Normales Spiel",
+        "Bullseye-Berry (Stufe 1)",
+        "Bullseye-Berry (Stufe 2)",
+        "Bullseye-Berry (Stufe 3)",
+        "Online: Host (Lobby)",
+        "Online: Gast (Beitreten)"
+    ]
+
+    # Modi mit Team exklusiv für X01 Spiele (301, 501, 701)
+    standard_modes_with_team = [
         "Normales Spiel",
         "Bullseye-Berry (Stufe 1)",
         "Bullseye-Berry (Stufe 2)",
@@ -352,6 +366,7 @@ def main():
         "Online: Host (Lobby)",
         "Online: Gast (Beitreten)"
     ]
+
     sel_game, sel_option, sel_mode, players, running = 0, 0, 0, 1, True
     combo_press_start = 0
     last_gc_collect = time.time()
@@ -359,7 +374,12 @@ def main():
     def update_menu_hardware_display():
         g_name = game_registry[sel_game]["name"] if game_registry else "301"
         is_system_menu = g_name in ["Service-Menü", "Spieleanleitung", "Über das Projekt"]
-        tot_pl = 1 if is_system_menu else min(8, players + 1 if "Bullseye-Berry" in standard_modes[sel_mode] else players)
+        
+        is_x01_game = (g_name in ["301", "501", "701"])
+        active_modes = standard_modes_with_team if is_x01_game else standard_modes_no_team
+        mode_str = active_modes[sel_mode] if sel_mode < len(active_modes) else ""
+
+        tot_pl = 1 if is_system_menu else min(8, players + 1 if "Bullseye-Berry" in mode_str else players)
         preview_score = int(g_name) if g_name in ["301", "501", "701"] else (40 if g_name == "Split Score" else (1 if g_name == "Around the Clock" else 0))
         display.clear_buffer()
         for i in range(8):
@@ -380,7 +400,6 @@ def main():
     screensaver.reset_timer()
 
     while running:
-        # Alle 60s im Menü ungenutzten RAM freigeben
         if time.time() - last_gc_collect > 60.0:
             last_gc_collect = time.time()
             gc.collect()
@@ -388,6 +407,7 @@ def main():
         g_list = [g["name"] for g in game_registry]
         current_game_name = g_list[sel_game] if g_list else ""
         
+        # Exakte Zuweisung der Modi je nach Spieltyp
         if current_game_name == "Service-Menü":
             c_opts = game_service.OPTIONS if game_service else ["Einstellungen"]
             modes = ["Konfiguration & Tests"]
@@ -399,7 +419,10 @@ def main():
             modes = ["Projekt & Ziel"]
         else:
             c_opts = game_registry[sel_game]["options"]
-            modes = standard_modes
+            if current_game_name in ["301", "501", "701"]:
+                modes = standard_modes_with_team
+            else:
+                modes = standard_modes_no_team
 
         if sel_option >= len(c_opts): sel_option = 0
         if sel_mode >= len(modes): sel_mode = 0
@@ -408,14 +431,12 @@ def main():
         if ser and ser.in_waiting > 0:
             try:
                 line = ser.readline().decode('utf-8', 'ignore').strip()
-                # Nur gültige Befehle akzeptieren (ignoriert elektrisches Rauschen)
                 if line.startswith(("BTN:", "HIT:", "MISS:", "IR:")):
                     raw_data = line
             except Exception:
                 raw_data = None
             
         for e in pygame.event.get():
-            # KEIN MOUSEMOTION mehr, damit Vibrationen den Screensaver nicht blockieren!
             if e.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
                 if screensaver.reset_timer():
                     raw_data = None
@@ -430,7 +451,6 @@ def main():
                 elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
         if raw_data:
-            # IR:DETECT im Hauptmenü darf den Bildschirmschoner nicht am Starten hindern
             if raw_data == "IR:DETECT" and not screensaver.active:
                 raw_data = None
             elif screensaver.reset_timer():
@@ -609,4 +629,3 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
- 
