@@ -1,6 +1,6 @@
 # Datei: online_manager.py
-# Version: 1.2.2
-# P2P / MQTT Online-Engine (Zwei-Stufen-Exit für alle Spielmodule, Crash-sicher, Surface-Cache)
+# Version: 1.2.3
+# P2P / MQTT Online-Engine (Zwei-Stufen-Exit für alle Spielmodule, Crash-sicher, Surface-Cache, Disziplin-Filter)
 
 import sys
 import os
@@ -24,7 +24,7 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 
 ONLINE_PLAYER_NAMES = [
     "Bullseye-Berry",       # Slot 0 (Spieler 1 / Host)
@@ -301,11 +301,14 @@ class OnlineSession:
         suffix = uuid.uuid4().hex[:4].upper()
         return f"Lobby-{suffix}"
 
-    def get_open_lobbies(self):
+    def get_open_lobbies(self, target_game_name=None):
         now = time.time()
         open_list = []
         for r_id, info in sorted(self.active_rooms.items()):
             if (now - info.get("ts", 0) < 6.0) and info.get("state") == "OPEN":
+                # FILTER: Nur Lobbys zulassen, die exakt dieselbe Disziplin (Spiel) hosten[cite: 11]
+                if target_game_name and info.get("game_name") != target_game_name:
+                    continue
                 open_list.append(r_id)
         return open_list
 
@@ -859,7 +862,8 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             return "menu"
 
         elif raw_data == "BTN:BLUE" and not is_host:
-            open_lobbies = session.get_open_lobbies()
+            # Nur Lobbys durchschalten, die exakt zur eigenen Spielauswahl passen[cite: 11]
+            open_lobbies = session.get_open_lobbies(target_game_name=game_name)
             if len(open_lobbies) > 1:
                 session.notify_leaving("Gast hat die Lobby gewechselt")
                 cur_idx = open_lobbies.index(session.room_id) if session.room_id in open_lobbies else -1
@@ -887,7 +891,8 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
 
         if session.connected:
             if not is_host:
-                open_lobbies = session.get_open_lobbies()
+                # FILTER: Dem Gast nur Lobbys vorschlagen, die exakt das am Automaten eingestellte Spiel hosten[cite: 11]
+                open_lobbies = session.get_open_lobbies(target_game_name=game_name)
                 if not session.room_id and open_lobbies:
                     session.join_room_topic(open_lobbies[0])
                     session.handshake_status = f"Lobby {open_lobbies[0]} gefunden – prüfe Versionen..."
@@ -996,9 +1001,10 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         if is_host:
             hint_str = "START drücken: Online-Match starten   |   SPIELERWECHSEL: Abbrechen"
         else:
-            open_cnt = len(session.get_open_lobbies())
+            # Anzahl passender offener Lobbys anzeigen
+            open_cnt = len(session.get_open_lobbies(target_game_name=game_name))
             if open_cnt > 1:
-                hint_str = f"BLAU: Lobby wechseln ({open_cnt} offen)   |   SPIELERWECHSEL: Abbrechen"
+                hint_str = f"BLAU: Lobby wechseln ({open_cnt} passende offen)   |   SPIELERWECHSEL: Abbrechen"
             else:
                 hint_str = "Warte auf Spielstart durch den Host...   |   SPIELERWECHSEL: Abbrechen"
 
@@ -1038,4 +1044,3 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         session.disconnect()
 
     return "menu"
- 
