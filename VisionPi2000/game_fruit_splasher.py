@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.2.1
+# Version: 1.2.2
 # VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition - Fast-Load Cache & HW-Display Fix)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -493,11 +493,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 act_p_idx = active_player - 1
                 act_target = player_targets[act_p_idx]
 
-                # Die 3 Cricket-LEDs neben dem aktiven Spieler als Füllstand (Juice) nutzen
                 marks_led = min(3, int((pump_levels[act_p_idx] / float(max_pump)) * 3.99))
                 display.set_cricket_marks(act_p_idx, 20, marks_led)
 
-                # Zielzahl immer fest im ersten Cricket-Slot (Slot 20) anzeigen, Rest dunkel
                 for hw_key in hw_keys:
                     if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
                         d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
@@ -509,13 +507,18 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             display.set_disp_char(d_ten, " ")
                             display.set_disp_char(d_unit, " ")
             else:
+                # BERRY HUNT: Die ersten 6 regulären Ziele auf die 6 Hardware-Slots verteilen
                 for s_idx, hw_key in enumerate(hw_keys):
-                    t_val = hunt_targets[s_idx]
-                    if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
-                        d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
-                        t_str = f"{t_val:2d}"
-                        display.set_disp_char(d_ten, t_str[0])
-                        display.set_disp_char(d_unit, t_str[1])
+                    if s_idx < len(hunt_targets) - 1:
+                        t_val = hunt_targets[s_idx]
+                        if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
+                            d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
+                            t_str = f"{t_val:2d}"
+                            display.set_disp_char(d_ten, t_str[0])
+                            display.set_disp_char(d_unit, t_str[1])
+                # Das 7. Ziel (BULL / 25) steuert das dedizierte Bullseye-Icon an
+                if 25 in hunt_targets:
+                    display.set_bullseye_icon(True)
 
             display.set_temp_score(round_points)
             display.set_turn(round_num)
