@@ -1,6 +1,6 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.1.8
-# VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition - Fast-Load Cache)
+# Version: 1.2.1
+# VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition - Fast-Load Cache & HW-Display Fix)
 
 import pygame
 import math
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.8"
+VERSION = "1.2.1"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -21,16 +21,16 @@ OPTIONS = [
 
 BERRY_PROFILES = [
     {"name": "Bullseye-Berry",     "fruit": "Raspberry",   "color": (255, 0, 90),    "hi": (255, 130, 170), "style": "cluster"},
-    {"name": "Triple-Strawberry",  "fruit": "Strawberry",  "color": (255, 45, 45),   "hi": (255, 160, 160), "style": "strawberry"},
-    {"name": "Bouncer-Blueberry",  "fruit": "Blueberry",   "color": (0, 180, 255),   "hi": (150, 230, 255), "style": "round"},
-    {"name": "Checkout-Cherry",    "fruit": "Cherry",      "color": (220, 0, 70),    "hi": (255, 140, 170), "style": "cherry"},
-    {"name": "Double-Dewberry",    "fruit": "Dewberry",    "color": (160, 50, 255),  "hi": (215, 170, 255), "style": "cluster"},
-    {"name": "Flight-Huckleberry", "fruit": "Huckleberry", "color": (70, 100, 255),  "hi": (170, 190, 255), "style": "round"},
-    {"name": "Scoring-Snowberry",  "fruit": "Snowberry",   "color": (235, 245, 255), "hi": (255, 255, 255), "style": "round"},
-    {"name": "Master-Mulberry",    "fruit": "Mulberry",    "color": (210, 0, 180),   "hi": (255, 150, 240), "style": "cluster"}
+    {"name": "Triple-Strawberry",  "fruit": "Strawberry",  "color": (255, 35, 55),   "hi": (255, 160, 170), "style": "strawberry"},
+    {"name": "Bouncer-Blueberry",  "fruit": "Blueberry",   "color": (0, 160, 255),   "hi": (150, 225, 255), "style": "round"},
+    {"name": "Checkout-Cherry",    "fruit": "Cherry",      "color": (220, 0, 55),    "hi": (255, 150, 175), "style": "cherry"},
+    {"name": "Double-Dewberry",    "fruit": "Dewberry",    "color": (150, 40, 255),  "hi": (215, 170, 255), "style": "cluster"},
+    {"name": "Flight-Huckleberry", "fruit": "Huckleberry", "color": (60, 90, 255),   "hi": (170, 190, 255), "style": "round"},
+    {"name": "Scoring-Snowberry",  "fruit": "Snowberry",   "color": (225, 240, 255), "hi": (255, 255, 255), "style": "round"},
+    {"name": "Master-Mulberry",    "fruit": "Mulberry",    "color": (200, 0, 175),   "hi": (255, 150, 240), "style": "cluster"}
 ]
 
-GOLDEN_BERRY = {"name": "Golden-Raspberry", "fruit": "Golden-Berry", "color": (255, 215, 0), "hi": (255, 255, 180), "style": "cluster"}
+GOLDEN_BERRY = {"name": "Golden-Raspberry", "fruit": "Golden-Berry", "color": (255, 215, 0), "hi": (255, 255, 190), "style": "cluster"}
 
 # Modulweiter Asset-Cache verhindert erneutes Laden & Skalieren von SD-Karte bei jedem Spielstart
 _ASSET_CACHE = {}
@@ -111,72 +111,177 @@ def trigger_victory(ser, display=None):
             pass
 
 
+def _shade(col, factor):
+    return (
+        max(0, min(255, int(col[0] * factor))),
+        max(0, min(255, int(col[1] * factor))),
+        max(0, min(255, int(col[2] * factor)))
+    )
+
+
 def draw_berry_icon(surface, cx, cy, radius, profile, pump_stage=0, max_stage=7):
     scale = 1.0 + (pump_stage / float(max(1, max_stage))) * 0.55
-    r = max(8, int(radius * scale))
+    r = max(10, int(radius * scale))
     col = profile["color"]
     hi = profile["hi"]
+    dark_col = _shade(col, 0.52)
+    deep_col = _shade(col, 0.28)
     style = profile["style"]
 
     if pump_stage >= max_stage - 1:
         pulse = int(abs(math.sin(pygame.time.get_ticks() * 0.015)) * 8)
-        pygame.draw.circle(surface, (255, 255, 255), (cx, cy), r + 6 + pulse, 2)
+        pygame.draw.circle(surface, (255, 255, 255), (cx, cy), r + 7 + pulse, 2)
+        pygame.draw.circle(surface, col, (cx, cy), r + 4 + pulse, 2)
 
-    leaf_col = (0, 230, 110)
-    pygame.draw.line(surface, (120, 220, 90), (cx, cy - r + 2), (cx + 4, cy - r - int(r * 0.38)), max(2, r // 7))
-    pygame.draw.polygon(surface, leaf_col, [
-        (cx, cy - r + 4),
-        (cx - int(r * 0.45), cy - r - int(r * 0.22)),
-        (cx - int(r * 0.15), cy - r - int(r * 0.35))
-    ])
-    pygame.draw.polygon(surface, leaf_col, [
-        (cx, cy - r + 4),
-        (cx + int(r * 0.45), cy - r - int(r * 0.22)),
-        (cx + int(r * 0.15), cy - r - int(r * 0.35))
-    ])
+    leaf_col = (25, 215, 95)
+    leaf_dark = (10, 135, 55)
+    leaf_hi = (130, 250, 165)
+    stem_col = (95, 175, 65)
 
-    if style == "cluster":
-        sub_r = max(4, int(r * 0.38))
-        offsets = [
-            (0, -int(r * 0.52)),
-            (-int(r * 0.45), -int(r * 0.42)), (int(r * 0.45), -int(r * 0.42)),
-            (-int(r * 0.58), 0), (0, -int(r * 0.05)), (int(r * 0.58), 0),
-            (-int(r * 0.42), int(r * 0.42)), (int(r * 0.42), int(r * 0.42)),
-            (0, int(r * 0.58))
+    if style == "strawberry":
+        pts = []
+        pts_inner = []
+        for i in range(36):
+            t = (i / 36.0) * 2.0 * math.pi
+            sin_t = math.sin(t)
+            cos_t = math.cos(t)
+            width_mod = 0.72 + 0.26 * (-cos_t) - 0.08 * (cos_t ** 2)
+            x = cx + int(r * 1.05 * sin_t * width_mod)
+            y_norm = -cos_t
+            if y_norm < 0:
+                y = cy + int(r * (0.68 * y_norm + 0.10 * (1.0 - abs(sin_t))))
+            else:
+                y = cy + int(r * (1.08 * y_norm))
+            pts.append((x, y))
+            pts_inner.append((cx + int((x - cx) * 0.86) - 1, cy + int((y - cy) * 0.86) - 1))
+
+        pygame.draw.polygon(surface, dark_col, pts)
+        pygame.draw.polygon(surface, col, pts_inner)
+        pygame.draw.polygon(surface, deep_col, pts, 2)
+
+        gloss_pts = [
+            (cx - int(r * 0.52), cy - int(r * 0.30)),
+            (cx - int(r * 0.25), cy - int(r * 0.42)),
+            (cx - int(r * 0.32), cy + int(r * 0.12)),
+            (cx - int(r * 0.56), cy - int(r * 0.02))
         ]
-        for ox, oy in offsets:
-            pygame.draw.circle(surface, col, (cx + ox, cy + oy), sub_r)
-            pygame.draw.circle(surface, (20, 20, 20), (cx + ox, cy + oy), sub_r, 1)
-            pygame.draw.circle(surface, hi, (cx + ox - sub_r // 3, cy + oy - sub_r // 3), max(2, sub_r // 4))
+        pygame.draw.polygon(surface, hi, gloss_pts)
 
-    elif style == "strawberry":
-        pts = [
-            (cx - int(r * 0.85), cy - int(r * 0.45)),
-            (cx + int(r * 0.85), cy - int(r * 0.45)),
-            (cx + int(r * 0.65), cy + int(r * 0.35)),
-            (cx, cy + int(r * 0.95)),
-            (cx - int(r * 0.65), cy + int(r * 0.35))
+        seed_rows = [
+            (-0.48, -0.22), (-0.16, -0.26), (0.16, -0.26), (0.48, -0.22),
+            (-0.56,  0.04), (-0.28,  0.02), (0.00,  0.02), (0.28,  0.02), (0.56,  0.04),
+            (-0.42,  0.30), (-0.14,  0.32), (0.14,  0.32), (0.42,  0.30),
+            (-0.24,  0.58), (0.00,   0.62), (0.24,  0.58),
+            (0.00,   0.84)
         ]
-        pygame.draw.polygon(surface, col, pts)
-        pygame.draw.polygon(surface, (255, 255, 255), pts, 2)
-        for sx, sy in [(-0.3, -0.1), (0.3, -0.1), (0.0, 0.15), (-0.25, 0.35), (0.25, 0.35), (0.0, 0.58)]:
-            pygame.draw.circle(surface, (255, 230, 90), (cx + int(r * sx), cy + int(r * sy)), max(2, r // 10))
+        sr = max(2, r // 11)
+        for sx, sy in seed_rows:
+            px = cx + int(r * sx)
+            py = cy + int(r * sy)
+            pygame.draw.circle(surface, dark_col, (px, py + 1), sr + 1)
+            pygame.draw.polygon(surface, (255, 230, 95), [
+                (px, py - sr),
+                (px + sr, py + 1),
+                (px, py + sr + 1),
+                (px - sr, py + 1)
+            ])
+
+        top_y = cy - int(r * 0.58)
+        pygame.draw.line(surface, stem_col, (cx, top_y), (cx + int(r * 0.14), top_y - int(r * 0.38)), max(3, r // 6))
+        sepal_angles = [-1.15, -0.58, 0.0, 0.58, 1.15]
+        for ang in sepal_angles:
+            tip_x = cx + int(math.sin(ang) * r * 0.72)
+            tip_y = top_y + int(math.cos(ang) * r * 0.34)
+            left_x = cx + int(math.sin(ang - 0.35) * r * 0.25)
+            right_x = cx + int(math.sin(ang + 0.35) * r * 0.25)
+            base_y = top_y - int(r * 0.04)
+            poly = [(cx, base_y), (left_x, top_y + int(r * 0.08)), (tip_x, tip_y), (right_x, top_y + int(r * 0.08))]
+            pygame.draw.polygon(surface, leaf_col, poly)
+            pygame.draw.polygon(surface, leaf_dark, poly, 1)
+        pygame.draw.circle(surface, leaf_hi, (cx, top_y), max(2, r // 7))
+
+    elif style == "cluster":
+        top_y = cy - int(r * 0.72)
+        pygame.draw.line(surface, stem_col, (cx, top_y), (cx + int(r * 0.15), top_y - int(r * 0.36)), max(3, r // 6))
+        for side in (-1, 1):
+            l_poly = [
+                (cx, top_y + 2),
+                (cx + side * int(r * 0.28), top_y - int(r * 0.24)),
+                (cx + side * int(r * 0.62), top_y - int(r * 0.08)),
+                (cx + side * int(r * 0.25), top_y + int(r * 0.10))
+            ]
+            pygame.draw.polygon(surface, leaf_col, l_poly)
+            pygame.draw.polygon(surface, leaf_dark, l_poly, 1)
+
+        sub_r = max(4, int(r * 0.29))
+        drupelets = [
+            (-0.36, -0.56), (0.0, -0.62), (0.36, -0.56),
+            (-0.56, -0.26), (-0.19, -0.30), (0.19, -0.30), (0.56, -0.26),
+            (-0.60,  0.06), (-0.22,  0.04), (0.22,  0.04), (0.60,  0.06),
+            (-0.46,  0.38), (0.0,    0.36), (0.46,  0.38),
+            (-0.24,  0.66), (0.24,   0.66),
+            (0.0,    0.82)
+        ]
+        for ox, oy in drupelets:
+            dx = cx + int(r * ox)
+            dy = cy + int(r * oy)
+            pygame.draw.circle(surface, deep_col, (dx, dy + 1), sub_r + 1)
+            pygame.draw.circle(surface, dark_col, (dx, dy), sub_r)
+            pygame.draw.circle(surface, col, (dx - 1, dy - 1), max(2, int(sub_r * 0.85)))
+            pygame.draw.circle(surface, hi, (dx - sub_r // 3, dy - sub_r // 3), max(2, int(sub_r * 0.36)))
+            pygame.draw.circle(surface, (255, 255, 255), (dx - sub_r // 3 - 1, dy - sub_r // 3 - 1), max(1, int(sub_r * 0.16)))
 
     elif style == "cherry":
-        r_ch = max(5, int(r * 0.58))
-        c1 = (cx - int(r * 0.45), cy + int(r * 0.22))
-        c2 = (cx + int(r * 0.45), cy + int(r * 0.22))
-        pygame.draw.line(surface, leaf_col, (cx, cy - r), c1, 3)
-        pygame.draw.line(surface, leaf_col, (cx, cy - r), c2, 3)
+        r_ch = max(6, int(r * 0.56))
+        c1 = (cx - int(r * 0.46), cy + int(r * 0.30))
+        c2 = (cx + int(r * 0.44), cy + int(r * 0.36))
+        knot = (cx + int(r * 0.06), cy - int(r * 0.78))
+
+        mid1 = (cx - int(r * 0.26), cy - int(r * 0.25))
+        mid2 = (cx + int(r * 0.30), cy - int(r * 0.22))
+        pygame.draw.lines(surface, stem_col, False, [knot, mid1, (c1[0], c1[1] - r_ch + 3)], max(2, r // 8))
+        pygame.draw.lines(surface, stem_col, False, [knot, mid2, (c2[0], c2[1] - r_ch + 3)], max(2, r // 8))
+
+        leaf_poly = [
+            knot,
+            (knot[0] + int(r * 0.35), knot[1] - int(r * 0.18)),
+            (knot[0] + int(r * 0.68), knot[1] + int(r * 0.04)),
+            (knot[0] + int(r * 0.30), knot[1] + int(r * 0.16))
+        ]
+        pygame.draw.polygon(surface, leaf_col, leaf_poly)
+        pygame.draw.polygon(surface, leaf_dark, leaf_poly, 1)
+        pygame.draw.circle(surface, leaf_hi, knot, max(2, r // 9))
+
         for c_pos in (c1, c2):
-            pygame.draw.circle(surface, col, c_pos, r_ch)
-            pygame.draw.circle(surface, (255, 255, 255), c_pos, r_ch, 1)
-            pygame.draw.circle(surface, hi, (c_pos[0] - r_ch // 3, c_pos[1] - r_ch // 3), max(2, r_ch // 4))
+            kx, ky = c_pos
+            pygame.draw.circle(surface, deep_col, (kx, ky + 1), r_ch + 1)
+            pygame.draw.circle(surface, dark_col, (kx, ky), r_ch)
+            pygame.draw.circle(surface, col, (kx - 1, ky - 1), int(r_ch * 0.88))
+            pygame.draw.arc(surface, deep_col, (kx - r_ch // 3, ky - r_ch + 1, (r_ch * 2) // 3, r_ch // 3), 3.4, 6.0, 2)
+            pygame.draw.circle(surface, hi, (kx - int(r_ch * 0.34), ky - int(r_ch * 0.32)), max(2, int(r_ch * 0.28)))
+            pygame.draw.circle(surface, (255, 255, 255), (kx - int(r_ch * 0.38), ky - int(r_ch * 0.36)), max(1, int(r_ch * 0.14)))
 
     else:
-        pygame.draw.circle(surface, col, (cx, cy), r)
-        pygame.draw.circle(surface, (30, 30, 30), (cx, cy), r, 2)
-        pygame.draw.circle(surface, hi, (cx - r // 3, cy - r // 3), max(3, r // 4))
+        pygame.draw.circle(surface, deep_col, (cx, cy + 1), r + 1)
+        pygame.draw.circle(surface, dark_col, (cx, cy), r)
+        pygame.draw.circle(surface, col, (cx - int(r * 0.06), cy - int(r * 0.06)), int(r * 0.88))
+        pygame.draw.circle(surface, _shade(col, 1.15), (cx - int(r * 0.18), cy - int(r * 0.18)), int(r * 0.62))
+
+        pygame.draw.circle(surface, hi, (cx - int(r * 0.34), cy - int(r * 0.32)), max(3, int(r * 0.26)))
+        pygame.draw.circle(surface, (255, 255, 255), (cx - int(r * 0.38), cy - int(r * 0.36)), max(2, int(r * 0.12)))
+
+        crown_y = cy - int(r * 0.78)
+        crown_pts = [
+            (cx - int(r * 0.36), crown_y + int(r * 0.12)),
+            (cx - int(r * 0.28), crown_y - int(r * 0.14)),
+            (cx - int(r * 0.10), crown_y + int(r * 0.04)),
+            (cx,                 crown_y - int(r * 0.18)),
+            (cx + int(r * 0.10), crown_y + int(r * 0.04)),
+            (cx + int(r * 0.28), crown_y - int(r * 0.14)),
+            (cx + int(r * 0.36), crown_y + int(r * 0.12))
+        ]
+        pygame.draw.polygon(surface, deep_col, crown_pts)
+        pygame.draw.lines(surface, hi, False, crown_pts, 1)
 
 
 def get_bot_hit(target_nums, mode):
@@ -267,7 +372,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     if hasattr(display, 'clear_all'):
         display.clear_all()
 
-    # Format direkt aus der bereits initialisierten Screen-Größe ableiten (spart SD-Kartenzugriff)
     is_16_9 = (sw / float(sh)) > 1.5
     bg_img = _get_cached_bg(sw, sh, is_16_9)
 
@@ -389,12 +493,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 act_p_idx = active_player - 1
                 act_target = player_targets[act_p_idx]
 
+                # Die 3 Cricket-LEDs neben dem aktiven Spieler als Füllstand (Juice) nutzen
+                marks_led = min(3, int((pump_levels[act_p_idx] / float(max_pump)) * 3.99))
+                display.set_cricket_marks(act_p_idx, 20, marks_led)
+
+                # Zielzahl immer fest im ersten Cricket-Slot (Slot 20) anzeigen, Rest dunkel
                 for hw_key in hw_keys:
                     if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
                         d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
-                        if hw_key == act_target:
-                            marks_led = min(3, int((pump_levels[act_p_idx] / float(max_pump)) * 3.99))
-                            display.set_cricket_marks(act_p_idx, hw_key, marks_led)
+                        if hw_key == 20:
                             t_str = f"{act_target:2d}"
                             display.set_disp_char(d_ten, t_str[0])
                             display.set_disp_char(d_unit, t_str[1])
