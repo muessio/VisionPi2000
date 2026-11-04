@@ -1,22 +1,117 @@
 # Datei: game_x01.py
-# Version: 1.1.4
-# VisionPi2000 - X01 (301, 501, 701)
+# Version: 1.1.5
+# VisionPi2000 - X01 (301, 501, 701) - Berry-Rahmenfarben & Fast-Load Cache
 
 import pygame
 import math
 import os
 import random
 import time
-import json
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
+PLAYER_COLORS = [
+    (255, 0, 90),     # Spieler 1 / Berry: Raspberry Pink
+    (255, 45, 45),    # Spieler 2: Strawberry Red
+    (0, 180, 255),    # Spieler 3: Blueberry Cyan
+    (220, 0, 70),     # Spieler 4: Cherry
+    (160, 50, 255),   # Spieler 5: Dewberry Purple
+    (70, 100, 255),   # Spieler 6: Huckleberry Blue
+    (235, 245, 255),  # Spieler 7: Snowberry White-Blue
+    (210, 0, 180)    # Spieler 8: Mulberry Magenta
+]
+
+if not hasattr(pygame, "_vp2000_cache"):
+    pygame._vp2000_cache = {}
+_CACHE = pygame._vp2000_cache
+
+
+def _get_sound(path):
+    key = f"snd_{path}"
+    if key not in _CACHE:
+        if os.path.exists(path):
+            try:
+                _CACHE[key] = pygame.mixer.Sound(path)
+            except Exception:
+                _CACHE[key] = None
+        else:
+            _CACHE[key] = None
+    return _CACHE[key]
+
+
+def _get_font(size):
+    key = f"font_{size}"
+    if key not in _CACHE:
+        _CACHE[key] = pygame.font.SysFont("arial", size, bold=True)
+    return _CACHE[key]
+
+
+def _get_bg(sw, sh):
+    is_16_9 = (sw / float(sh)) > 1.5
+    key = f"bg_dark160_{sw}_{sh}_{is_16_9}"
+    if key not in _CACHE:
+        candidates = ["background_16_9.jpg", "background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.jpg", "background.png", "Background.png", "background.PNG"]
+        bg_img = None
+        for bf in candidates:
+            if os.path.exists(bf):
+                try:
+                    raw_bg = pygame.image.load(bf).convert()
+                    bg_img = pygame.transform.scale(raw_bg, (sw, sh))
+                    darker_overlay = pygame.Surface((sw, sh))
+                    darker_overlay.set_alpha(160)
+                    darker_overlay.fill((0, 0, 0))
+                    bg_img.blit(darker_overlay, (0, 0))
+                    break
+                except Exception:
+                    pass
+        _CACHE[key] = bg_img
+    return _CACHE[key]
+
+
+def _get_avatar_frames(avatar_path, sh):
+    if not avatar_path:
+        return []
+    key = f"av28_{avatar_path}_{sh}"
+    if key not in _CACHE:
+        frames = []
+        if os.path.exists(avatar_path):
+            try:
+                raw_av = pygame.image.load(avatar_path).convert_alpha()
+                base_sz = int(sh * 0.28)
+                for offset in [-10, -5, 0, 5, 10]:
+                    sz = base_sz + offset
+                    frames.append(pygame.transform.smoothscale(raw_av, (sz, sz)))
+            except Exception:
+                pass
+        _CACHE[key] = frames
+    return _CACHE[key]
+
+
+def _get_champ_img(sh):
+    key = f"champ45_{sh}"
+    if key not in _CACHE:
+        if os.path.exists("Bullseye-Berry_Champ.png"):
+            try:
+                _CACHE[key] = pygame.transform.smoothscale(
+                    pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(),
+                    (int(sh * 0.45), int(sh * 0.45))
+                )
+            except Exception:
+                _CACHE[key] = None
+        else:
+            _CACHE[key] = None
+    return _CACHE[key]
+
+
 def trigger_victory(ser, display=None):
-    if os.path.exists("sounds/victory.wav"):
-        try: pygame.mixer.Sound("sounds/victory.wav").play()
-        except: pass
+    snd = _get_sound("sounds/victory.wav")
+    if snd:
+        try:
+            snd.play()
+        except Exception:
+            pass
     if ser or display:
         try:
             for _ in range(6):
@@ -33,7 +128,9 @@ def trigger_victory(ser, display=None):
                 ser.write(b"LAMP:PLAYER:2\n")
                 ser.write(b"LAMP:START:0\n")
                 ser.flush()
-        except: pass
+        except Exception:
+            pass
+
 
 def parse_hit(hit_str):
     if hit_str == "-": return 0
@@ -67,14 +164,23 @@ def get_bot_hit(score, mode, option):
         r = random.random()
         return "t20" if r < 0.70 else ("20" if r < 0.90 else "t19")
 
+
 class ScreenSaver:
     def __init__(self, width, height):
         self.width, self.height, self.active, self.last_activity = width, height, False, pygame.time.get_ticks()
-        self.avatars = []
-        for file in ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]:
-            if os.path.exists(file):
-                try: self.avatars.append({"img": pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100)), "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
-                except: pass
+        if "ss_avatars_100" not in _CACHE:
+            imgs = []
+            for file in ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]:
+                if os.path.exists(file):
+                    try:
+                        imgs.append(pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100)))
+                    except Exception:
+                        pass
+            _CACHE["ss_avatars_100"] = imgs
+        self.avatars = [
+            {"img": img, "x": random.randint(50, max(60, width - 150)), "y": random.randint(50, max(60, height - 150)), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])}
+            for img in _CACHE["ss_avatars_100"]
+        ]
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
         if self.active: self.active = False; return True
@@ -93,6 +199,7 @@ class ScreenSaver:
         hint_surf = font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
         screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
+
 def build_turn_order(total_players, is_team_mode):
     if not is_team_mode:
         return list(range(1, total_players + 1))
@@ -104,6 +211,7 @@ def build_turn_order(total_players, is_team_mode):
             if p <= total_players:
                 order.append(p)
     return order
+
 
 def run_game(screen, ser, display, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
@@ -140,57 +248,33 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(sw, sh)
     display.clear_all()
 
-    is_16_9 = False
-    try:
-        with open("settings.json", "r") as f: is_16_9 = json.load(f).get("format", "4:3") == "16:9"
-    except: pass
-    bg_file = "background_16_9.png" if is_16_9 else "background.png"
-    bg_img = None
-    if os.path.exists(bg_file):
-        try:
-            raw_bg = pygame.image.load(bg_file).convert()
-            bg_img = pygame.transform.scale(raw_bg, (sw, sh))
-            darker_overlay = pygame.Surface((sw, sh)); darker_overlay.set_alpha(160); darker_overlay.fill((0, 0, 0))
-            bg_img.blit(darker_overlay, (0, 0))
-        except: pass
-
+    bg_img = _get_bg(sw, sh)
     avatar_path = {"Bullseye-Berry (Stufe 1)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Stufe 2)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Stufe 3)": "Bullseye-Berry_Ninja.png"}.get(mode, "")
+    avatar_frames = _get_avatar_frames(avatar_path, sh)
+    champ_img = _get_champ_img(sh)
+
+    sound_champ = _get_sound("sounds/champ.wav")
+    sound_single = _get_sound("sounds/hit_single.wav")
+    sound_double = _get_sound("sounds/hit_double.wav")
+    sound_triple = _get_sound("sounds/hit_triple.wav")
+    sound_switch = _get_sound("sounds/switch_player.wav")
+    sound_bust = _get_sound("sounds/bust.wav")
+    sound_miss = _get_sound("sounds/miss.wav")
+
+    title_font = _get_font(int(sh * 0.032))
+    big_font = _get_font(int(sh * 0.045))
     
-    avatar_frames = []
-    if avatar_path and os.path.exists(avatar_path):
-        try:
-            raw_av = pygame.image.load(avatar_path).convert_alpha()
-            base_sz = int(sh * 0.28)
-            for offset in [-10, -5, 0, 5, 10]:
-                sz = base_sz + offset
-                avatar_frames.append(pygame.transform.smoothscale(raw_av, (sz, sz)))
-        except: pass
-
-    champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (int(sh*0.45), int(sh*0.45))) if os.path.exists("Bullseye-Berry_Champ.png") else None
-
-    sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
-    sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
-    sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
-    sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
-    sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
-    sound_bust = pygame.mixer.Sound("sounds/bust.wav") if os.path.exists("sounds/bust.wav") else None
-    sound_miss = pygame.mixer.Sound("sounds/miss.wav") if os.path.exists("sounds/miss.wav") else None
-
-    title_font = pygame.font.SysFont("arial", int(sh * 0.032), bold=True)
-    big_font = pygame.font.SysFont("arial", int(sh * 0.045), bold=True)
-    
-    # Dynamische Schriftgröße für das untere Scoreboard (skaliert bei vielen Spielern automatisch herunter)
     sb_font_size = int(sh * 0.026) if total_players <= 4 else (int(sh * 0.022) if total_players <= 6 else int(sh * 0.018))
-    scoreboard_font = pygame.font.SysFont("arial", sb_font_size, bold=True)
+    scoreboard_font = _get_font(sb_font_size)
 
     win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.20)
-    win_font = pygame.font.SysFont("arial", win_font_size, bold=True)
-    giant_font = pygame.font.SysFont("arial", int(sh * 0.20), bold=True)
+    win_font = _get_font(win_font_size)
+    giant_font = _get_font(int(sh * 0.20))
     
     HIGHLIGHT, WHITE, RED_COL = (255, 215, 0), (255, 255, 255), (180, 30, 30)
 
     try: start_score = int(game_name)
-    except: start_score = 501
+    except Exception: start_score = 501
     player_scores = [start_score] * total_players
     has_double_in = option in ["Double In", "Double In/Out", "Double In / Master Out"]
     has_double_out = option in ["Double Out", "Double In/Out"]
@@ -203,7 +287,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     if ser:
         try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
-        except: pass
+        except Exception: pass
 
     def sync_hw_display():
         display.clear_buffer()
@@ -283,7 +367,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if sound_switch: sound_switch.play()
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.flush()
-                    except: pass
+                    except Exception: pass
                 sync_hw_display(); bot_timer = 0; is_berrys_turn = (is_berry_game and active_player == total_players)
 
             if is_berrys_turn and switch_delay_timer == 0 and darts_thrown < 3:
@@ -332,7 +416,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     darts_thrown += 1
                     if darts_thrown == 3 and ser:
                         try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                        except: pass
+                        except Exception: pass
                     sync_hw_display()
                 elif bust: 
                     if sound_bust: sound_bust.play()
@@ -342,7 +426,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     darts_thrown = 3 
                     if ser:
                         try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                        except: pass
+                        except Exception: pass
                     sync_hw_display()
                 else:
                     set_team_score(p_idx, new_score)
@@ -361,7 +445,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
                     if darts_thrown == 3 and ser and new_score > 0:
                         try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                        except: pass
+                        except Exception: pass
                     
                     sync_hw_display()
 
@@ -388,7 +472,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 current_state = "GAME"
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
-                    except: pass
+                    except Exception: pass
                 display.clear_all()
                 sync_hw_display()
                 raw_data = None
@@ -403,6 +487,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             mode_tag = "  |  Team-Modus" if is_team_mode else ""
             screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}{mode_tag}  |  Runde {round_num}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.04)))
             
+            act_col = PLAYER_COLORS[0] if is_berrys_turn else (PLAYER_COLORS[get_team_idx(active_player - 1) % len(PLAYER_COLORS)] if is_team_mode else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)])
             if is_berrys_turn:
                 active_label = mode
             elif is_team_mode:
@@ -410,7 +495,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             else:
                 active_label = f"Spieler {active_player}"
                 
-            name_surf = big_font.render(active_label, True, RED_COL if is_berrys_turn else WHITE)
+            name_surf = big_font.render(active_label, True, act_col)
             screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.09)))
             
             temp_score_surf = title_font.render(f"Runden-Punkte: {round_points}", True, (200, 200, 200))
@@ -430,7 +515,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             darts_surf = title_font.render(f"Pfeile: {darts_thrown} / 3", True, (180, 180, 180))
             screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.62)))
 
-            # --- UNTERES SPIELER- & TEAM-SCOREBOARD (Modernes Kartendesign mit dynamischer Skalierung) ---
+            # --- UNTERES SPIELER- & TEAM-SCOREBOARD (Berry-Rahmenfarben aus Fruit Splasher) ---
             sb_y = int(sh * 0.68)
             box_h = int(sh * 0.28)
             
@@ -445,12 +530,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     p1 = t * 2 + 1
                     p2 = t * 2 + 2
                     members_str = f"P{p1}/P{p2}" if p2 <= total_players else f"P{p1}"
+                    p_col = PLAYER_COLORS[t % len(PLAYER_COLORS)]
                     
                     pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (px, sb_y, p_box_w, box_h), border_radius=12)
-                    pygame.draw.rect(screen, HIGHLIGHT if is_act else (70, 90, 110), (px, sb_y, p_box_w, box_h), 3 if is_act else 1, border_radius=12)
+                    pygame.draw.rect(screen, p_col, (px, sb_y, p_box_w, box_h), 4 if is_act else 2, border_radius=12)
 
                     t_name = f"Team {t+1} ({members_str})"
-                    pn_surf = scoreboard_font.render(t_name, True, HIGHLIGHT if is_act else WHITE)
+                    pn_surf = scoreboard_font.render(t_name, True, p_col)
                     screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + 10))
 
                     t_score = player_scores[t * 2]
@@ -464,11 +550,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     px = sb_x + i * (p_box_w + 10)
                     is_act = (i == (active_player - 1))
                     p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i+1}"
+                    p_col = PLAYER_COLORS[0] if (is_berry_game and i == total_players - 1) else PLAYER_COLORS[i % len(PLAYER_COLORS)]
                     
                     pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (px, sb_y, p_box_w, box_h), border_radius=12)
-                    pygame.draw.rect(screen, HIGHLIGHT if is_act else (70, 90, 110), (px, sb_y, p_box_w, box_h), 3 if is_act else 1, border_radius=12)
+                    pygame.draw.rect(screen, p_col, (px, sb_y, p_box_w, box_h), 4 if is_act else 2, border_radius=12)
 
-                    pn_surf = scoreboard_font.render(p_n, True, HIGHLIGHT if is_act else WHITE)
+                    pn_surf = scoreboard_font.render(p_n, True, p_col)
                     screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + 10))
 
                     sc_surf = big_font.render(str(player_scores[i]), True, HIGHLIGHT if is_act else WHITE)
@@ -520,7 +607,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 else:
                     winner_name = f"Spieler {active_player}"
                     
-                txt_winner = big_font.render(f"{winner_name} beendet!", True, WHITE)
+                txt_winner = big_font.render(f"{winner_name} beendet!", True, act_col)
                 screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
                 
                 txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
@@ -530,3 +617,4 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.46)))
                 
         pygame.display.flip(); clock.tick(30)
+ 
