@@ -110,7 +110,7 @@ if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/paho" ]; then
     rm -rf /tmp/paho_temp
 fi
 
-# 3.3 qrcode direkt in das Spielverzeichnis einbetten (für Handy-Stream QR-Code in der Online-Lobby)
+# 3.3 qrcode direkt in das Spielverzeichnis einbetten
 if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/qrcode" ]; then
     echo "Bette qrcode Bibliothek direkt in das Spielverzeichnis ein..."
     mkdir -p /tmp/qrcode_temp
