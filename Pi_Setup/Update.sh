@@ -1,14 +1,17 @@
 #!/bin/bash
 # =====================================================================
-# VisionPi2000 - Öffentliches UPDATE-Skript (Stable-Edition mit OverlayFS)
+# VisionPi2000 - Öffentliches UPDATE-Skript (Debian Trixie & OverlayFS)
+# Inkl. rückwirkender RAM-, WLAN- & Systemdienst-Optimierung für Bestandsautomaten
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
 # WICHTIG: Vorherige Dateileichen im tmp-Ordner (RAM) löschen!
 rm -rf /tmp/VisionPiRepoUpdate
+rm -rf /tmp/paho_temp
+rm -rf /tmp/qrcode_temp
 
-echo "Lade neueste Dateien vom stable-Branch in den RAM herunter..."
-git clone --depth 1 -b stable https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
+echo "Lade neueste Dateien von GitHub (Zweig: stable) in den RAM herunter..."
+git clone --branch stable --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
 
 # SICHERHEITS-CHECK: Wurde wirklich etwas heruntergeladen?
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
@@ -17,7 +20,35 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
     exit 1
 fi
 
-# Sounds direkt im schnellen RAM vorab generieren
+# 1. paho-mqtt direkt als reines Python-Modul in den Spielordner einbetten (Trixie-sicher ohne apt/pip!)
+if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/paho" ]; then
+    echo "Bette paho-mqtt Bibliothek direkt in das Spielverzeichnis ein..."
+    mkdir -p /tmp/paho_temp
+    git clone --depth 1 https://github.com/eclipse-paho/paho.mqtt.python.git /tmp/paho_temp
+    if [ -d "/tmp/paho_temp/src/paho" ]; then
+        cp -r /tmp/paho_temp/src/paho /tmp/VisionPiRepoUpdate/VisionPi2000/paho
+        echo "paho-mqtt erfolgreich eingebettet!"
+    else
+        echo "WARNUNG: Konnte paho-mqtt nicht von GitHub laden."
+    fi
+    rm -rf /tmp/paho_temp
+fi
+
+# 1.2 qrcode direkt als reines Python-Modul in den Spielordner einbetten (Trixie-sicher ohne apt/pip!)
+if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/qrcode" ]; then
+    echo "Bette qrcode Bibliothek direkt in das Spielverzeichnis ein..."
+    mkdir -p /tmp/qrcode_temp
+    git clone --depth 1 https://github.com/lincolnloop/python-qrcode.git /tmp/qrcode_temp
+    if [ -d "/tmp/qrcode_temp/qrcode" ]; then
+        cp -r /tmp/qrcode_temp/qrcode /tmp/VisionPiRepoUpdate/VisionPi2000/qrcode
+        echo "qrcode erfolgreich eingebettet!"
+    else
+        echo "WARNUNG: Konnte qrcode nicht von GitHub laden."
+    fi
+    rm -rf /tmp/qrcode_temp
+fi
+
+# 2. Sounds direkt im schnellen RAM vorab generieren
 echo "Generiere Sounds im RAM..."
 cd /tmp/VisionPiRepoUpdate/VisionPi2000
 mkdir -p sounds
@@ -25,16 +56,16 @@ if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
 fi
 
-# Boot-Verzeichnis für settings.json ermitteln
+# 3. Boot-Verzeichnis für settings.json ermitteln
 BOOT_DIR="/boot/firmware"
 if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
 
 if [ ! -f "$BOOT_DIR/settings.json" ]; then
-    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
+    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart", "branch": "stable", "mqtt_broker": "broker.emqx.io"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
     sudo chmod 666 "$BOOT_DIR/settings.json"
 fi
 
-# PRÜFUNG: Ist das System im OverlayFS-Modus (/media/root-ro existiert) oder offen?
+# 4. PRÜFUNG: Ist das System im OverlayFS-Modus (/media/root-ro existiert) oder offen?
 if mountpoint -q /media/root-ro; then
     echo "OverlayFS erkannt! Öffne /media/root-ro kurzzeitig zum Schreiben..."
     sudo mount -o remount,rw /media/root-ro
@@ -43,15 +74,17 @@ if mountpoint -q /media/root-ro; then
         rm -rf /tmp/VisionPiRepoUpdate
         exit 1
     fi
+    SYS_ROOT="/media/root-ro"
     TARGET_DIR="/media/root-ro/home/visionpi2000/VisionPi2000"
     OVERLAY_ACTIVE=1
 else
     echo "Standard-Dateisystem erkannt. Schreibe direkt..."
+    SYS_ROOT=""
     TARGET_DIR="/home/visionpi2000/VisionPi2000"
     OVERLAY_ACTIVE=0
 fi
 
-echo "Aktualisiere Spieldateien in $TARGET_DIR..."
+echo "Aktualisiere Spieldateien (inkl. eingebettetem paho-mqtt & qrcode) in $TARGET_DIR..."
 sudo mkdir -p "$TARGET_DIR"
 sudo rm -rf "$TARGET_DIR"/*
 sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$TARGET_DIR"/
@@ -62,6 +95,54 @@ sudo ln -s "$BOOT_DIR/settings.json" "$TARGET_DIR/settings.json"
 
 # Dateiberechtigungen auf dem Zielsystem glattziehen
 sudo chown -R visionpi2000:visionpi2000 "$TARGET_DIR"
+
+# =====================================================================
+# 5. SYSTEM-OPTIMIERUNGEN FÜR BESTANDSAUTOMATEN PERMANENT NACHRÜSTEN
+# =====================================================================
+echo "Wende RAM-, Journal- und WLAN-Optimierungen dauerhaft auf das System an..."
+
+# 5.1 Systemd-Journal im RAM auf max. 16 MB deckeln (verhindert Volllaufen des 1GB RAM!)
+sudo mkdir -p "${SYS_ROOT}/etc/systemd/journald.conf.d"
+cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/systemd/journald.conf.d/size-limit.conf" > /dev/null
+[Journal]
+Storage=volatile
+RuntimeMaxUse=16M
+RuntimeMaxFileSize=4M
+EOF
+
+# 5.2 WLAN-Powersave dauerhaft abschalten (stabile Online-Matches & Webstream)
+sudo mkdir -p "${SYS_ROOT}/etc/NetworkManager/conf.d"
+cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/NetworkManager/conf.d/default-wifi-powersave-off.conf" > /dev/null
+[connection]
+wifi.powersave = 2
+EOF
+
+# 5.3 Unnötige Hintergrunddienste permanent auf der SD-Karte deaktivieren
+UNUSED_SERVICES=(
+    "bluetooth.service"
+    "hciuart.service"
+    "ModemManager.service"
+    "avahi-daemon.service"
+    "avahi-daemon.socket"
+    "cups.service"
+    "cups-browsed.service"
+    "triggerhappy.service"
+    "triggerhappy.socket"
+    "apt-daily.timer"
+    "apt-daily-upgrade.timer"
+    "man-db.timer"
+)
+
+if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
+    for svc in "${UNUSED_SERVICES[@]}"; do
+        sudo chroot /media/root-ro systemctl disable "$svc" 2>/dev/null
+    done
+else
+    for svc in "${UNUSED_SERVICES[@]}"; do
+        sudo systemctl stop "$svc" 2>/dev/null
+        sudo systemctl disable "$svc" 2>/dev/null
+    done
+fi
 
 # RAM aufräumen
 rm -rf /tmp/VisionPiRepoUpdate
@@ -76,7 +157,7 @@ if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
 fi
 
 echo "========================================================================="
-echo "Update erfolgreich! Permanent auf SD-Karte gespeichert."
+echo "Update & System-Optimierung erfolgreich! Permanent auf SD-Karte gespeichert."
 echo "Das System wird in 5 Sekunden neu gestartet..."
 echo "========================================================================="
 sleep 5
