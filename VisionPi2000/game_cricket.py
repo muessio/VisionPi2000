@@ -1,6 +1,6 @@
 # Datei: game_cricket.py
-# Version: 1.1.4
-# VisionPi2000 - Cricket - Berry-Rahmenfarben & Fast-Load Cache
+# Version: 1.1.5
+# VisionPi2000 - Cricket - Berry-Rahmenfarben, Vertikale Dynamik & You-Pick-It Vorab-Auswahl
 
 import pygame
 import math
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 GAMES = ["Cricket"]
 OPTIONS = [
     "Standard",
@@ -27,7 +27,7 @@ PLAYER_COLORS = [
     (160, 50, 255),   # Spieler 5: Dewberry Purple
     (70, 100, 255),   # Spieler 6: Huckleberry Blue
     (235, 245, 255),  # Spieler 7: Snowberry White-Blue
-    (210, 0, 180)    # Spieler 8: Mulberry Magenta
+    (210, 0, 180)     # Spieler 8: Mulberry Magenta
 ]
 
 if not hasattr(pygame, "_vp2000_cache"):
@@ -147,12 +147,7 @@ def get_bot_hit(marks, slot_targets, p_idx, mode):
         if slot_targets[s] is not None and marks[p_idx][s] < 3:
             open_slots.append(slot_targets[s])
             
-    unpicked_slots = [s for s in range(len(slot_targets) - 1) if slot_targets[s] is None]
-    if unpicked_slots and (not open_slots or random.random() < 0.6):
-        used_nums = [t for t in slot_targets if t is not None]
-        free_nums = [n for n in range(1, 21) if n not in used_nums]
-        target = random.choice(free_nums) if free_nums else 20
-    elif open_slots:
+    if open_slots:
         target = random.choice(open_slots)
     else:
         target = slot_targets[0] if slot_targets[0] is not None else 20
@@ -230,7 +225,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     title_font = _get_font(int(sh * 0.032))
     big_font = _get_font(int(sh * 0.045))
     
-    sb_font_size = int(sh * 0.026) if total_players <= 4 else (int(sh * 0.022) if total_players <= 6 else int(sh * 0.018))
+    # Dynamische vertikale Skalierung je nach Spieleranzahl (große Balken bei wenigen Spielern, schmaler bei vielen)
+    avail_matrix_h = int(sh * 0.56)
+    row_h = min(int(sh * 0.12), max(int(sh * 0.058), avail_matrix_h // max(1, total_players)))
+    row_gap = max(4, int(row_h * 0.10))
+    box_h = row_h - row_gap
+    
+    sb_font_size = min(int(sh * 0.042), max(int(sh * 0.020), int(box_h * 0.48)))
     scoreboard_font = _get_font(sb_font_size)
 
     win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.20)
@@ -241,12 +242,15 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     if is_pick_it:
         slot_targets = [None, None, None, None, None, None, 25]
+        current_state = "PICK_NUMBERS"
     elif is_crazy:
         rand_nums = random.sample(range(1, 21), 6)
         rand_nums.sort(reverse=True)
         slot_targets = rand_nums + [25]
+        current_state = "GAME"
     else:
         slot_targets = [20, 19, 18, 17, 16, 15, 25]
+        current_state = "GAME"
 
     scores = [0] * total_players
     marks = {p: [0] * 7 for p in range(total_players)}
@@ -287,7 +291,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         
             display.set_temp_score(round_points)
             display.set_turn(round_num)
-            display.set_dart_arrows(3 - darts_thrown)
+            if current_state == "PICK_NUMBERS":
+                remaining_picks = sum(1 for x in slot_targets[:6] if x is None)
+                display.set_dart_arrows(min(3, remaining_picks))
+            else:
+                display.set_dart_arrows(3 - darts_thrown)
             display.update()
         except Exception:
             pass
@@ -303,13 +311,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     sync_hw_display()
 
-    running, clock, current_state = True, pygame.time.Clock(), "GAME"
+    running, clock = True, pygame.time.Clock()
+    prev_state = current_state
     champ_display_until, bot_timer = 0, 0
     combo_press_start = 0
 
     while running:
         raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
-        is_berrys_turn = (is_berry_game and active_player == total_players)
+        is_berrys_turn = (is_berry_game and active_player == total_players and current_state == "GAME")
         
         for event in pygame.event.get():
             if event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
@@ -324,12 +333,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         keys = pygame.key.get_pressed()
         if raw_data == "BTN:COMBO": 
+            if current_state != "ABORT_MENU":
+                prev_state = current_state
             current_state = "ABORT_MENU"
             raw_data = None
         elif keys[pygame.K_r] and keys[pygame.K_b] and keys[pygame.K_g]:
             if combo_press_start == 0: 
                 combo_press_start = pygame.time.get_ticks()
             elif pygame.time.get_ticks() - combo_press_start >= 3000: 
+                if current_state != "ABORT_MENU":
+                    prev_state = current_state
                 current_state = "ABORT_MENU"
                 combo_press_start = 0
                 raw_data = None
@@ -338,18 +351,40 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         if current_state == "ABORT_MENU":
             if raw_data == "BTN:START":
-                current_state = "GAME"
+                current_state = prev_state
                 raw_data = None
             elif raw_data == "BTN:PLAYER":
                 if sound_switch: sound_switch.play()
                 display.clear_all()
                 return "menu"
 
+        elif current_state == "PICK_NUMBERS":
+            # Vorab-Auswahlrunde: Alle 6 Zielzahlen (1-20) werden vor Spielbeginn durch Drücken/Werfen festgelegt
+            if raw_data and raw_data.startswith("HIT:"):
+                hit_segment = raw_data.split(":")[1]
+                if hit_segment not in ["-", "b", "db"]:
+                    seg = int(hit_segment.replace("t", "").replace("d", ""))
+                    if 1 <= seg <= 20 and seg not in slot_targets:
+                        for s_i in range(6):
+                            if slot_targets[s_i] is None:
+                                slot_targets[s_i] = seg
+                                if sound_single: sound_single.play()
+                                break
+                        if None not in slot_targets[:6]:
+                            current_state = "GAME"
+                            darts_thrown = 0
+                            active_player = 1
+                            round_num = 1
+                            round_points = 0
+                            if sound_switch: sound_switch.play()
+                        sync_hw_display()
+                raw_data = None
+
         elif current_state == "GAME":
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks(); raw_data = None
             elif raw_data == "IR:DETECT":
-                if darts_thrown >= 3 and not is_berrys_turn: switch_delay_timer = pygame.time.get_ticks() + 2000
+                if darts_thrown >= 3 and not is_berrys_turn: switch_delay_timer = pygame.time.get_ticks() + 1000
                 raw_data = None
             
             if is_berrys_turn and darts_thrown >= 3 and switch_delay_timer == 0:
@@ -382,12 +417,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif hit_segment != "-":
                     seg = int(hit_segment.replace("t","").replace("d","").replace("b","25")) if hit_segment != "db" else 25
                     mult = 3 if "t" in hit_segment else (2 if "d" in hit_segment else 1)
-                    
-                    if is_pick_it and 1 <= seg <= 20 and seg not in slot_targets:
-                        for s_i in range(6):
-                            if slot_targets[s_i] is None:
-                                slot_targets[s_i] = seg
-                                break
 
                     hit_was_useful = False
                     if seg in slot_targets:
@@ -436,16 +465,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 return "menu"
             elif raw_data == "BTN:START":
                 if sound_switch: sound_switch.play()
-                if is_pick_it: slot_targets = [None, None, None, None, None, None, 25]
+                if is_pick_it:
+                    slot_targets = [None, None, None, None, None, None, 25]
+                    current_state = "PICK_NUMBERS"
                 elif is_crazy:
                     rand_nums = random.sample(range(1, 21), 6)
                     rand_nums.sort(reverse=True)
                     slot_targets = rand_nums + [25]
-                else: slot_targets = [20, 19, 18, 17, 16, 15, 25]
+                    current_state = "GAME"
+                else:
+                    slot_targets = [20, 19, 18, 17, 16, 15, 25]
+                    current_state = "GAME"
                 scores = [0] * total_players
                 marks = {p: [0] * 7 for p in range(total_players)}
                 darts_thrown, active_player, round_num, round_points, switch_delay_timer = 0, 1, 1, 0, 0
-                current_state = "GAME"
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                     except Exception: pass
@@ -459,67 +492,73 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if bg_img: screen.blit(bg_img, (0, 0))
         else: screen.fill((0, 0, 0))
 
-        if current_state in ["GAME", "ABORT_MENU", "WIN"]:
+        if current_state in ["PICK_NUMBERS", "GAME", "ABORT_MENU", "WIN"]:
             screen.blit(title_font.render(f"SPIEL: Cricket | {option} | Runde {round_num}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.04)))
             act_col = PLAYER_COLORS[0] if is_berrys_turn else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)]
-            name_surf = big_font.render(mode if is_berrys_turn else f"Spieler {active_player}", True, act_col)
-            screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.09)))
-            temp_score_surf = title_font.render(f"Temp Score: {round_points}", True, (200, 200, 200))
-            screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.14)))
             
-            if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
-                block_hint = title_font.render("Bitte Pfeile ziehen -> IR-Sensor oder Spielerwechsel drücken!", True, RED_COL)
-                screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.22)))
-            elif is_pick_it and None in slot_targets[:6] and current_state == "GAME":
-                pick_hint = title_font.render("YOU PICK IT: Wirf auf eine freie Zahl (1–20), um sie auszuwählen!", True, (50, 255, 50))
-                screen.blit(pick_hint, ((sw - pick_hint.get_width())//2, int(sh*0.22)))
+            if current_state == "PICK_NUMBERS":
+                picked_cnt = sum(1 for x in slot_targets[:6] if x is not None)
+                name_surf = big_font.render(f"Zahlenauswahl ({picked_cnt} / 6 gewählt)", True, HIGHLIGHT)
+                screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.09)))
+                pick_hint = title_font.render("YOU PICK IT: Bitte vor Spielbeginn 6 verschiedene Zahlen (1–20) drücken!", True, (50, 255, 50))
+                screen.blit(pick_hint, ((sw - pick_hint.get_width())//2, int(sh*0.18)))
+            else:
+                name_surf = big_font.render(mode if is_berrys_turn else f"Spieler {active_player}", True, act_col)
+                screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.09)))
+                temp_score_surf = title_font.render(f"Temp Score: {round_points}   |   Pfeile: {darts_thrown} / 3", True, (200, 200, 200))
+                screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.15)))
+                
+                if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
+                    block_hint = title_font.render("Bitte Pfeile ziehen -> IR-Sensor oder Spielerwechsel drücken!", True, RED_COL)
+                    screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.21)))
 
-            matrix_y = int(sh * 0.28)
+            matrix_y = int(sh * 0.27)
             labels = ["B" if t == 25 else ("--" if t is None else str(t)) for t in slot_targets]
             
-            col_w = int(sw * 0.07)
+            col_w = int(sw * 0.075)
             score_w = int(sw * 0.12)
-            name_w = int(sw * 0.15)
+            name_w = int(sw * 0.16)
             total_w = name_w + score_w + len(labels) * col_w
             start_x = (sw - total_w) // 2
             
-            pygame.draw.line(screen, (100,100,100), (start_x, matrix_y + int(sh*0.04)), (start_x + total_w, matrix_y + int(sh*0.04)), 2)
+            pygame.draw.line(screen, (100,100,100), (start_x, matrix_y + int(sh*0.042)), (start_x + total_w, matrix_y + int(sh*0.042)), 2)
             screen.blit(title_font.render("Punkte", True, HIGHLIGHT), (start_x + name_w, matrix_y))
             for idx, lbl in enumerate(labels):
                 lbl_col = (120, 120, 120) if lbl == "--" else HIGHLIGHT
                 t_surf = title_font.render(lbl, True, lbl_col)
                 screen.blit(t_surf, (start_x + name_w + score_w + idx * col_w + (col_w - t_surf.get_width())//2, matrix_y))
                 
-            row_h = int(sh * 0.058)
+            rows_start_y = matrix_y + int(sh * 0.052)
             for p_idx in range(total_players):
-                p_y = matrix_y + int(sh*0.05) + p_idx * row_h
-                is_act = (p_idx == (active_player - 1))
+                p_y = rows_start_y + p_idx * row_h
+                is_act = (p_idx == (active_player - 1)) and (current_state != "PICK_NUMBERS")
                 p_col = PLAYER_COLORS[0] if (is_berry_game and p_idx == total_players - 1) else PLAYER_COLORS[p_idx % len(PLAYER_COLORS)]
                 p_label = "Berry" if (is_berry_game and p_idx == total_players - 1) else f"Spieler {p_idx+1}"
                 
-                # Spieler-Zeile im Berry-Card-Stil mit individuellem Farb-Rahmen
-                pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (start_x - 10, p_y - 3, total_w + 20, row_h - 4), border_radius=10)
-                pygame.draw.rect(screen, p_col, (start_x - 10, p_y - 3, total_w + 20, row_h - 4), 3 if is_act else 1, border_radius=10)
+                # Vertikal dynamisch skalierender Spielerbalken mit farbigem Rahmen
+                pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (start_x - 10, p_y, total_w + 20, box_h), border_radius=12)
+                pygame.draw.rect(screen, p_col, (start_x - 10, p_y, total_w + 20, box_h), 4 if is_act else 2, border_radius=12)
 
                 pn_s = scoreboard_font.render(p_label, True, p_col)
                 sc_s = scoreboard_font.render(str(scores[p_idx]), True, HIGHLIGHT if is_act else WHITE)
-                text_y = p_y - 3 + (row_h - 4 - pn_s.get_height()) // 2
-                screen.blit(pn_s, (start_x + 4, text_y))
+                text_y = p_y + (box_h - pn_s.get_height()) // 2
+                screen.blit(pn_s, (start_x + 6, text_y))
                 screen.blit(sc_s, (start_x + name_w, text_y))
+                
+                c_size = max(8, int(min(box_h, col_w) * 0.28))
+                lw = max(3, int(box_h * 0.08))
+                mark_y = p_y + box_h // 2
                 
                 for s_idx in range(7):
                     hits = marks[p_idx][s_idx]
                     mark_x = start_x + name_w + score_w + s_idx * col_w + col_w // 2
-                    mark_y = p_y + (row_h - 6) // 2
-                    c_size = int(row_h * 0.28)
-                    lw = 4 
                     
                     if hits >= 1: 
                         pygame.draw.line(screen, p_col, (mark_x - c_size, mark_y + c_size), (mark_x + c_size, mark_y - c_size), lw)
                     if hits >= 2: 
                         pygame.draw.line(screen, p_col, (mark_x - c_size, mark_y - c_size), (mark_x + c_size, mark_y + c_size), lw)
                     if hits == 3: 
-                        pygame.draw.circle(screen, p_col, (mark_x, mark_y), int(c_size * 1.3), lw)
+                        pygame.draw.circle(screen, p_col, (mark_x, mark_y), int(c_size * 1.28), lw)
 
             if is_berrys_turn and avatar_frames:
                 idx_anim = int((math.sin(pygame.time.get_ticks() * 0.005) + 1.0) * 2.49)
@@ -566,4 +605,3 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.46)))
                 
         pygame.display.flip(); clock.tick(30)
- 
