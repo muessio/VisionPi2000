@@ -20,7 +20,7 @@ PLAYER_COLORS = [
     (160, 50, 255),   # Spieler 5: Dewberry Purple
     (70, 100, 255),   # Spieler 6: Huckleberry Blue
     (235, 245, 255),  # Spieler 7: Snowberry White-Blue
-    (210, 0, 180)    # Spieler 8: Mulberry Magenta
+    (210, 0, 180)     # Spieler 8: Mulberry Magenta
 ]
 
 if not hasattr(pygame, "_vp2000_cache"):
@@ -131,6 +131,7 @@ def trigger_victory(ser, display=None):
         except Exception:
             pass
 
+
 def get_bot_hit(target, mode):
     diff = 1 if "Stufe 1" in mode else (2 if "Stufe 2" in mode else 3)
     if diff == 1: return str(target) if random.random() < 0.3 else str(random.randint(1, 20))
@@ -154,13 +155,16 @@ class ScreenSaver:
             {"img": img, "x": random.randint(50, max(60, width - 150)), "y": random.randint(50, max(60, height - 150)), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])}
             for img in _CACHE["ss_avatars_100"]
         ]
+
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
         if self.active: self.active = False; return True
         return False
+
     def check(self):
         if not self.active and pygame.time.get_ticks() - self.last_activity > 600000: self.active = True
         return self.active
+
     def update_and_draw(self, screen, font):
         if not self.active: return
         screen.fill((0, 0, 0))
@@ -351,7 +355,71 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         if current_state in ["GAME", "ABORT_MENU", "WIN"]:
-            screen.blit(title_font.render(f"SPIEL: Around the Clock | {option}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.04)))
+            screen.blit(title_font.render(f"SPIEL: Around the Clock | {option}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.08)))
             act_col = PLAYER_COLORS[0] if is_berrys_turn else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)]
-            name_surf = big_font.render(mode if is_berrys
- 
+            name_surf = big_font.render(mode if is_berrys_turn else f"Spieler {active_player}", True, act_col)
+            screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.14)))
+            temp_score_surf = title_font.render(f"(Temp Score: {round_points})", True, (200, 200, 200))
+            screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.20)))
+            score_surf = giant_font.render(str(scores[active_player-1]), True, WHITE)
+            screen.blit(score_surf, ((sw - score_surf.get_width()) // 2, int(sh*0.27)))
+            
+            if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
+                block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
+                screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.70)))
+
+            darts_surf = big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150))
+            screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.78)))
+
+            y_base = int(sh * 0.86)
+            for i in range(total_players):
+                p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
+                surf = title_font.render(f"{p_n} Ziel: {scores[i]}", True, HIGHLIGHT if i == (active_player - 1) else WHITE)
+                row, col = i % 2, i // 2
+                screen.blit(surf, ((col + 1) * (sw // ((total_players + 1) // 2 + 1 if row == 0 else total_players // 2 + 1)) - surf.get_width() // 2, y_base + (row * int(sh*0.05))))
+
+            if is_berrys_turn and avatar_frames:
+                idx_anim = int((math.sin(pygame.time.get_ticks() * 0.005) + 1.0) * 2.49)
+                idx_anim = max(0, min(len(avatar_frames) - 1, idx_anim))
+                screen.blit(avatar_frames[idx_anim], (int(sw*0.78), int(sh*0.65)))
+            if pygame.time.get_ticks() < champ_display_until and champ_img:
+                screen.blit(champ_img, ((sw - champ_img.get_width()) // 2, (sh - champ_img.get_height()) // 2))
+                screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((sw - 200) // 2, int(sh*0.75)))
+
+            if current_state == "ABORT_MENU":
+                overlay = pygame.Surface((sw, sh))
+                overlay.set_alpha(220)
+                overlay.fill((0, 0, 0))
+                screen.blit(overlay, (0, 0))
+                
+                menu_y = int(sh * 0.35)
+                txt_head = big_font.render("SPIEL ABBRECHEN?", True, HIGHLIGHT)
+                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, menu_y))
+                
+                txt_start = title_font.render("> START = Weiterspielen <", True, (50, 255, 50))
+                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, menu_y + int(sh * 0.15)))
+                
+                txt_end = title_font.render("> SPIELERWECHSEL = Beenden <", True, RED_COL)
+                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, menu_y + int(sh * 0.25)))
+                
+            if current_state == "WIN":
+                overlay = pygame.Surface((sw, sh))
+                overlay.set_alpha(220)
+                overlay.fill((0, 0, 0))
+                screen.blit(overlay, (0, 0))
+                
+                win_y = int(sh * 0.22)
+                txt_head = win_font.render("GEWONNEN!", True, (50, 255, 50))
+                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
+                
+                winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
+                txt_winner = big_font.render(f"{winner_name} beendet!", True, WHITE)
+                screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
+                
+                txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
+                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, win_y + int(sh * 0.36)))
+                
+                txt_end = title_font.render("> SPIELERWECHSEL = Hauptmenü <", True, RED_COL)
+                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.46)))
+                
+        pygame.display.flip(); clock.tick(30)
