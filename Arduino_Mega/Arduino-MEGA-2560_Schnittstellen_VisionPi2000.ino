@@ -17,12 +17,12 @@ const int piezoPin    = A0;
 // --- NEU: Pins für die Tasten-Leuchtmelder ---
 const int lampStartPin  = 11; // Pin für die Lampe der Start-Taste
 const int lampPlayerPin = 12; // Pin für die Lampe der Spielerwechsel-Taste
-int modeLampStart  = 0;       // 0=Aus, 1=An, 2=Blinken
-int modeLampPlayer = 0;       // 0=Aus, 1=An, 2=Blinken
+int modeLampStart  = 0;        // 0=Aus, 1=An, 2=Blinken
+int modeLampPlayer = 0;        // 0=Aus, 1=An, 2=Blinken
 // ---------------------------------------------
 
-const int clkPin   = 4;   
-const int loadPin  = 5;   
+const int clkPin   = 4;    
+const int loadPin  = 5;    
 const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
 // displayMem[Strang 0..4][0 = Vorderer Chip (DIN), 1 = Hinterer Chip (DOUT)][Digit 0..7]
@@ -38,21 +38,20 @@ const String dartBoard[4][16] = {
   {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5",  "-",  "t4",  "t18", "t1",  "t20", "t5"}
 };
 
-unsigned long lastHitTime = 0;       
-const int debounceDelay = 300;       
+unsigned long lastHitTime = 0;        
+const int debounceDelay = 400;       // Matrix-Entprellung
 unsigned long piezoHitTime = 0;
 bool piezoTriggered = false;
 const int piezoThreshold = 15; 
 const int piezoMatrixWaitTime = 100; 
 
-const int btnDebounceDelay = 200; 
+const int btnDebounceDelay = 250;    // Tasten-Entprellung
 unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPressPlayer = 0;
 bool stateRed, stateBlue, stateGrey, stateStart, statePlayer = true;
 bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
 
-bool lastIrState = HIGH;
 unsigned long lastIrChangeTime = 0;
-const unsigned long irDebounceTime = 300;
+const unsigned long irDebounceTime = 300; // Sende-Intervall (300ms), solange IR aktiv ist
 
 inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
   digitalWrite(clkPin, LOW);
@@ -160,14 +159,12 @@ void processSerialCommand(String command) {
   else if (command == "LIGHT:OFF") {
     digitalWrite(lightRelayPin, LOW);
   }
-  // --- NEU: Leuchtmelder Kommandos ---
   else if (command.startsWith("LAMP:START:")) {
     modeLampStart = command.substring(11).toInt();
   }
   else if (command.startsWith("LAMP:PLAYER:")) {
     modeLampPlayer = command.substring(12).toInt();
   }
-  // -----------------------------------
   else if (command == "CLEAR") {
     clearAllDisplays();
   }
@@ -215,12 +212,10 @@ void setup() {
   pinMode(lightRelayPin, OUTPUT); 
   digitalWrite(lightRelayPin, LOW); 
 
-  // --- NEU: Leuchtmelder Setup ---
   pinMode(lampStartPin, OUTPUT);
   pinMode(lampPlayerPin, OUTPUT);
   digitalWrite(lampStartPin, LOW);
   digitalWrite(lampPlayerPin, LOW);
-  // -------------------------------
   
   pinMode(clkPin, OUTPUT); pinMode(loadPin, OUTPUT);
   for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
@@ -241,8 +236,6 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // --- NEU: Leuchtmelder autonome Steuerung ---
-  // Ein 2-Hz-Blinktakt bedeutet 500ms Periode (250ms an, 250ms aus)
   bool blinkState2Hz = (currentMillis / 250) % 2;
 
   if (modeLampStart == 0) digitalWrite(lampStartPin, LOW);
@@ -252,7 +245,6 @@ void loop() {
   if (modeLampPlayer == 0) digitalWrite(lampPlayerPin, LOW);
   else if (modeLampPlayer == 1) digitalWrite(lampPlayerPin, HIGH);
   else if (modeLampPlayer == 2) digitalWrite(lampPlayerPin, blinkState2Hz);
-  // --------------------------------------------
 
   while (Serial.available() > 0) {
     char c = Serial.read();
@@ -285,15 +277,19 @@ void loop() {
     }
   }
 
-  int piezoValue = analogRead(piezoPin);
+  // KORREKTUR: Direkt analogRead auf A0 ohne Wrapper
+  int piezoValue = analogRead(piezoPin); 
   if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
     if (!piezoTriggered) { 
       piezoTriggered = true; 
       piezoHitTime = currentMillis; 
     }
   }
+  
   if (piezoTriggered && (currentMillis - piezoHitTime > piezoMatrixWaitTime)) {
-    Serial.println("MISS:1");
+    if (currentMillis - lastHitTime > piezoMatrixWaitTime) {
+      Serial.println("MISS:1");
+    }
     piezoTriggered = false; 
     lastHitTime = currentMillis; 
   }
@@ -329,13 +325,12 @@ void loop() {
   lastPlayer = statePlayer;
 
   bool currentIrState = digitalRead(irSensorPin);
-  if (currentIrState == HIGH && lastIrState == LOW) {
-    if (currentMillis - lastIrChangeTime > irDebounceTime) {
+  if (currentIrState == LOW) {
+    if (currentMillis - lastIrChangeTime >= irDebounceTime) {
       Serial.println("IR:DETECT");
       lastIrChangeTime = currentMillis;
     }
   }
-  lastIrState = currentIrState;
 
   static unsigned long comboTimer = 0;
   static bool comboTriggered = false;
