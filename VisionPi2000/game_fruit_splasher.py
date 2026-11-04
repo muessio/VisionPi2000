@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.1.6
+# Version: 1.1.7
 # VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.6"
+VERSION = "1.1.7"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -340,24 +340,22 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             hw_keys = [20, 19, 18, 17, 16, 15]
             if not is_hunt_mode:
-                # ANPASSUNG: Bei Juice Press wird NUR das Ziel des Aktiven Spielers auf der Hardware-Anzeige beleuchtet!
+                # KRITISCHE KORREKTUR: Nur das Ziel des aktuell am Zug befindlichen Spielers anzeigen!
                 act_p_idx = active_player - 1
                 act_target = player_targets[act_p_idx]
-                
-                for s_idx, hw_key in enumerate(hw_keys):
-                    # Wir prüfen, welcher Hardware-Key dem Ziel des aktiven Spielers entspricht
-                    if hw_key == act_target:
-                        marks_led = min(3, int((pump_levels[act_p_idx] / float(max_pump)) * 3.99))
-                        display.set_cricket_marks(act_p_idx, hw_key, marks_led)
-                        if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
-                            d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
+
+                for hw_key in hw_keys:
+                    if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
+                        d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
+                        if hw_key == act_target:
+                            # Ziel des aktiven Spielers anzeigen und beleuchten
+                            marks_led = min(3, int((pump_levels[act_p_idx] / float(max_pump)) * 3.99))
+                            display.set_cricket_marks(act_p_idx, hw_key, marks_led)
                             t_str = f"{act_target:2d}"
                             display.set_disp_char(d_ten, t_str[0])
                             display.set_disp_char(d_unit, t_str[1])
-                    else:
-                        # Alle anderen Target-Displays für diesen Spieler/Segment-Slot löschen
-                        if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
-                            d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
+                        else:
+                            # Alle anderen Zielanzeigen komplett leeren, damit nur das eine Ziel leuchtet
                             display.set_disp_char(d_ten, " ")
                             display.set_disp_char(d_unit, " ")
             else:
@@ -798,3 +796,4 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         pygame.display.flip()
         clock.tick(30)
+ 
