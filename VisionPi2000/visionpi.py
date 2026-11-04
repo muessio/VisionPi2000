@@ -1,5 +1,5 @@
 # Datei: visionpi.py
-# Version: 1.1.12-main
+# Version: 1.1.13-main
 
 import pygame
 import serial
@@ -40,7 +40,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.12-main"
+VERSION = "1.1.13-main"
 
 # Globaler RAM-schonender Asset-Cache für 0ms Spielstart auf dem Pi 4B (1GB RAM)
 GLOBAL_FONT_CACHE = {}
@@ -264,16 +264,16 @@ class ScreenSaver:
 
         if is_16_9:
             candidates = [
-                "Screensaver_16_9.jpg", "screensaver_16_9.jpg",
-                "Screensaver_16_9.png", "screensaver_16_9.png",
-                "Screensaver.jpg", "screensaver.jpg",
-                "Screensaver.png", "screensaver.png"
+                "screensaver_16_9.jpg", "Screensaver_16_9.jpg",
+                "screensaver_16_9.png", "Screensaver_16_9.png",
+                "screensaver.jpg", "Screensaver.jpg",
+                "screensaver.png", "Screensaver.png"
             ]
         else:
             candidates = [
-                "Screensaver.jpg", "screensaver.jpg",
-                "Screensaver.png", "screensaver.png",
-                "Screensaver_16_9.jpg", "screensaver_16_9.jpg"
+                "screensaver.jpg", "Screensaver.jpg",
+                "screensaver.png", "Screensaver.png",
+                "screensaver_16_9.jpg", "Screensaver_16_9.jpg"
             ]
 
         self.static_img = None
@@ -564,9 +564,13 @@ def main():
         raw_data = None
         if ser and ser.in_waiting > 0:
             try:
-                line = ser.readline().decode('utf-8', 'ignore').strip()
-                if line.startswith(("BTN:", "HIT:", "MISS:", "IR:")):
-                    raw_data = line
+                # Im Menü IR:DETECT und MISS:1 komplett ignorieren, damit weder Piezo-Rauschen
+                # den Timer zurücksetzt noch ein auslösender IR-Sensor den Schoner sofort beendet
+                while ser.in_waiting > 0:
+                    line = ser.readline().decode('utf-8', 'ignore').strip()
+                    if line.startswith(("BTN:", "HIT:")):
+                        raw_data = line
+                        break
             except Exception:
                 raw_data = None
             
@@ -585,9 +589,7 @@ def main():
                 elif e.key == pygame.K_SPACE: raw_data = "BTN:START"
 
         if raw_data:
-            if raw_data == "IR:DETECT" and not screensaver.active:
-                raw_data = None
-            elif screensaver.reset_timer():
+            if screensaver.reset_timer():
                 raw_data = None
                 continue
 
@@ -763,4 +765,3 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
- 
