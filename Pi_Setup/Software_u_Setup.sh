@@ -1,20 +1,20 @@
 #!/bin/bash
 # =====================================================================
 # VisionPi2000 - Öffentliches Master Installations- und Setup-Skript
-# (Stable-Edition mit automatischem OverlayFS-Schreibschutz)
+# (Standard-Edition mit automatischem OverlayFS-Schreibschutz & MQTT Online)
 # Hauptnutzer: visionpi2000
 # =====================================================================
-
-# 0. WICHTIG: Sofort NOPASSWD für den Benutzer 'visionpi2000' einrichten,
-# damit im laufenden Betrieb und bei Updates niemals eine Passwortabfrage blockiert!
-echo "Richte passwortlose Sudo-Rechte für visionpi2000 ein..."
-echo "visionpi2000 ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/010_visionpi_nopasswd > /dev/null
-sudo chmod 440 /etc/sudoers.d/010_visionpi_nopasswd
 
 # 1. Nur Paketlisten aktualisieren (KEIN volles apt upgrade, um WLAN nicht zu zerstören!)
 sudo apt update
 
-# 1.5. USB-Stromlimit auf Maximum setzen & USB-Energiesparmodus deaktivieren
+# 1.2 Sudo-Passwortabfrage für den Benutzer visionpi2000 direkt am Anfang deaktivieren,
+# damit alle nachfolgenden sudo-Befehle im Skript ohne Blockade durchlaufen!
+echo "Konfiguriere passwortlose Sudo-Rechte für visionpi2000..."
+echo "visionpi2000 ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/visionpi2000
+sudo chmod 0440 /etc/sudoers.d/visionpi2000
+
+# 1.5. USB-Stromlimit auf Maximum setzen, USB-Energiesparmodus deaktivieren & GPU-RAM optimieren
 CONFIG_FILE="/boot/firmware/config.txt"
 if [ ! -f "$CONFIG_FILE" ] && [ -f "/boot/config.txt" ]; then
     CONFIG_FILE="/boot/config.txt"
@@ -39,24 +39,87 @@ if [ -f "$CMDLINE_FILE" ]; then
     fi
 fi
 
-# 2. Grafische Minimal-Oberfläche und Abhängigkeiten installieren
+# 2. Grafische Minimal-Oberfläche, MQTT und Abhängigkeiten installieren
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
-sudo apt install git python3 python3-pygame python3-serial pulseaudio alsa-utils unclutter curl -y
+sudo apt install git python3 python3-pygame python3-serial python3-paho-mqtt python3-qrcode pulseaudio alsa-utils unclutter curl -y
+
+# 2.2 Unnötige Systemdienste für 1GB RAM Stabilität deaktivieren
+echo "Deaktiviere nicht benötigte Hintergrunddienste (RAM-Optimierung)..."
+UNUSED_SERVICES=(
+    "bluetooth.service"
+    "hciuart.service"
+    "ModemManager.service"
+    "avahi-daemon.service"
+    "avahi-daemon.socket"
+    "cups.service"
+    "cups-browsed.service"
+    "triggerhappy.service"
+    "triggerhappy.socket"
+    "apt-daily.timer"
+    "apt-daily-upgrade.timer"
+    "man-db.timer"
+)
+for svc in "${UNUSED_SERVICES[@]}"; do
+    sudo systemctl stop "$svc" 2>/dev/null
+    sudo systemctl disable "$svc" 2>/dev/null
+done
+
+# 2.3 WLAN-Energiesparmodus deaktivieren (verhindert Verbindungsabbrüche im Online-Spiel)
+sudo mkdir -p /etc/NetworkManager/conf.d
+cat << 'EOF' | sudo tee /etc/NetworkManager/conf.d/default-wifi-powersave-off.conf > /dev/null
+[connection]
+wifi.powersave = 2
+EOF
+
+# 2.4 Systemd-Journal im RAM auf max. 16 MB begrenzen (verhindert OverlayFS-RAM-Crash!)
+sudo mkdir -p /etc/systemd/journald.conf.d
+cat << 'EOF' | sudo tee /etc/systemd/journald.conf.d/size-limit.conf > /dev/null
+[Journal]
+Storage=volatile
+RuntimeMaxUse=16M
+RuntimeMaxFileSize=4M
+EOF
 
 # 2.5 Grafischen Startmodus und LightDM Dienst erzwingen
 sudo systemctl set-default graphical.target
 sudo systemctl enable lightdm
 
-# 3. Öffentliches GitHub-Repository (Branch: stable) klonen und Dateien ablegen
-echo "Lade Dateien vom stable-Branch von GitHub herunter..."
+# 3. Öffentliches GitHub-Repository klonen (Zweig: stable) und Dateien ablegen
+echo "Lade Dateien von GitHub herunter (Zweig: stable)..."
 mkdir -p /home/visionpi2000/VisionPi2000
 rm -rf /tmp/VisionPiRepo
+rm -rf /tmp/paho_temp
+rm -rf /tmp/qrcode_temp
 
-git clone --depth 1 -b stable https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
+git clone --branch stable --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
 
 if [ ! -d "/tmp/VisionPiRepo/VisionPi2000" ]; then
     echo "FEHLER: Download fehlgeschlagen! Überprüfe die Internetverbindung."
     exit 1
+fi
+
+# 3.2 paho-mqtt direkt in das Spielverzeichnis einbetten (100% Trixie- & OverlayFS-sicher)
+if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/paho" ]; then
+    echo "Bette paho-mqtt Bibliothek direkt in das Spielverzeichnis ein..."
+    mkdir -p /tmp/paho_temp
+    git clone --depth 1 https://github.com/eclipse-paho/paho.mqtt.python.git /tmp/paho_temp
+    if [ -d "/tmp/paho_temp/src/paho" ]; then
+        cp -r /tmp/paho_temp/src/paho /tmp/VisionPiRepo/VisionPi2000/paho
+        echo "paho-mqtt erfolgreich eingebettet!"
+    fi
+    rm -rf /tmp/paho_temp
+fi
+
+# 3.3 qrcode direkt in das Spielverzeichnis einbetten
+if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/qrcode" ]; then
+    echo "Bette qrcode Bibliothek direkt in das Spielverzeichnis ein..."
+    mkdir -p /tmp/qrcode_temp
+    git clone --depth 1 https://github.com/lincolnloop/python-qrcode.git /tmp/qrcode_temp
+    if [ -d "/tmp/qrcode_temp/qrcode" ]; then
+        cp -r /tmp/qrcode_temp/qrcode /tmp/VisionPiRepo/VisionPi2000/qrcode
+        echo "qrcode erfolgreich eingebettet!"
+    fi
+    rm -rf /tmp/qrcode_temp
 fi
 
 cp -r /tmp/VisionPiRepo/VisionPi2000/* /home/visionpi2000/VisionPi2000/
@@ -68,7 +131,7 @@ if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
 
 if [ ! -f "$BOOT_DIR/settings.json" ]; then
     echo "Erstelle settings.json auf der Boot-Partition..."
-    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
+    echo '{"format": "4:3", "mapper": "display_mapper_Vision_Dart", "branch": "stable", "mqtt_broker": "broker.emqx.io"}' | sudo tee "$BOOT_DIR/settings.json" > /dev/null
 fi
 sudo chmod 666 "$BOOT_DIR/settings.json"
 
@@ -81,7 +144,7 @@ sudo usermod -a -G audio,dialout visionpi2000
 
 # 5. LightDM Autologin konfigurieren
 sudo mkdir -p /etc/lightdm/lightdm.conf.d
-sudo bash -c 'cat << 'EOF' > /etc/lightdm/lightdm.conf.d/99-autologin.conf
+sudo bash -c 'cat << '\''EOF'\'' > /etc/lightdm/lightdm.conf.d/99-autologin.conf
 [Seat:*]
 autologin-user=visionpi2000
 user-session=openbox
@@ -93,7 +156,7 @@ cat << 'EOF' > /home/visionpi2000/.config/openbox/autostart
 # Mauszeiger nach 0,1 Sekunden Inaktivität komplett ausblenden
 unclutter -idle 0.1 -root &
 
-# Bildschirmschoner und Stromsparmodus deaktivieren
+# Bildschirmschoner und Stromsparmodus von X11 deaktivieren
 xset s off
 xset -dpms
 xset s noblank
