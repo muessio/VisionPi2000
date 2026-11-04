@@ -1,6 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
+// Version 1.0.3
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -17,12 +18,12 @@ const int piezoPin    = A0;
 // --- NEU: Pins für die Tasten-Leuchtmelder ---
 const int lampStartPin  = 11; // Pin für die Lampe der Start-Taste
 const int lampPlayerPin = 12; // Pin für die Lampe der Spielerwechsel-Taste
-int modeLampStart  = 0;       // 0=Aus, 1=An, 2=Blinken
-int modeLampPlayer = 0;       // 0=Aus, 1=An, 2=Blinken
+int modeLampStart  = 0;        // 0=Aus, 1=An, 2=Blinken
+int modeLampPlayer = 0;        // 0=Aus, 1=An, 2=Blinken
 // ---------------------------------------------
 
-const int clkPin   = 4;   
-const int loadPin  = 5;   
+const int clkPin   = 4;    
+const int loadPin  = 5;    
 const int dPins[5] = {6, 7, 8, 9, 10}; // D0 bis D4
 
 // displayMem[Strang 0..4][0 = Vorderer Chip (DIN), 1 = Hinterer Chip (DOUT)][Digit 0..7]
@@ -38,14 +39,14 @@ const String dartBoard[4][16] = {
   {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5",  "-",  "t4",  "t18", "t1",  "t20", "t5"}
 };
 
-unsigned long lastHitTime = 0;       
-const int debounceDelay = 300;       
+unsigned long lastHitTime = 0;        
+const int debounceDelay = 400;       // LEICHT ERHÖHT: Bessere Matrix-Entprellung
 unsigned long piezoHitTime = 0;
 bool piezoTriggered = false;
 const int piezoThreshold = 15; 
 const int piezoMatrixWaitTime = 100; 
 
-const int btnDebounceDelay = 200; 
+const int btnDebounceDelay = 250;    // LEICHT ERHÖHT: Bessere Tasten-Entprellung
 unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPressPlayer = 0;
 bool stateRed, stateBlue, stateGrey, stateStart, statePlayer = true;
 bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
@@ -241,7 +242,6 @@ void loop() {
   unsigned long currentMillis = millis();
 
   // --- NEU: Leuchtmelder autonome Steuerung ---
-  // Ein 2-Hz-Blinktakt bedeutet 500ms Periode (250ms an, 250ms aus)
   bool blinkState2Hz = (currentMillis / 250) % 2;
 
   if (modeLampStart == 0) digitalWrite(lampStartPin, LOW);
@@ -284,15 +284,19 @@ void loop() {
     }
   }
 
-  int piezoValue = analogRead(piezoPin);
+  int piezoValue = analogRead(pinModeCompatWrapper(piezoPin)); // Verwendet den analogen Pin A0
   if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
     if (!piezoTriggered) { 
       piezoTriggered = true; 
       piezoHitTime = currentMillis; 
     }
   }
+  
+  // SICHERHEITSFUNKTION: Wenn Piezo abläuft, aber in der Zwischenzeit exakt gleichzeitig ein Matrix-Treffer reinkam, wird MISS:1 unterdrückt
   if (piezoTriggered && (currentMillis - piezoHitTime > piezoMatrixWaitTime)) {
-    Serial.println("MISS:1");
+    if (currentMillis - lastHitTime > piezoMatrixWaitTime) {
+      Serial.println("MISS:1");
+    }
     piezoTriggered = false; 
     lastHitTime = currentMillis; 
   }
@@ -328,7 +332,6 @@ void loop() {
   lastPlayer = statePlayer;
 
   bool currentIrState = digitalRead(irSensorPin);
-  // Solange der IR-Sensor auslöst (LOW), alle 300ms "IR:DETECT" senden zum Nachtriggern
   if (currentIrState == LOW) {
     if (currentMillis - lastIrChangeTime >= irDebounceTime) {
       Serial.println("IR:DETECT");
