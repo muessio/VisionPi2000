@@ -1,6 +1,6 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.1.7
-# VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition)
+# Version: 1.1.8
+# VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition - Fast-Load Cache)
 
 import pygame
 import math
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.7"
+VERSION = "1.1.8"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -32,11 +32,56 @@ BERRY_PROFILES = [
 
 GOLDEN_BERRY = {"name": "Golden-Raspberry", "fruit": "Golden-Berry", "color": (255, 215, 0), "hi": (255, 255, 180), "style": "cluster"}
 
+# Modulweiter Asset-Cache verhindert erneutes Laden & Skalieren von SD-Karte bei jedem Spielstart
+_ASSET_CACHE = {}
+
+
+def _get_cached_sound(path):
+    key = f"snd_{path}"
+    if key not in _ASSET_CACHE:
+        if os.path.exists(path):
+            try:
+                _ASSET_CACHE[key] = pygame.mixer.Sound(path)
+            except Exception:
+                _ASSET_CACHE[key] = None
+        else:
+            _ASSET_CACHE[key] = None
+    return _ASSET_CACHE[key]
+
+
+def _get_cached_font(size):
+    key = f"font_{size}"
+    if key not in _ASSET_CACHE:
+        _ASSET_CACHE[key] = pygame.font.SysFont("arial", size, bold=True)
+    return _ASSET_CACHE[key]
+
+
+def _get_cached_bg(sw, sh, is_16_9):
+    key = f"bg_{sw}_{sh}_{is_16_9}"
+    if key not in _ASSET_CACHE:
+        bg_candidates = ["background_16_9.jpg", "background_16_9.png"] if is_16_9 else ["background.jpg", "background.png"]
+        bg_img = None
+        for bf in bg_candidates:
+            if os.path.exists(bf):
+                try:
+                    raw_bg = pygame.image.load(bf).convert()
+                    bg_img = pygame.transform.scale(raw_bg, (sw, sh))
+                    darker_overlay = pygame.Surface((sw, sh))
+                    darker_overlay.set_alpha(165)
+                    darker_overlay.fill((0, 0, 0))
+                    bg_img.blit(darker_overlay, (0, 0))
+                    break
+                except Exception:
+                    pass
+        _ASSET_CACHE[key] = bg_img
+    return _ASSET_CACHE[key]
+
 
 def trigger_victory(ser, display=None):
-    if os.path.exists("sounds/victory.wav"):
+    snd_vic = _get_cached_sound("sounds/victory.wav")
+    if snd_vic:
         try:
-            pygame.mixer.Sound("sounds/victory.wav").play()
+            snd_vic.play()
         except Exception:
             pass
     if ser or display:
@@ -158,19 +203,25 @@ def get_bot_hit(target_nums, mode):
 class ScreenSaver:
     def __init__(self, width, height):
         self.width, self.height, self.active, self.last_activity = width, height, False, pygame.time.get_ticks()
+        if "ss_avatars" not in _ASSET_CACHE:
+            imgs = []
+            for file in ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]:
+                if os.path.exists(file):
+                    try:
+                        imgs.append(pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100)))
+                    except Exception:
+                        pass
+            _ASSET_CACHE["ss_avatars"] = imgs
+
         self.avatars = []
-        for file in ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]:
-            if os.path.exists(file):
-                try:
-                    self.avatars.append({
-                        "img": pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100)),
-                        "x": random.randint(50, width - 150),
-                        "y": random.randint(50, height - 150),
-                        "vx": random.choice([-2, 2]),
-                        "vy": random.choice([-2, 2])
-                    })
-                except Exception:
-                    pass
+        for img in _ASSET_CACHE["ss_avatars"]:
+            self.avatars.append({
+                "img": img,
+                "x": random.randint(50, max(60, width - 150)),
+                "y": random.randint(50, max(60, height - 150)),
+                "vx": random.choice([-2, 2]),
+                "vy": random.choice([-2, 2])
+            })
 
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
@@ -216,66 +267,61 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     if hasattr(display, 'clear_all'):
         display.clear_all()
 
-    is_16_9 = False
-    try:
-        with open("settings.json", "r") as f:
-            is_16_9 = json.load(f).get("format", "4:3") == "16:9"
-    except Exception:
-        pass
-
-    bg_candidates = ["background_16_9.jpg", "background_16_9.png"] if is_16_9 else ["background.jpg", "background.png"]
-    bg_img = None
-    for bf in bg_candidates:
-        if os.path.exists(bf):
-            try:
-                raw_bg = pygame.image.load(bf).convert()
-                bg_img = pygame.transform.scale(raw_bg, (sw, sh))
-                darker_overlay = pygame.Surface((sw, sh))
-                darker_overlay.set_alpha(165)
-                darker_overlay.fill((0, 0, 0))
-                bg_img.blit(darker_overlay, (0, 0))
-                break
-            except Exception:
-                pass
+    # Format direkt aus der bereits initialisierten Screen-Größe ableiten (spart SD-Kartenzugriff)
+    is_16_9 = (sw / float(sh)) > 1.5
+    bg_img = _get_cached_bg(sw, sh, is_16_9)
 
     avatar_path = {
         "Bullseye-Berry (Stufe 1)": "Bullseye-Berry_Original.png",
         "Bullseye-Berry (Stufe 2)": "Bullseye-Berry_Cyber.png",
         "Bullseye-Berry (Stufe 3)": "Bullseye-Berry_Ninja.png"
     }.get(mode, "")
-    avatar_frames = []
-    if avatar_path and os.path.exists(avatar_path):
-        try:
-            raw_av = pygame.image.load(avatar_path).convert_alpha()
-            base_sz = int(sh * 0.25)
-            for offset in [-8, -4, 0, 4, 8]:
-                sz = base_sz + offset
-                avatar_frames.append(pygame.transform.smoothscale(raw_av, (sz, sz)))
-        except Exception:
-            pass
+    av_key = f"av_{avatar_path}_{sh}"
+    if avatar_path and av_key not in _ASSET_CACHE:
+        frames = []
+        if os.path.exists(avatar_path):
+            try:
+                raw_av = pygame.image.load(avatar_path).convert_alpha()
+                base_sz = int(sh * 0.25)
+                for offset in [-8, -4, 0, 4, 8]:
+                    sz = base_sz + offset
+                    frames.append(pygame.transform.smoothscale(raw_av, (sz, sz)))
+            except Exception:
+                pass
+        _ASSET_CACHE[av_key] = frames
+    avatar_frames = _ASSET_CACHE.get(av_key, [])
 
-    champ_img = pygame.transform.smoothscale(
-        pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(),
-        (int(sh * 0.42), int(sh * 0.42))
-    ) if os.path.exists("Bullseye-Berry_Champ.png") else None
+    champ_key = f"champ_{sh}"
+    if champ_key not in _ASSET_CACHE:
+        if os.path.exists("Bullseye-Berry_Champ.png"):
+            try:
+                _ASSET_CACHE[champ_key] = pygame.transform.smoothscale(
+                    pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(),
+                    (int(sh * 0.42), int(sh * 0.42))
+                )
+            except Exception:
+                _ASSET_CACHE[champ_key] = None
+        else:
+            _ASSET_CACHE[champ_key] = None
+    champ_img = _ASSET_CACHE[champ_key]
 
-    sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
-    sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
-    sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
-    sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
-    sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
-    sound_miss = pygame.mixer.Sound("sounds/miss.wav") if os.path.exists("sounds/miss.wav") else None
+    sound_champ = _get_cached_sound("sounds/champ.wav")
+    sound_single = _get_cached_sound("sounds/hit_single.wav")
+    sound_double = _get_cached_sound("sounds/hit_double.wav")
+    sound_triple = _get_cached_sound("sounds/hit_triple.wav")
+    sound_switch = _get_cached_sound("sounds/switch_player.wav")
+    sound_miss = _get_cached_sound("sounds/miss.wav")
 
-    tiny_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
-    small_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
-    
+    tiny_font = _get_cached_font(int(sh * 0.018))
+    small_font = _get_cached_font(int(sh * 0.022))
+
     sb_font_size = int(sh * 0.030) if total_players <= 4 else (int(sh * 0.025) if total_players <= 6 else int(sh * 0.020))
-    scoreboard_font = pygame.font.SysFont("arial", sb_font_size, bold=True)
+    scoreboard_font = _get_cached_font(sb_font_size)
 
-    title_font = pygame.font.SysFont("arial", int(sh * 0.033), bold=True)
-    big_font = pygame.font.SysFont("arial", int(sh * 0.044), bold=True)
+    title_font = _get_cached_font(int(sh * 0.033))
+    big_font = _get_cached_font(int(sh * 0.044))
     win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.20)
-    win_font = pygame.font.SysFont("arial", win_font_size, bold=True)
+    win_font = _get_cached_font(win_font_size)
 
     HIGHLIGHT, WHITE, RED_COL, NEON_GREEN = (255, 215, 0), (255, 255, 255), (255, 60, 80), (0, 255, 157)
 
@@ -340,7 +386,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             hw_keys = [20, 19, 18, 17, 16, 15]
             if not is_hunt_mode:
-                # KRITISCHE KORREKTUR: Nur das Ziel des aktuell am Zug befindlichen Spielers anzeigen!
                 act_p_idx = active_player - 1
                 act_target = player_targets[act_p_idx]
 
@@ -348,14 +393,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
                         d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
                         if hw_key == act_target:
-                            # Ziel des aktiven Spielers anzeigen und beleuchten
                             marks_led = min(3, int((pump_levels[act_p_idx] / float(max_pump)) * 3.99))
                             display.set_cricket_marks(act_p_idx, hw_key, marks_led)
                             t_str = f"{act_target:2d}"
                             display.set_disp_char(d_ten, t_str[0])
                             display.set_disp_char(d_unit, t_str[1])
                         else:
-                            # Alle anderen Zielanzeigen komplett leeren, damit nur das eine Ziel leuchtet
                             display.set_disp_char(d_ten, " ")
                             display.set_disp_char(d_unit, " ")
             else:
@@ -515,7 +558,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                                 player_targets[p_idx] = random.choice(avail) if avail else random.randint(1, 20)
 
                                 spawn_splash(sw // 2, int(sh * 0.52), p_profile["color"], count=48)
-                                splash_banner_text = f"SPLASH! (+1)"
+                                splash_banner_text = "SPLASH! (+1)"
                                 splash_banner_col = p_profile["color"]
                                 splash_banner_until = pygame.time.get_ticks() + 2200
                                 champ_display_until = pygame.time.get_ticks() + 1600
@@ -625,7 +668,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             screen.blit(title_font.render(f"FRUIT SPLASHER | {option} | {rnd_txt}", True, HIGHLIGHT), (int(sw * 0.04), int(sh * 0.035)))
 
             active_prof = BERRY_PROFILES[0] if is_berrys_turn else BERRY_PROFILES[(active_player - 1) % len(BERRY_PROFILES)]
-            p_title = f"Bullseye-Berry" if is_berrys_turn else f"Spieler {active_player}"
+            p_title = "Bullseye-Berry" if is_berrys_turn else f"Spieler {active_player}"
             name_surf = big_font.render(p_title, True, active_prof["color"])
             screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh * 0.095)))
 
@@ -657,17 +700,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     is_act = (i == active_player - 1)
 
                     card_bg = (22, 42, 62) if is_act else (12, 22, 34)
-                    border_col = prof["color"] if is_act else (60, 80, 100)
+                    border_col = prof["color"]
                     pygame.draw.rect(screen, card_bg, (cx, cy, card_w, card_h), border_radius=14)
                     pygame.draw.rect(screen, border_col, (cx, cy, card_w, card_h), width=4 if is_act else 2, border_radius=14)
 
                     lbl = "Bullseye-Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
-                    t_s = title_font.render(lbl, True, prof["color"] if is_act else WHITE)
+                    t_s = title_font.render(lbl, True, prof["color"])
                     screen.blit(t_s, (cx + (card_w - t_s.get_width()) // 2, cy + 6))
 
                     badge_txt1 = tiny_font.render(f"ZIEL: {player_targets[i]}", True, HIGHLIGHT)
                     badge_txt2 = tiny_font.render("BULLSEYE AKTIV", True, (0, 220, 255))
-                    
+
                     screen.blit(badge_txt1, (cx + (card_w - badge_txt1.get_width()) // 2, cy + int(card_h * 0.15)))
                     screen.blit(badge_txt2, (cx + (card_w - badge_txt2.get_width()) // 2, cy + int(card_h * 0.26)))
 
@@ -721,7 +764,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     prof = BERRY_PROFILES[0] if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
                     is_act = (i == active_player - 1)
                     pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (px, sb_y, p_box_w, int(sh * 0.22)), border_radius=12)
-                    pygame.draw.rect(screen, prof["color"] if is_act else (70, 90, 110), (px, sb_y, p_box_w, int(sh * 0.22)), 3 if is_act else 1, border_radius=12)
+                    pygame.draw.rect(screen, prof["color"], (px, sb_y, p_box_w, int(sh * 0.22)), 4 if is_act else 2, border_radius=12)
 
                     p_name = "Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
                     pn_surf = scoreboard_font.render(p_name, True, prof["color"])
