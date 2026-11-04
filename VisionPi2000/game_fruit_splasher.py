@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.1.5
+# Version: 1.1.6
 # VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -269,7 +269,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     tiny_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
     small_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
     
-    # Dynamische Schriftgröße für die Spielernamen im unteren Scoreboard (skaliert bei 8 Spielern automatisch herunter)
     sb_font_size = int(sh * 0.030) if total_players <= 4 else (int(sh * 0.025) if total_players <= 6 else int(sh * 0.020))
     scoreboard_font = pygame.font.SysFont("arial", sb_font_size, bold=True)
 
@@ -341,16 +340,26 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             hw_keys = [20, 19, 18, 17, 16, 15]
             if not is_hunt_mode:
+                # ANPASSUNG: Bei Juice Press wird NUR das Ziel des Aktiven Spielers auf der Hardware-Anzeige beleuchtet!
+                act_p_idx = active_player - 1
+                act_target = player_targets[act_p_idx]
+                
                 for s_idx, hw_key in enumerate(hw_keys):
-                    if s_idx < total_players:
-                        t_val = player_targets[s_idx]
-                        marks_led = min(3, int((pump_levels[s_idx] / float(max_pump)) * 3.99))
-                        display.set_cricket_marks(s_idx, hw_key, marks_led)
+                    # Wir prüfen, welcher Hardware-Key dem Ziel des aktiven Spielers entspricht
+                    if hw_key == act_target:
+                        marks_led = min(3, int((pump_levels[act_p_idx] / float(max_pump)) * 3.99))
+                        display.set_cricket_marks(act_p_idx, hw_key, marks_led)
                         if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
                             d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
-                            t_str = f"{t_val:2d}"
+                            t_str = f"{act_target:2d}"
                             display.set_disp_char(d_ten, t_str[0])
                             display.set_disp_char(d_unit, t_str[1])
+                    else:
+                        # Alle anderen Target-Displays für diesen Spieler/Segment-Slot löschen
+                        if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
+                            d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
+                            display.set_disp_char(d_ten, " ")
+                            display.set_disp_char(d_unit, " ")
             else:
                 for s_idx, hw_key in enumerate(hw_keys):
                     t_val = hunt_targets[s_idx]
@@ -716,7 +725,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (px, sb_y, p_box_w, int(sh * 0.22)), border_radius=12)
                     pygame.draw.rect(screen, prof["color"] if is_act else (70, 90, 110), (px, sb_y, p_box_w, int(sh * 0.22)), 3 if is_act else 1, border_radius=12)
 
-                    # Angepasste, dynamisch skalierte Schrift für die Spielernamen im unteren Scoreboard
                     p_name = "Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
                     pn_surf = scoreboard_font.render(p_name, True, prof["color"])
                     screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + 10))
