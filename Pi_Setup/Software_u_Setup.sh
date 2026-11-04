@@ -41,7 +41,7 @@ fi
 
 # 2. Grafische Minimal-Oberfläche, MQTT und Abhängigkeiten installieren
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
-sudo apt install git python3 python3-pygame python3-serial python3-paho-mqtt pulseaudio alsa-utils unclutter curl -y
+sudo apt install git python3 python3-pygame python3-serial python3-paho-mqtt python3-qrcode pulseaudio alsa-utils unclutter curl -y
 
 # 2.2 Unnötige Systemdienste für 1GB RAM Stabilität deaktivieren
 echo "Deaktiviere nicht benötigte Hintergrunddienste (RAM-Optimierung)..."
@@ -89,6 +89,7 @@ echo "Lade Dateien von GitHub herunter..."
 mkdir -p /home/visionpi2000/VisionPi2000
 rm -rf /tmp/VisionPiRepo
 rm -rf /tmp/paho_temp
+rm -rf /tmp/qrcode_temp
 
 git clone --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepo
 
@@ -107,6 +108,18 @@ if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/paho" ]; then
         echo "paho-mqtt erfolgreich eingebettet!"
     fi
     rm -rf /tmp/paho_temp
+fi
+
+# 3.3 qrcode direkt in das Spielverzeichnis einbetten (für Handy-Stream QR-Code in der Online-Lobby)
+if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/qrcode" ]; then
+    echo "Bette qrcode Bibliothek direkt in das Spielverzeichnis ein..."
+    mkdir -p /tmp/qrcode_temp
+    git clone --depth 1 https://github.com/lincolnloop/python-qrcode.git /tmp/qrcode_temp
+    if [ -d "/tmp/qrcode_temp/qrcode" ]; then
+        cp -r /tmp/qrcode_temp/qrcode /tmp/VisionPiRepo/VisionPi2000/qrcode
+        echo "qrcode erfolgreich eingebettet!"
+    fi
+    rm -rf /tmp/qrcode_temp
 fi
 
 cp -r /tmp/VisionPiRepo/VisionPi2000/* /home/visionpi2000/VisionPi2000/
