@@ -1,7 +1,6 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.0.3
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -40,13 +39,13 @@ const String dartBoard[4][16] = {
 };
 
 unsigned long lastHitTime = 0;        
-const int debounceDelay = 400;       // LEICHT ERHÖHT: Bessere Matrix-Entprellung
+const int debounceDelay = 400;       // Matrix-Entprellung
 unsigned long piezoHitTime = 0;
 bool piezoTriggered = false;
 const int piezoThreshold = 15; 
 const int piezoMatrixWaitTime = 100; 
 
-const int btnDebounceDelay = 250;    // LEICHT ERHÖHT: Bessere Tasten-Entprellung
+const int btnDebounceDelay = 250;    // Tasten-Entprellung
 unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPressPlayer = 0;
 bool stateRed, stateBlue, stateGrey, stateStart, statePlayer = true;
 bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
@@ -160,14 +159,12 @@ void processSerialCommand(String command) {
   else if (command == "LIGHT:OFF") {
     digitalWrite(lightRelayPin, LOW);
   }
-  // --- NEU: Leuchtmelder Kommandos ---
   else if (command.startsWith("LAMP:START:")) {
     modeLampStart = command.substring(11).toInt();
   }
   else if (command.startsWith("LAMP:PLAYER:")) {
     modeLampPlayer = command.substring(12).toInt();
   }
-  // -----------------------------------
   else if (command == "CLEAR") {
     clearAllDisplays();
   }
@@ -215,12 +212,10 @@ void setup() {
   pinMode(lightRelayPin, OUTPUT); 
   digitalWrite(lightRelayPin, LOW); 
 
-  // --- NEU: Leuchtmelder Setup ---
   pinMode(lampStartPin, OUTPUT);
   pinMode(lampPlayerPin, OUTPUT);
   digitalWrite(lampStartPin, LOW);
   digitalWrite(lampPlayerPin, LOW);
-  // -------------------------------
   
   pinMode(clkPin, OUTPUT); pinMode(loadPin, OUTPUT);
   for(int i=0; i<5; i++) { pinMode(dPins[i], OUTPUT); digitalWrite(dPins[i], LOW); }
@@ -241,7 +236,6 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // --- NEU: Leuchtmelder autonome Steuerung ---
   bool blinkState2Hz = (currentMillis / 250) % 2;
 
   if (modeLampStart == 0) digitalWrite(lampStartPin, LOW);
@@ -251,7 +245,6 @@ void loop() {
   if (modeLampPlayer == 0) digitalWrite(lampPlayerPin, LOW);
   else if (modeLampPlayer == 1) digitalWrite(lampPlayerPin, HIGH);
   else if (modeLampPlayer == 2) digitalWrite(lampPlayerPin, blinkState2Hz);
-  // --------------------------------------------
 
   while (Serial.available() > 0) {
     char c = Serial.read();
@@ -284,7 +277,8 @@ void loop() {
     }
   }
 
-  int piezoValue = analogRead(pinModeCompatWrapper(piezoPin)); // Verwendet den analogen Pin A0
+  // KORREKTUR: Direkt analogRead auf A0 ohne Wrapper
+  int piezoValue = analogRead(piezoPin); 
   if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
     if (!piezoTriggered) { 
       piezoTriggered = true; 
@@ -292,7 +286,6 @@ void loop() {
     }
   }
   
-  // SICHERHEITSFUNKTION: Wenn Piezo abläuft, aber in der Zwischenzeit exakt gleichzeitig ein Matrix-Treffer reinkam, wird MISS:1 unterdrückt
   if (piezoTriggered && (currentMillis - piezoHitTime > piezoMatrixWaitTime)) {
     if (currentMillis - lastHitTime > piezoMatrixWaitTime) {
       Serial.println("MISS:1");
