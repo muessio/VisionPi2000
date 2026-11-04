@@ -1,6 +1,6 @@
 # Datei: online_manager.py
-# Version: 1.2.3
-# P2P / MQTT Online-Engine (Zwei-Stufen-Exit für alle Spielmodule, Crash-sicher, Surface-Cache, Disziplin-Filter)
+# Version: 1.2.4
+# P2P / MQTT Online-Engine (Zwei-Stufen-Exit für alle Spielmodule, Crash-sicher, Surface-Cache, Disziplin-Filter, Handy-Videochat QR)
 
 import sys
 import os
@@ -24,7 +24,13 @@ try:
 except ImportError:
     MQTT_AVAILABLE = False
 
-VERSION = "1.2.3"
+try:
+    import qrcode
+    QR_AVAILABLE = True
+except ImportError:
+    QR_AVAILABLE = False
+
+VERSION = "1.2.4"
 
 ONLINE_PLAYER_NAMES = [
     "Bullseye-Berry",       # Slot 0 (Spieler 1 / Host)
@@ -51,8 +57,52 @@ GAME_TO_FILE = {
 
 DISCOVERY_TOPIC = "visionpi2000/v1/discovery"
 
-# Cache für Cyber-Frames (verhindert ständige Surface-Allokation im RAM)
+# Cache für Cyber-Frames und QR-Surfaces (verhindert ständige Surface-Allokation im RAM)
 _frame_cache = {}
+_qr_surface_cache = {}
+
+
+def build_qr_surface(url, target_size):
+    """Erzeugt einmalig ein Pygame-Surface mit dem QR-Code (ohne PIL/Pillow-Abhängigkeit, 0 RAM-Leak)."""
+    if not QR_AVAILABLE or not url:
+        return None
+    cache_key = (url, target_size)
+    if cache_key in _qr_surface_cache:
+        return _qr_surface_cache[cache_key]
+
+    try:
+        if len(_qr_surface_cache) > 8:
+            _qr_surface_cache.clear()
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=1,
+            border=2
+        )
+        qr.add_data(url)
+        qr.make(fit=True)
+        matrix = qr.get_matrix()
+        rows = len(matrix)
+        if rows == 0:
+            return None
+
+        surf = pygame.Surface((target_size, target_size))
+        surf.fill((255, 255, 255))
+        cell_px = max(1, target_size // rows)
+        offset = (target_size - (rows * cell_px)) // 2
+
+        for r_idx, row in enumerate(matrix):
+            for c_idx, val in enumerate(row):
+                if val:
+                    pygame.draw.rect(
+                        surf,
+                        (8, 20, 32),
+                        (offset + c_idx * cell_px, offset + r_idx * cell_px, cell_px, cell_px)
+                    )
+        _qr_surface_cache[cache_key] = surf
+        return surf
+    except Exception:
+        return None
 
 
 def find_image_file(preferred_names):
@@ -306,7 +356,7 @@ class OnlineSession:
         open_list = []
         for r_id, info in sorted(self.active_rooms.items()):
             if (now - info.get("ts", 0) < 6.0) and info.get("state") == "OPEN":
-                # FILTER: Nur Lobbys zulassen, die exakt dieselbe Disziplin (Spiel) hosten[cite: 11]
+                # FILTER: Nur Lobbys zulassen, die exakt dieselbe Disziplin (Spiel) hosten
                 if target_game_name and info.get("game_name") != target_game_name:
                     continue
                 open_list.append(r_id)
@@ -792,7 +842,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             try:
                 raw_av = pygame.image.load(f_found).convert_alpha()
                 box_h_est = int(sh * 0.78)
-                base_sz = int(box_h_est * 0.40)
+                base_sz = int(box_h_est * 0.28) if QR_AVAILABLE else int(box_h_est * 0.40)
                 # 5 Animationsstufen einmalig vorab berechnen statt 30x pro Sekunde smoothscale!
                 for offset in [-6, -3, 0, 3, 6]:
                     sz = base_sz + offset
@@ -805,6 +855,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
     sub_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
     list_font = pygame.font.SysFont("arial", int(sh * 0.022), bold=True)
     small_font = pygame.font.SysFont("arial", int(sh * 0.019), bold=True)
+    qr_font = pygame.font.SysFont("arial", int(sh * 0.016), bold=True)
 
     GOLD = (255, 205, 45)
     WHITE = (255, 255, 255)
@@ -862,7 +913,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             return "menu"
 
         elif raw_data == "BTN:BLUE" and not is_host:
-            # Nur Lobbys durchschalten, die exakt zur eigenen Spielauswahl passen[cite: 11]
+            # Nur Lobbys durchschalten, die exakt zur eigenen Spielauswahl passen
             open_lobbies = session.get_open_lobbies(target_game_name=game_name)
             if len(open_lobbies) > 1:
                 session.notify_leaving("Gast hat die Lobby gewechselt")
@@ -891,7 +942,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
 
         if session.connected:
             if not is_host:
-                # FILTER: Dem Gast nur Lobbys vorschlagen, die exakt das am Automaten eingestellte Spiel hosten[cite: 11]
+                # FILTER: Dem Gast nur Lobbys vorschlagen, die exakt das am Automaten eingestellte Spiel hosten
                 open_lobbies = session.get_open_lobbies(target_game_name=game_name)
                 if not session.room_id and open_lobbies:
                     session.join_room_topic(open_lobbies[0])
@@ -960,7 +1011,8 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
 
         slot_y = box_y + int(box_h * 0.175)
         slot_h = int(box_h * 0.085)
-        card_w = int(box_w * 0.66) if berry_avatars_precomputed else int(box_w * 0.82)
+        has_right_col = bool(berry_avatars_precomputed or QR_AVAILABLE)
+        card_w = int(box_w * 0.66) if has_right_col else int(box_w * 0.82)
         card_x = box_x + int(box_w * 0.05)
 
         for s_idx in range(8):
@@ -988,15 +1040,33 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             s_surf = list_font.render(line_str, True, txt_c)
             screen.blit(s_surf, (card_x + 16, cy + (ch - s_surf.get_height()) // 2))
 
+        right_center_x = box_x + int(box_w * 0.845)
+
         if berry_avatars_precomputed:
             idx_anim = int((math.sin(pygame.time.get_ticks() * 0.005) + 1.0) * 2.49)
             idx_anim = max(0, min(len(berry_avatars_precomputed) - 1, idx_anim))
             av_scaled = berry_avatars_precomputed[idx_anim]
-            base_sz = berry_avatars_precomputed[2].get_width()
             anim_sz = av_scaled.get_width()
-            av_x = box_x + box_w - int(box_w * 0.27) + (base_sz - anim_sz) // 2
-            av_y = box_y + int(box_h * 0.30) + (base_sz - anim_sz) // 2
+            av_x = right_center_x - anim_sz // 2
+            av_y = (box_y + int(box_h * 0.175)) if (QR_AVAILABLE and session.room_id) else (box_y + int(box_h * 0.30))
             screen.blit(av_scaled, (av_x, av_y))
+
+        # QR-Code für Handy-Videochat (Jitsi-Raum passend zur aktuellen Lobby-ID)
+        if QR_AVAILABLE and session.room_id:
+            clean_room = session.room_id.replace("-", "_")
+            stream_url = f"https://meet.jit.si/VP2000_{clean_room}"
+            qr_size = int(min(box_w * 0.20, box_h * 0.28))
+            qr_surf = build_qr_surface(stream_url, qr_size)
+            if qr_surf:
+                qr_x = right_center_x - qr_size // 2
+                qr_y = box_y + int(box_h * 0.52)
+                pygame.draw.rect(screen, (10, 22, 34), (qr_x - 8, qr_y - 24, qr_size + 16, qr_size + 46), border_radius=8)
+                pygame.draw.rect(screen, NEON_CYAN, (qr_x - 8, qr_y - 24, qr_size + 16, qr_size + 46), width=2, border_radius=8)
+                lbl_top = qr_font.render("HANDY VIDEO-CHAT", True, GOLD)
+                screen.blit(lbl_top, (right_center_x - lbl_top.get_width() // 2, qr_y - 20))
+                screen.blit(qr_surf, (qr_x, qr_y))
+                lbl_bot = qr_font.render("Scannen zum Beitreten", True, NEON_GREEN)
+                screen.blit(lbl_bot, (right_center_x - lbl_bot.get_width() // 2, qr_y + qr_size + 3))
 
         if is_host:
             hint_str = "START drücken: Online-Match starten   |   SPIELERWECHSEL: Abbrechen"
@@ -1044,3 +1114,4 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         session.disconnect()
 
     return "menu"
+ 
