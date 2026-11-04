@@ -1,5 +1,5 @@
 # Datei: visionpi.py
-# Version: 1.1.13-main
+# Version: 1.1.13-stable
 
 import pygame
 import serial
@@ -40,7 +40,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.13-main"
+VERSION = "1.1.13-stable"
 
 # Globaler RAM-schonender Asset-Cache für 0ms Spielstart auf dem Pi 4B (1GB RAM)
 GLOBAL_FONT_CACHE = {}
