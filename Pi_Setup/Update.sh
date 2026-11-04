@@ -8,6 +8,7 @@
 # WICHTIG: Vorherige Dateileichen im tmp-Ordner (RAM) löschen!
 rm -rf /tmp/VisionPiRepoUpdate
 rm -rf /tmp/paho_temp
+rm -rf /tmp/qrcode_temp
 
 echo "Lade neueste Dateien von GitHub in den RAM herunter..."
 git clone --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
@@ -31,6 +32,20 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/paho" ]; then
         echo "WARNUNG: Konnte paho-mqtt nicht von GitHub laden."
     fi
     rm -rf /tmp/paho_temp
+fi
+
+# 1.2 qrcode direkt als reines Python-Modul in den Spielordner einbetten (Trixie-sicher ohne apt/pip!)
+if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/qrcode" ]; then
+    echo "Bette qrcode Bibliothek direkt in das Spielverzeichnis ein..."
+    mkdir -p /tmp/qrcode_temp
+    git clone --depth 1 https://github.com/lincolnloop/python-qrcode.git /tmp/qrcode_temp
+    if [ -d "/tmp/qrcode_temp/qrcode" ]; then
+        cp -r /tmp/qrcode_temp/qrcode /tmp/VisionPiRepoUpdate/VisionPi2000/qrcode
+        echo "qrcode erfolgreich eingebettet!"
+    else
+        echo "WARNUNG: Konnte qrcode nicht von GitHub laden."
+    fi
+    rm -rf /tmp/qrcode_temp
 fi
 
 # 2. Sounds direkt im schnellen RAM vorab generieren
@@ -69,7 +84,7 @@ else
     OVERLAY_ACTIVE=0
 fi
 
-echo "Aktualisiere Spieldateien (inkl. eingebettetem paho-mqtt) in $TARGET_DIR..."
+echo "Aktualisiere Spieldateien (inkl. eingebettetem paho-mqtt & qrcode) in $TARGET_DIR..."
 sudo mkdir -p "$TARGET_DIR"
 sudo rm -rf "$TARGET_DIR"/*
 sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$TARGET_DIR"/
