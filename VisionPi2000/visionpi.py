@@ -1,5 +1,5 @@
 # Datei: visionpi.py
-# Version: 1.1.10-main
+# Version: 1.1.12-main
 
 import pygame
 import serial
@@ -40,7 +40,32 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.11-main"
+VERSION = "1.1.12-main"
+
+# Globaler RAM-schonender Asset-Cache für 0ms Spielstart auf dem Pi 4B (1GB RAM)
+GLOBAL_FONT_CACHE = {}
+GLOBAL_SOUND_CACHE = {}
+GLOBAL_IMAGE_CACHE = {}
+SHARED_GAME_ASSETS = {}
+
+_orig_sysfont = pygame.font.SysFont
+_orig_sound = None
+
+
+def _cached_sysfont(name, size, bold=False, italic=False):
+    key = (str(name).lower(), int(size), bool(bold), bool(italic))
+    if key not in GLOBAL_FONT_CACHE:
+        GLOBAL_FONT_CACHE[key] = _orig_sysfont(name, int(size), bold=bold, italic=italic)
+    return GLOBAL_FONT_CACHE[key]
+
+
+def _cached_sound(file_path):
+    if isinstance(file_path, str):
+        if file_path not in GLOBAL_SOUND_CACHE:
+            GLOBAL_SOUND_CACHE[file_path] = _orig_sound(file_path)
+        return GLOBAL_SOUND_CACHE[file_path]
+    return _orig_sound(file_path)
+
 
 def get_settings_path():
     if os.path.exists("/boot/firmware"): return "/boot/firmware/settings.json"
@@ -115,6 +140,89 @@ def find_image_file(preferred_names):
         pass
     return None
 
+
+def preload_all_game_assets(sw, sh, is_16_9, raw_bg_surface):
+    """Lädt und skaliert alle Spiel-Ressourcen einmalig während des Boot-Splashscreens."""
+    # 1. Gemeinsames Spiel-Hintergrundbild (mit 160 Alpha Abdunkelung) einmalig erzeugen
+    if raw_bg_surface is not None:
+        game_bg = raw_bg_surface.copy()
+        darker_overlay = pygame.Surface((sw, sh))
+        darker_overlay.set_alpha(160)
+        darker_overlay.fill((0, 0, 0))
+        game_bg.blit(darker_overlay, (0, 0))
+        SHARED_GAME_ASSETS[f"bg_{sw}_{sh}_{is_16_9}"] = game_bg
+
+    # 2. Alle Sounddateien vorab in den RAM laden
+    sound_files = [
+        "sounds/click.wav", "sounds/start.wav", "sounds/victory.wav",
+        "sounds/champ.wav", "sounds/hit_single.wav", "sounds/hit_double.wav",
+        "sounds/hit_triple.wav", "sounds/switch_player.wav",
+        "sounds/miss.wav", "sounds/bust.wav"
+    ]
+    for snd_path in sound_files:
+        if os.path.exists(snd_path):
+            try:
+                snd_obj = pygame.mixer.Sound(snd_path)
+                SHARED_GAME_ASSETS[f"snd_{snd_path}"] = snd_obj
+            except Exception:
+                SHARED_GAME_ASSETS[f"snd_{snd_path}"] = None
+
+    # 3. Screensaver-Avatare (100x100) und Bot-Animationsframes einmalig vorab skalieren
+    ss_imgs = []
+    berry_files = [
+        "Bullseye-Berry_Original.png",
+        "Bullseye-Berry_Cyber.png",
+        "Bullseye-Berry_Ninja.png",
+        "Bullseye-Berry_Champ.png"
+    ]
+    for b_file in berry_files:
+        f_found = find_image_file(b_file)
+        if f_found:
+            try:
+                raw_av = pygame.image.load(f_found).convert_alpha()
+                GLOBAL_IMAGE_CACHE[b_file] = raw_av
+                ss_imgs.append(pygame.transform.smoothscale(raw_av, (100, 100)))
+
+                # Standard-Spiel-Bot-Frames (0.28 * sh)
+                if b_file != "Bullseye-Berry_Champ.png":
+                    base_28 = int(sh * 0.28)
+                    SHARED_GAME_ASSETS[f"av28_{b_file}_{sh}"] = [
+                        pygame.transform.smoothscale(raw_av, (base_28 + off, base_28 + off))
+                        for off in [-10, -5, 0, 5, 10]
+                    ]
+                    # Fruit-Splasher-Bot-Frames (0.25 * sh)
+                    base_25 = int(sh * 0.25)
+                    SHARED_GAME_ASSETS[f"av_{b_file}_{sh}"] = [
+                        pygame.transform.smoothscale(raw_av, (base_25 + off, base_25 + off))
+                        for off in [-8, -4, 0, 4, 8]
+                    ]
+                else:
+                    SHARED_GAME_ASSETS[f"champ45_{sh}"] = pygame.transform.smoothscale(
+                        raw_av, (int(sh * 0.45), int(sh * 0.45))
+                    )
+                    SHARED_GAME_ASSETS[f"champ_{sh}"] = pygame.transform.smoothscale(
+                        raw_av, (int(sh * 0.42), int(sh * 0.42))
+                    )
+            except Exception:
+                pass
+    SHARED_GAME_ASSETS["ss_avatars"] = ss_imgs
+
+    # 4. Häufig genutzte Schriftgrößen aller Spiele vorab im Font-Cache anlegen
+    font_ratios = [0.018, 0.020, 0.021, 0.022, 0.024, 0.025, 0.026, 0.028, 0.030, 0.032, 0.033, 0.034, 0.040, 0.044, 0.045, 0.12, 0.20]
+    for r in font_ratios:
+        sz = int(sh * r)
+        pygame.font.SysFont("arial", sz, bold=True)
+        SHARED_GAME_ASSETS[f"font_{sz}"] = pygame.font.SysFont("arial", sz, bold=True)
+
+    # 5. Gemeinsamen Asset-Cache direkt in alle Spielmodule injizieren
+    for mod in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_fruit_splasher]:
+        if mod is not None:
+            if hasattr(mod, "_ASSET_CACHE") and isinstance(mod._ASSET_CACHE, dict):
+                mod._ASSET_CACHE.update(SHARED_GAME_ASSETS)
+            else:
+                setattr(mod, "_ASSET_CACHE", SHARED_GAME_ASSETS)
+
+
 class ScreenSaver:
     def __init__(self, width, height, is_16_9=False):
         self.width, self.height = width, height
@@ -129,10 +237,17 @@ class ScreenSaver:
         av_size = int(min(width, height) * 0.13)
         berry_files = ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]
         for file in berry_files:
-            f_found = find_image_file(file)
-            if f_found:
+            raw_av = GLOBAL_IMAGE_CACHE.get(file)
+            if raw_av is None:
+                f_found = find_image_file(file)
+                if f_found:
+                    try:
+                        raw_av = pygame.image.load(f_found).convert_alpha()
+                    except Exception:
+                        raw_av = None
+            if raw_av is not None:
                 try:
-                    img = pygame.transform.smoothscale(pygame.image.load(f_found).convert_alpha(), (av_size, av_size))
+                    img = pygame.transform.smoothscale(raw_av, (av_size, av_size))
                     self.avatars.append({
                         "img": img,
                         "size": av_size,
@@ -240,8 +355,14 @@ def draw_column(screen, font, title_font, x, y, w, h, color, title, items, sel_i
         y_off += (font.get_height() + 10) 
 
 def main():
+    global _orig_sound
     pygame.init(); pygame.mixer.init()
-    pygame.mouse.set_visible(False) 
+    pygame.mouse.set_visible(False)
+
+    # Globale Cache-Hooks für Schriften und Sounds aktivieren
+    _orig_sound = pygame.mixer.Sound
+    pygame.font.SysFont = _cached_sysfont
+    pygame.mixer.Sound = _cached_sound
     
     settings = load_settings()
     ensure_wifi_connection(settings) 
@@ -256,9 +377,6 @@ def main():
         print(f"Fehler beim Laden des Mappers {mapper_name}: {e}. Nutze Fallback.")
         import display_mapper_Vision_Dart
         LoewenDisplay = display_mapper_Vision_Dart.LoewenDisplay
-
-    sound_click = pygame.mixer.Sound("sounds/click.wav") if os.path.exists("sounds/click.wav") else None
-    sound_start = pygame.mixer.Sound("sounds/start.wav") if os.path.exists("sounds/start.wav") else None
         
     if is_16_9:
         TARGET_WIDTH, TARGET_HEIGHT = 1920, 1080
@@ -274,26 +392,47 @@ def main():
             web_streamer.update_stream_frame(pygame.display.get_surface())
             orig_flip()
         pygame.display.flip = hooked_flip
+
+    # Startbild SOFORT auf den Bildschirm bringen, damit das Laden dahinter unsichtbar passiert
+    splash_start = pygame.time.get_ticks()
+    start_candidates = ["Start_16_9.jpg", "start_16_9.jpg", "Start_16_9.JPG", "Start16_9.jpg"] if is_16_9 else ["Start.jpg", "start.jpg", "Start.JPG"]
+    start_file = find_image_file(start_candidates)
+    has_splash = False
+    if start_file:
+        try:
+            screen.blit(pygame.transform.scale(pygame.image.load(start_file).convert(), (TARGET_WIDTH, TARGET_HEIGHT)), (0, 0))
+            pygame.display.flip()
+            has_splash = True
+        except Exception:
+            pass
     
     ser = init_serial()
     display = LoewenDisplay(ser) 
     display.set_light(True)      
     display.clear_all()
 
-    screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT, is_16_9)
-
     bg_candidates = ["background_16_9.jpg", "background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.jpg", "background.png", "Background.png", "background.PNG"]
     bg_file = find_image_file(bg_candidates)
     bg_img = None
+    raw_scaled_bg = None
     if bg_file:
         try:
             raw_bg = pygame.image.load(bg_file).convert()
-            bg_img = pygame.transform.scale(raw_bg, (TARGET_WIDTH, TARGET_HEIGHT))
+            raw_scaled_bg = pygame.transform.scale(raw_bg, (TARGET_WIDTH, TARGET_HEIGHT))
+            bg_img = raw_scaled_bg.copy()
             darker_overlay = pygame.Surface((TARGET_WIDTH, TARGET_HEIGHT))
             darker_overlay.set_alpha(120); darker_overlay.fill((0, 0, 0))
             bg_img.blit(darker_overlay, (0, 0))
         except Exception:
             pass
+
+    # Alle Spiel-Assets (Hintergrund, Sounds, Avatare, Fonts) während des Startbilds vorladen
+    preload_all_game_assets(TARGET_WIDTH, TARGET_HEIGHT, is_16_9, raw_scaled_bg)
+
+    sound_click = pygame.mixer.Sound("sounds/click.wav") if os.path.exists("sounds/click.wav") else None
+    sound_start = pygame.mixer.Sound("sounds/start.wav") if os.path.exists("sounds/start.wav") else None
+
+    screensaver = ScreenSaver(TARGET_WIDTH, TARGET_HEIGHT, is_16_9)
 
     header_file = find_image_file(["header.png", "Header.png", "HEADER.png"])
     header_img = None
@@ -306,16 +445,11 @@ def main():
         except Exception:
             pass
 
-    start_candidates = ["Start_16_9.jpg", "start_16_9.jpg", "Start_16_9.JPG", "Start16_9.jpg"] if is_16_9 else ["Start.jpg", "start.jpg", "Start.JPG"]
-    start_file = find_image_file(start_candidates)
-    if start_file:
+    if has_splash:
         try:
-            screen.blit(pygame.transform.scale(pygame.image.load(start_file).convert(), (TARGET_WIDTH, TARGET_HEIGHT)), (0, 0))
-            pygame.display.flip()
             if ser:
                 try: ser.reset_input_buffer()
                 except Exception: pass
-            splash_start = pygame.time.get_ticks()
             waiting = True
             while waiting:
                 if pygame.time.get_ticks() - splash_start > 7000: waiting = False
@@ -629,3 +763,4 @@ def main():
     pygame.quit(); sys.exit()
 
 if __name__ == "__main__": main()
+ 
