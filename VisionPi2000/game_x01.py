@@ -1,18 +1,117 @@
+# Datei: game_x01.py
+# Version: 1.1.5
+# VisionPi2000 - X01 (301, 501, 701) - Berry-Rahmenfarben & Fast-Load Cache
+
 import pygame
 import math
 import os
 import random
 import time
-import json
 
-VERSION = "1.1.0"
+VERSION = "1.1.5"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
+PLAYER_COLORS = [
+    (255, 0, 90),     # Spieler 1 / Berry: Raspberry Pink
+    (255, 45, 45),    # Spieler 2: Strawberry Red
+    (0, 180, 255),    # Spieler 3: Blueberry Cyan
+    (220, 0, 70),     # Spieler 4: Cherry
+    (160, 50, 255),   # Spieler 5: Dewberry Purple
+    (70, 100, 255),   # Spieler 6: Huckleberry Blue
+    (235, 245, 255),  # Spieler 7: Snowberry White-Blue
+    (210, 0, 180)    # Spieler 8: Mulberry Magenta
+]
+
+if not hasattr(pygame, "_vp2000_cache"):
+    pygame._vp2000_cache = {}
+_CACHE = pygame._vp2000_cache
+
+
+def _get_sound(path):
+    key = f"snd_{path}"
+    if key not in _CACHE:
+        if os.path.exists(path):
+            try:
+                _CACHE[key] = pygame.mixer.Sound(path)
+            except Exception:
+                _CACHE[key] = None
+        else:
+            _CACHE[key] = None
+    return _CACHE[key]
+
+
+def _get_font(size):
+    key = f"font_{size}"
+    if key not in _CACHE:
+        _CACHE[key] = pygame.font.SysFont("arial", size, bold=True)
+    return _CACHE[key]
+
+
+def _get_bg(sw, sh):
+    is_16_9 = (sw / float(sh)) > 1.5
+    key = f"bg_dark160_{sw}_{sh}_{is_16_9}"
+    if key not in _CACHE:
+        candidates = ["background_16_9.jpg", "background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.jpg", "background.png", "Background.png", "background.PNG"]
+        bg_img = None
+        for bf in candidates:
+            if os.path.exists(bf):
+                try:
+                    raw_bg = pygame.image.load(bf).convert()
+                    bg_img = pygame.transform.scale(raw_bg, (sw, sh))
+                    darker_overlay = pygame.Surface((sw, sh))
+                    darker_overlay.set_alpha(160)
+                    darker_overlay.fill((0, 0, 0))
+                    bg_img.blit(darker_overlay, (0, 0))
+                    break
+                except Exception:
+                    pass
+        _CACHE[key] = bg_img
+    return _CACHE[key]
+
+
+def _get_avatar_frames(avatar_path, sh):
+    if not avatar_path:
+        return []
+    key = f"av28_{avatar_path}_{sh}"
+    if key not in _CACHE:
+        frames = []
+        if os.path.exists(avatar_path):
+            try:
+                raw_av = pygame.image.load(avatar_path).convert_alpha()
+                base_sz = int(sh * 0.28)
+                for offset in [-10, -5, 0, 5, 10]:
+                    sz = base_sz + offset
+                    frames.append(pygame.transform.smoothscale(raw_av, (sz, sz)))
+            except Exception:
+                pass
+        _CACHE[key] = frames
+    return _CACHE[key]
+
+
+def _get_champ_img(sh):
+    key = f"champ45_{sh}"
+    if key not in _CACHE:
+        if os.path.exists("Bullseye-Berry_Champ.png"):
+            try:
+                _CACHE[key] = pygame.transform.smoothscale(
+                    pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(),
+                    (int(sh * 0.45), int(sh * 0.45))
+                )
+            except Exception:
+                _CACHE[key] = None
+        else:
+            _CACHE[key] = None
+    return _CACHE[key]
+
+
 def trigger_victory(ser, display=None):
-    if os.path.exists("sounds/victory.wav"):
-        try: pygame.mixer.Sound("sounds/victory.wav").play()
-        except: pass
+    snd = _get_sound("sounds/victory.wav")
+    if snd:
+        try:
+            snd.play()
+        except Exception:
+            pass
     if ser or display:
         try:
             for _ in range(6):
@@ -29,7 +128,9 @@ def trigger_victory(ser, display=None):
                 ser.write(b"LAMP:PLAYER:2\n")
                 ser.write(b"LAMP:START:0\n")
                 ser.flush()
-        except: pass
+        except Exception:
+            pass
+
 
 def parse_hit(hit_str):
     if hit_str == "-": return 0
@@ -63,14 +164,23 @@ def get_bot_hit(score, mode, option):
         r = random.random()
         return "t20" if r < 0.70 else ("20" if r < 0.90 else "t19")
 
+
 class ScreenSaver:
     def __init__(self, width, height):
         self.width, self.height, self.active, self.last_activity = width, height, False, pygame.time.get_ticks()
-        self.avatars = []
-        for file in ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]:
-            if os.path.exists(file):
-                try: self.avatars.append({"img": pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100)), "x": random.randint(50, width-150), "y": random.randint(50, height-150), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])})
-                except: pass
+        if "ss_avatars_100" not in _CACHE:
+            imgs = []
+            for file in ["Bullseye-Berry_Original.png", "Bullseye-Berry_Cyber.png", "Bullseye-Berry_Ninja.png", "Bullseye-Berry_Champ.png"]:
+                if os.path.exists(file):
+                    try:
+                        imgs.append(pygame.transform.smoothscale(pygame.image.load(file).convert_alpha(), (100, 100)))
+                    except Exception:
+                        pass
+            _CACHE["ss_avatars_100"] = imgs
+        self.avatars = [
+            {"img": img, "x": random.randint(50, max(60, width - 150)), "y": random.randint(50, max(60, height - 150)), "vx": random.choice([-2, 2]), "vy": random.choice([-2, 2])}
+            for img in _CACHE["ss_avatars_100"]
+        ]
     def reset_timer(self):
         self.last_activity = pygame.time.get_ticks()
         if self.active: self.active = False; return True
@@ -89,63 +199,95 @@ class ScreenSaver:
         hint_surf = font.render("STANDBY – Beliebige Taste drücken zum Fortfahren", True, (120, 120, 120))
         screen.blit(hint_surf, hint_surf.get_rect(center=(self.width // 2, self.height - 40)))
 
+
+def build_turn_order(total_players, is_team_mode):
+    if not is_team_mode:
+        return list(range(1, total_players + 1))
+    num_teams = (total_players + 1) // 2
+    order = []
+    for member_slot in range(2):
+        for t in range(num_teams):
+            p = t * 2 + 1 + member_slot
+            if p <= total_players:
+                order.append(p)
+    return order
+
+
 def run_game(screen, ser, display, players, game_name, option, mode):
     is_berry_game = "Bullseye-Berry" in mode
+    is_team_mode = ("Team" in mode) and (players >= 2)
     total_players = players + 1 if is_berry_game else players
+    num_teams = (total_players + 1) // 2 if is_team_mode else total_players
+
+    turn_order = build_turn_order(total_players, is_team_mode)
+    turn_idx = 0
+    active_player = turn_order[turn_idx]
+
+    def get_team_idx(p_idx):
+        return (p_idx // 2) if is_team_mode else p_idx
+
+    def set_team_score(p_idx, val):
+        if is_team_mode:
+            t = p_idx // 2
+            for m in (t * 2, t * 2 + 1):
+                if m < total_players:
+                    player_scores[m] = val
+        else:
+            player_scores[p_idx] = val
+
+    def set_team_in_checked(p_idx, val):
+        if is_team_mode:
+            t = p_idx // 2
+            for m in (t * 2, t * 2 + 1):
+                if m < total_players:
+                    player_in_checked[m] = val
+        else:
+            player_in_checked[p_idx] = val
+
     sw, sh = screen.get_width(), screen.get_height()
     screensaver = ScreenSaver(sw, sh)
     display.clear_all()
 
-    is_16_9 = False
-    try:
-        with open("settings.json", "r") as f: is_16_9 = json.load(f).get("format", "4:3") == "16:9"
-    except: pass
-    bg_file = "background_16_9.png" if is_16_9 else "background.png"
-    bg_img = None
-    if os.path.exists(bg_file):
-        try:
-            raw_bg = pygame.image.load(bg_file).convert()
-            bg_img = pygame.transform.scale(raw_bg, (sw, sh))
-            darker_overlay = pygame.Surface((sw, sh)); darker_overlay.set_alpha(160); darker_overlay.fill((0, 0, 0))
-            bg_img.blit(darker_overlay, (0, 0))
-        except: pass
-
+    bg_img = _get_bg(sw, sh)
     avatar_path = {"Bullseye-Berry (Stufe 1)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Stufe 2)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Stufe 3)": "Bullseye-Berry_Ninja.png"}.get(mode, "")
-    avatar_img = pygame.image.load(avatar_path).convert_alpha() if avatar_path and os.path.exists(avatar_path) else None
-    champ_img = pygame.transform.smoothscale(pygame.image.load("Bullseye-Berry_Champ.png").convert_alpha(), (int(sh*0.45), int(sh*0.45))) if os.path.exists("Bullseye-Berry_Champ.png") else None
+    avatar_frames = _get_avatar_frames(avatar_path, sh)
+    champ_img = _get_champ_img(sh)
 
-    sound_champ = pygame.mixer.Sound("sounds/champ.wav") if os.path.exists("sounds/champ.wav") else None
-    sound_single = pygame.mixer.Sound("sounds/hit_single.wav") if os.path.exists("sounds/hit_single.wav") else None
-    sound_double = pygame.mixer.Sound("sounds/hit_double.wav") if os.path.exists("sounds/hit_double.wav") else None
-    sound_triple = pygame.mixer.Sound("sounds/hit_triple.wav") if os.path.exists("sounds/hit_triple.wav") else None
-    sound_switch = pygame.mixer.Sound("sounds/switch_player.wav") if os.path.exists("sounds/switch_player.wav") else None
-    sound_bust = pygame.mixer.Sound("sounds/bust.wav") if os.path.exists("sounds/bust.wav") else None
-    sound_miss = pygame.mixer.Sound("sounds/miss.wav") if os.path.exists("sounds/miss.wav") else None
+    sound_champ = _get_sound("sounds/champ.wav")
+    sound_single = _get_sound("sounds/hit_single.wav")
+    sound_double = _get_sound("sounds/hit_double.wav")
+    sound_triple = _get_sound("sounds/hit_triple.wav")
+    sound_switch = _get_sound("sounds/switch_player.wav")
+    sound_bust = _get_sound("sounds/bust.wav")
+    sound_miss = _get_sound("sounds/miss.wav")
 
-    title_font = pygame.font.SysFont("arial", int(sh * 0.035), bold=True)
-    big_font = pygame.font.SysFont("arial", int(sh * 0.05), bold=True)
+    title_font = _get_font(int(sh * 0.032))
+    big_font = _get_font(int(sh * 0.045))
     
-    win_font_size = int(sh * 0.13) if sh <= 768 else int(sh * 0.23)
-    win_font = pygame.font.SysFont("arial", win_font_size, bold=True)
-    giant_font = pygame.font.SysFont("arial", int(sh * 0.23), bold=True)
+    sb_font_size = int(sh * 0.026) if total_players <= 4 else (int(sh * 0.022) if total_players <= 6 else int(sh * 0.018))
+    scoreboard_font = _get_font(sb_font_size)
+
+    win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.20)
+    win_font = _get_font(win_font_size)
+    giant_font = _get_font(int(sh * 0.20))
     
     HIGHLIGHT, WHITE, RED_COL = (255, 215, 0), (255, 255, 255), (180, 30, 30)
 
     try: start_score = int(game_name)
-    except: start_score = 501
+    except Exception: start_score = 501
     player_scores = [start_score] * total_players
     has_double_in = option in ["Double In", "Double In/Out", "Double In / Master Out"]
     has_double_out = option in ["Double Out", "Double In/Out"]
     has_master_out = option in ["Master Out", "Double In / Master Out"]
     player_in_checked = [not has_double_in for _ in range(total_players)]
     
-    darts_thrown, active_player, round_num, round_points = 0, 1, 1, 0
+    darts_thrown, round_num, round_points = 0, 1, 0
     round_start_score, round_start_in_checked = start_score, player_in_checked[0]
     switch_delay_timer = 0
 
     if ser:
         try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
-        except: pass
+        except Exception: pass
 
     def sync_hw_display():
         display.clear_buffer()
@@ -166,7 +308,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         is_berrys_turn = (is_berry_game and active_player == total_players)
 
         for event in pygame.event.get():
-            if event.type in [pygame.KEYDOWN, pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN]:
+            if event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]:
                 if screensaver.reset_timer(): raw_data = None; continue
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
@@ -207,7 +349,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks(); raw_data = None
             elif raw_data == "IR:DETECT":
-                if darts_thrown >= 3 and not is_berrys_turn and switch_delay_timer == 0: switch_delay_timer = pygame.time.get_ticks() + 1000
+                if darts_thrown >= 3 and not is_berrys_turn: switch_delay_timer = pygame.time.get_ticks() + 2000
                 raw_data = None
             
             if is_berrys_turn and darts_thrown >= 3 and switch_delay_timer == 0:
@@ -216,14 +358,16 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
-                if active_player == total_players: round_num += 1
-                active_player = (active_player % total_players) + 1
+                turn_idx = (turn_idx + 1) % len(turn_order)
+                if turn_idx == 0:
+                    round_num += 1
+                active_player = turn_order[turn_idx]
                 round_start_score = player_scores[active_player - 1]
                 round_start_in_checked = player_in_checked[active_player - 1]
                 if sound_switch: sound_switch.play()
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.flush()
-                    except: pass
+                    except Exception: pass
                 sync_hw_display(); bot_timer = 0; is_berrys_turn = (is_berry_game and active_player == total_players)
 
             if is_berrys_turn and switch_delay_timer == 0 and darts_thrown < 3:
@@ -255,7 +399,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 bust = False
                 if not player_in_checked[p_idx] and hit_segment != "MISS":
                     if hit_segment == "WIN_CHEAT" or is_double: 
-                        player_in_checked[p_idx] = True
+                        set_team_in_checked(p_idx, True)
                     else: 
                         points = 0  
 
@@ -272,20 +416,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     darts_thrown += 1
                     if darts_thrown == 3 and ser:
                         try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                        except: pass
+                        except Exception: pass
                     sync_hw_display()
                 elif bust: 
                     if sound_bust: sound_bust.play()
-                    player_scores[p_idx] = round_start_score
-                    player_in_checked[p_idx] = round_start_in_checked
+                    set_team_score(p_idx, round_start_score)
+                    set_team_in_checked(p_idx, round_start_in_checked)
                     round_points = 0
                     darts_thrown = 3 
                     if ser:
                         try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                        except: pass
+                        except Exception: pass
                     sync_hw_display()
                 else:
-                    player_scores[p_idx] = new_score
+                    set_team_score(p_idx, new_score)
                     round_points += points
                     darts_thrown += 1
                     
@@ -301,7 +445,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
                     if darts_thrown == 3 and ser and new_score > 0:
                         try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                        except: pass
+                        except Exception: pass
                     
                     sync_hw_display()
 
@@ -311,25 +455,27 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         display.clear_all()
                         sync_hw_display()
 
-            elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
-                if raw_data == "BTN:PLAYER":
-                    if sound_switch: sound_switch.play()
-                    display.clear_all()
-                    return "menu"
-                elif raw_data == "BTN:START":
-                    if sound_switch: sound_switch.play()
-                    player_scores = [start_score] * total_players
-                    player_in_checked = [not has_double_in for _ in range(total_players)]
-                    darts_thrown, active_player, round_num, round_points = 0, 1, 1, 0
-                    round_start_score, round_start_in_checked = start_score, player_in_checked[0]
-                    switch_delay_timer = 0
-                    current_state = "GAME"
-                    if ser:
-                        try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
-                        except: pass
-                    display.clear_all()
-                    sync_hw_display()
-                    raw_data = None
+        elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
+            if raw_data == "BTN:PLAYER":
+                if sound_switch: sound_switch.play()
+                display.clear_all()
+                return "menu"
+            elif raw_data == "BTN:START":
+                if sound_switch: sound_switch.play()
+                player_scores = [start_score] * total_players
+                player_in_checked = [not has_double_in for _ in range(total_players)]
+                turn_idx = 0
+                active_player = turn_order[turn_idx]
+                darts_thrown, round_num, round_points = 0, 1, 0
+                round_start_score, round_start_in_checked = start_score, player_in_checked[0]
+                switch_delay_timer = 0
+                current_state = "GAME"
+                if ser:
+                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
+                    except Exception: pass
+                display.clear_all()
+                sync_hw_display()
+                raw_data = None
 
         if screensaver.check():
             screensaver.update_and_draw(screen, title_font); pygame.display.flip(); clock.tick(30); continue
@@ -338,38 +484,91 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         if current_state in ["GAME", "ABORT_MENU", "WIN"]:
-            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}  |  Runde {round_num}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.08)))
-            name_surf = big_font.render(mode if is_berrys_turn else f"Spieler {active_player}", True, RED_COL if is_berrys_turn else WHITE)
-            screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.14)))
-            temp_score_surf = title_font.render(f"(Temp Score: {round_points})", True, (200, 200, 200))
-            screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.20)))
+            mode_tag = "  |  Team-Modus" if is_team_mode else ""
+            screen.blit(title_font.render(f"SPIEL: {game_name}  |  {option}{mode_tag}  |  Runde {round_num}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.04)))
+            
+            act_col = PLAYER_COLORS[0] if is_berrys_turn else (PLAYER_COLORS[get_team_idx(active_player - 1) % len(PLAYER_COLORS)] if is_team_mode else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)])
+            if is_berrys_turn:
+                active_label = mode
+            elif is_team_mode:
+                active_label = f"Spieler {active_player} (Team {get_team_idx(active_player - 1) + 1})"
+            else:
+                active_label = f"Spieler {active_player}"
+                
+            name_surf = big_font.render(active_label, True, act_col)
+            screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh*0.09)))
+            
+            temp_score_surf = title_font.render(f"Runden-Punkte: {round_points}", True, (200, 200, 200))
+            screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh*0.14)))
+            
             score_surf = giant_font.render(str(player_scores[active_player-1]), True, WHITE)
-            screen.blit(score_surf, ((sw - score_surf.get_width()) // 2, int(sh*0.27)))
+            screen.blit(score_surf, ((sw - score_surf.get_width()) // 2, int(sh*0.19)))
             
             if has_double_in and not player_in_checked[active_player-1] and current_state == "GAME":
                 in_hint = title_font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
-                screen.blit(in_hint, ((sw - in_hint.get_width()) // 2, int(sh*0.56)))
+                screen.blit(in_hint, ((sw - in_hint.get_width()) // 2, int(sh*0.48)))
 
             if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
-                block_hint = title_font.render("Bitte Pfeile ziehen und Spielerwechsel drücken!", True, RED_COL)
-                screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.70)))
+                block_hint = title_font.render("Bitte Pfeile ziehen -> IR-Sensor oder Spielerwechsel drücken!", True, RED_COL)
+                screen.blit(block_hint, ((sw - block_hint.get_width())//2, int(sh*0.56)))
 
-            darts_surf = big_font.render(f"Pfeile geworfen: {darts_thrown} / 3", True, (150, 150, 150))
-            screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.78)))
+            darts_surf = title_font.render(f"Pfeile: {darts_thrown} / 3", True, (180, 180, 180))
+            screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.62)))
 
-            y_base = int(sh * 0.86)
-            for i in range(total_players):
-                p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"P{i+1}"
-                surf = title_font.render(f"{p_n}: {player_scores[i]}", True, HIGHLIGHT if i == (active_player - 1) else WHITE)
-                row, col = i % 2, i // 2
-                screen.blit(surf, ((col + 1) * (sw // ((total_players + 1) // 2 + 1 if row == 0 else total_players // 2 + 1)) - surf.get_width() // 2, y_base + (row * int(sh*0.05))))
+            # --- UNTERES SPIELER- & TEAM-SCOREBOARD (Berry-Rahmenfarben aus Fruit Splasher) ---
+            sb_y = int(sh * 0.68)
+            box_h = int(sh * 0.28)
+            
+            if is_team_mode:
+                p_box_w = int(sw * 0.88 / num_teams) - 10
+                sb_x = (sw - (num_teams * (p_box_w + 10) - 10)) // 2
+                active_team = get_team_idx(active_player - 1)
+                
+                for t in range(num_teams):
+                    px = sb_x + t * (p_box_w + 10)
+                    is_act = (t == active_team)
+                    p1 = t * 2 + 1
+                    p2 = t * 2 + 2
+                    members_str = f"P{p1}/P{p2}" if p2 <= total_players else f"P{p1}"
+                    p_col = PLAYER_COLORS[t % len(PLAYER_COLORS)]
+                    
+                    pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (px, sb_y, p_box_w, box_h), border_radius=12)
+                    pygame.draw.rect(screen, p_col, (px, sb_y, p_box_w, box_h), 4 if is_act else 2, border_radius=12)
 
-            if is_berrys_turn and avatar_img:
-                anim_size = int((sh*0.28) + math.sin(pygame.time.get_ticks() * 0.005) * 15) 
-                screen.blit(pygame.transform.smoothscale(avatar_img, (anim_size, anim_size)), (int(sw*0.78), int(sh*0.65)))
+                    t_name = f"Team {t+1} ({members_str})"
+                    pn_surf = scoreboard_font.render(t_name, True, p_col)
+                    screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + 10))
+
+                    t_score = player_scores[t * 2]
+                    sc_surf = big_font.render(str(t_score), True, HIGHLIGHT if is_act else WHITE)
+                    screen.blit(sc_surf, (px + (p_box_w - sc_surf.get_width()) // 2, sb_y + int(box_h * 0.40)))
+            else:
+                p_box_w = int(sw * 0.88 / total_players) - 10
+                sb_x = (sw - (total_players * (p_box_w + 10) - 10)) // 2
+                
+                for i in range(total_players):
+                    px = sb_x + i * (p_box_w + 10)
+                    is_act = (i == (active_player - 1))
+                    p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i+1}"
+                    p_col = PLAYER_COLORS[0] if (is_berry_game and i == total_players - 1) else PLAYER_COLORS[i % len(PLAYER_COLORS)]
+                    
+                    pygame.draw.rect(screen, (28, 52, 76) if is_act else (14, 24, 36), (px, sb_y, p_box_w, box_h), border_radius=12)
+                    pygame.draw.rect(screen, p_col, (px, sb_y, p_box_w, box_h), 4 if is_act else 2, border_radius=12)
+
+                    pn_surf = scoreboard_font.render(p_n, True, p_col)
+                    screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + 10))
+
+                    sc_surf = big_font.render(str(player_scores[i]), True, HIGHLIGHT if is_act else WHITE)
+                    screen.blit(sc_surf, (px + (p_box_w - sc_surf.get_width()) // 2, sb_y + int(box_h * 0.40)))
+
+            if is_berrys_turn and avatar_frames:
+                idx_anim = int((math.sin(pygame.time.get_ticks() * 0.005) + 1.0) * 2.49)
+                idx_anim = max(0, min(len(avatar_frames) - 1, idx_anim))
+                av_scaled = avatar_frames[idx_anim]
+                screen.blit(av_scaled, (int(sw*0.78), int(sh*0.38)))
             if pygame.time.get_ticks() < champ_display_until and champ_img:
                 screen.blit(champ_img, ((sw - champ_img.get_width()) // 2, (sh - champ_img.get_height()) // 2))
-                screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((sw - 200) // 2, int(sh*0.75)))
+                screen.blit(giant_font.render("BOOM!", True, HIGHLIGHT), ((sw - 200) // 2, int(sh*0.45)))
                 
             if current_state == "ABORT_MENU":
                 overlay = pygame.Surface((sw, sh))
@@ -397,8 +596,18 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 txt_head = win_font.render("GEWONNEN!", True, (50, 255, 50))
                 screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
                 
-                winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
-                txt_winner = big_font.render(f"{winner_name} beendet!", True, WHITE)
+                if is_berrys_turn:
+                    winner_name = mode
+                elif is_team_mode:
+                    win_t = get_team_idx(active_player - 1)
+                    p1 = win_t * 2 + 1
+                    p2 = win_t * 2 + 2
+                    m_str = f"Spieler {p1} & {p2}" if p2 <= total_players else f"Spieler {p1}"
+                    winner_name = f"Team {win_t + 1} ({m_str})"
+                else:
+                    winner_name = f"Spieler {active_player}"
+                    
+                txt_winner = big_font.render(f"{winner_name} beendet!", True, act_col)
                 screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
                 
                 txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
@@ -408,3 +617,4 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.46)))
                 
         pygame.display.flip(); clock.tick(30)
+ 
