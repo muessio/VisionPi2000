@@ -1,13 +1,13 @@
 # Datei: game_spieleanleitung.py
-# Version: 1.2.2
-# Spieleanleitung im VisionPi2000 Cyber-Circuit-Design (4:3 & 16:9 Support)
+# Version: 1.2.3
+# Spieleanleitung im VisionPi2000 Cyber-Circuit-Design (Detaillierte Profi-Edition, 4:3 & 16:9)
 
 import pygame
 import os
 import random
 import json
 
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 GAMES = ["Spieleanleitung"]
 OPTIONS = [
     "301 / 501 / 701 (X01)", 
@@ -16,77 +16,99 @@ OPTIONS = [
     "Around the Clock", 
     "Shanghai",
     "Elimination",
-    "Fruit Splasher"
+    "Fruit Splasher",
+    "Bedienung, Modi & Bot"
 ]
 
 EXPLANATIONS = {
     "301 / 501 / 701 (X01)": [
-        "Das Standard-Dartspiel. Ziel: Exakt 0 Punkte von 301/501/701 abziehen.",
-        "Optionen für den Ein- und Auswurf:",
-        "• Open In/Out: Beliebiger Treffer zum Start und Ende (auch Single).",
-        "• Double In: Das Spiel beginnt erst mit einem Treffer im Doppelring/Bull.",
-        "• Double Out: Das Spiel muss mit einem Doppel- oder Bullseye-Treffer beendet werden.",
-        "• Master Out: Beenden mit Double, Triple oder Bullseye möglich.",
-        "• Team-Modus: 2er-Teams spielen mit gemeinsamem Punktestand.",
-        "  Die Spieler werfen abwechselnd (z.B. P1 -> P3 -> P2 -> P4).",
-        "• Überwerfen (Bust): Wirfst du mehr Punkte als Rest oder bleibst auf 1,",
-        "  zählt die Runde nicht und der Punktestand wird zurückgesetzt."
+        "ZIEL: Von 301, 501 oder 701 Punkten rückwärts exakt auf 0 Punkte werfen (3 Pfeile pro Aufnahme).",
+        "• Open In / Open Out: Spielbeginn und Checkout über jedes beliebige Feld (Single, Double, Triple, Bull).",
+        "• Double In: Punkte zählen erst, sobald der erste Pfeil ein Doppelfeld oder das rote Bullseye (50) trifft.",
+        "• Double Out: Zum Sieg muss der letzte Pfeil exakt mit einem Doppelfeld oder dem roten Bullseye (50) auf 0",
+        "  checken. Bei Master Out ist das Beenden über Double, Triple oder Bullseye erlaubt.",
+        "• Überwerfen (Bust): Wirft man mehr Punkte als nötig, fällt bei Double/Master Out auf 1 Punkt Rest oder",
+        "  erreicht 0 ohne gültiges Checkout-Feld, verfällt die Aufnahme und der Rundenstart-Score wird wiederhergestellt.",
+        "• Team-Modus (4 / 6 / 8 Spieler): Je 2 Spieler bilden ein Team mit gemeinsamem Punktestand und",
+        "  werfen im Wechsel (z. B. bei 4 Spielern: Team 1 [P1] -> Team 2 [P2] -> Team 1 [P3] -> Team 2 [P4])."
     ],
     "Cricket": [
-        "Ein Taktikspiel. Gespielt wird standardmäßig auf die Zahlen",
-        "15 bis 20 sowie das Bullseye (jeweils 3 Treffer zum Öffnen/Schließen).",
-        "• Standard: Punkte zählen für dich, solange Gegner die Zahl noch offen haben.",
-        "• Cut Throat: Strafpunkte! Treffer auf deine bereits geöffneten Zahlen",
-        "  werden allen Gegnern aufaddiert, die diese Zahl noch nicht zu haben.",
-        "• You Pick It: Vor Spielbeginn werden die 6 Zielfelder (1–20) durch",
-        "  Drücken/Abwerfen an der Scheibe frei festgelegt, danach startet Runde 1.",
-        "• Crazy (Zufall): Die 6 Zielfelder werden zu Beginn per Zufall bestimmt.",
-        "Wer alle 7 Felder geschlossen und die beste Punktzahl hat, gewinnt."
+        "ZIEL: Alle 7 Zielfelder durch je 3 Treffer schließen ('öffnen') und die beste Punktzahl erzielen.",
+        "• Trefferwertung: Single = 1 Mark (/), Double = 2 Marks (X), Triple = 3 Marks (Kreis = geschlossen).",
+        "  Auf das Bullseye zählt der äußere Ring (25) als 1 Mark und das innere Bull (50) als 2 Marks.",
+        "• Standard (15–20 & Bull): Sobald du ein Feld mit 3 Marks geöffnet hast, bringt dir jeder weitere Treffer",
+        "  auf dieses Feld die entsprechende Punktzahl – bis alle Mitspieler das Feld ebenfalls geschlossen haben.",
+        "• Cut Throat (Strafpunkte): Treffer auf eigene geöffnete Felder werden allen Gegnern als Strafpunkte",
+        "  aufaddiert, die dieses Feld noch nicht geschlossen haben! Hier gewinnt am Ende der niedrigste Score.",
+        "• You Pick It: Vor Runde 1 werden die 6 Zahlen (1–20) durch Drücken/Abwerfen an der Scheibe frei gewählt.",
+        "• Crazy (Zufall): Die 6 Zielfelder (plus Bullseye) werden beim Spielstart automatisch zufällig ausgelost."
     ],
     "Split Score": [
-        "Ein Disziplin-Test über 9 Runden (15, 16, Double, 17, 18,",
-        "Triple, 19, 20, Bull). Man startet mit 40 Punkten.",
-        "• Trifft man das Vorgabeziel der aktuellen Runde mindestens einmal,",
-        "  werden die geworfenen Punkte zum Punktestand addiert.",
-        "• Verfehlt man das Rundenziel mit allen 3 Pfeilen komplett,",
-        "  halbiert sich der aktuelle Gesamtpunktestand!",
-        "Wer nach Runde 9 die meisten Punkte hat, gewinnt."
+        "ZIEL: Über 9 fest vorgegebene Runden so viele Punkte wie möglich sammeln (Startkapital: 40 Punkte).",
+        "• Rundenablauf (9 Runden): Runde 1 = Zahl 15  |  Runde 2 = Zahl 16  |  Runde 3 = Jedes Double",
+        "  Runde 4 = Zahl 17  |  Runde 5 = Zahl 18  |  Runde 6 = Jedes Triple  |  Runde 7 = Zahl 19",
+        "  Runde 8 = Zahl 20  |  Runde 9 = Bullseye (Single Bull = 25 Punkte, Double Bull = 50 Punkte).",
+        "• Punkte-Addition: Trifft mindestens 1 Pfeil deiner Aufnahme (3 Pfeile) die geforderte Rundenvorgabe,",
+        "  werden alle gültigen Treffer dieser Runde voll auf deinen Gesamtpunktestand addiert.",
+        "• In den Runden 'Double' und 'Triple' zählt jedes beliebige Doppel- bzw. Dreifachfeld auf der Scheibe.",
+        "• HALBIERUNG (Split): Verfehlst du mit allen 3 Pfeilen das Vorgabeziel der aktuellen Runde komplett,",
+        "  wird dein gesamter bisheriger Punktestand gnadenlos halbiert (abgerundet)!"
     ],
     "Around the Clock": [
-        "Der Klassiker für Einsteiger und Präzisionstraining. Die Zahlen",
-        "müssen nacheinander von 1 bis 20 in der korrekten Reihenfolge",
-        "getroffen werden.",
-        "• Standard: Jeder Treffer im Zielsegment (Single, Double, Triple) zählt.",
-        "• Double Only: Es zählen ausschließlich Treffer im Doppelring der Zielzahl!",
-        "Wer als Erster die 20 trifft, gewinnt das Spiel."
+        "ZIEL: Alle Zahlen von 1 bis 20 nacheinander in exakt aufsteigender Reihenfolge treffen.",
+        "• Spielablauf: Jeder Spieler startet auf dem Ziel '1'. Sobald die aktuelle Zielzahl getroffen wird,",
+        "  schaltet das persönliche Ziel noch während derselben Aufnahme sofort auf die nächste Zahl weiter",
+        "  (z. B. Pfeil 1 trifft die 1 -> Pfeil 2 zielt direkt auf die 2 -> Pfeil 3 auf die 3).",
+        "• Das Hardware-Display sowie der Bildschirm zeigen stets die aktuell benötigte Zielzahl des Spielers an.",
+        "• Variante 'Standard': Jeder Treffer im richtigen Zahlensegment (Single, Double oder Triple) zählt.",
+        "• Variante 'Double Only': Für Profis! Eine Zahl gilt nur dann als getroffen, wenn exakt das Doppelfeld",
+        "  (äußerer Ring) der jeweiligen Zielzahl getroffen wird.",
+        "• Siegbedingung: Wer als Erster nach der 19 auch die 20 erfolgreich trifft, gewinnt sofort."
     ],
     "Shanghai": [
-        "Ein schnelles 7-Runden-Spiel auf die Zahlen 1 bis 7.",
-        "• In jeder Runde zählt ausschließlich die aktuelle Rundenzahl",
-        "  (Runde 1 = Einsen, Runde 2 = Zweien ... bis Runde 7 = Siebenen).",
-        "• SHANGHAI-SIEG: Wer innerhalb einer Aufnahme (3 Pfeile) je einmal",
-        "  Single, Double und Triple der aktuellen Zielzahl trifft, gewinnt sofort!",
-        "• Ansonsten gewinnt nach 7 Runden der Spieler mit den meisten Punkten."
+        "ZIEL: Über 7 Runden auf die Zahlen 1 bis 7 die meisten Punkte sammeln oder einen 'Shanghai' werfen.",
+        "• Runden-Vorgabe: Die Rundennummer bestimmt das einzige gültige Zielfeld! In Runde 1 zählt nur die 1,",
+        "  in Runde 2 nur die 2, in Runde 3 nur die 3 ... bis zur 7. Runde, in der ausschließlich die 7 zählt.",
+        "• Punktwertung: Treffer außerhalb der aktuellen Rundenzahl bringen 0 Punkte. Gültige Treffer zählen",
+        "  ihren regulären Wert (Rundenzahl × 1 für Single, × 2 für Double, × 3 für Triple).",
+        "• SOFORTSIEG ('SHANGHAI'): Gelingt es einem Spieler innerhalb einer einzigen Aufnahme (mit seinen",
+        "  3 Pfeilen), jeweils genau 1× Single, 1× Double und 1× Triple der aktuellen Rundenzahl zu treffen",
+        "  (Reihenfolge egal), endet das Match auf der Stelle und dieser Spieler gewinnt durch Shanghai!",
+        "• Reguläres Spielende: Fällt kein Shanghai, gewinnt nach Ende von Runde 7 der höchste Punktestand."
     ],
     "Elimination": [
-        "Jeder Spieler startet bei 0 Punkten. Ziel ist es, exakt 301 Punkte",
-        "(bzw. die gewählte Zielpunktzahl) zu erreichen.",
-        "• Alle geworfenen Punkte werden zum eigenen Stand addiert.",
-        "• ELIMINATION: Erreicht ein Spieler nach seinem Wurf exakt denselben",
-        "  Punktestand wie ein oder mehrere Mitspieler, werden diese Gegner",
-        "  gnadenlos auf 0 Punkte zurückgesetzt!",
-        "• Überwirft man das Ziel (über 301), verfällt die aktuelle Aufnahme."
+        "ZIEL: Von 0 Punkten aufwärts exakt die Zielpunktzahl (Standard: 301 Punkte) erreichen.",
+        "• Punkteaufbau: Jeder geworfene Pfeil (Single, Double, Triple, Bull) wird direkt zum eigenen",
+        "  Punktestand addiert. Die Varianten erlauben auch schnelles Spiel bis 501 oder Double Out.",
+        "• ELIMINIERUNG (Rauswurf): Landet dein Punktestand nach einem Pfeilwurf exakt auf derselben",
+        "  Punktzahl, auf der sich gerade ein oder mehrere Mitspieler befinden, werden diese Gegner",
+        "  sofort 'eliminiert' und fallen gnadenlos auf 0 Punkte zurück!",
+        "• Überwerfen (Bust): Überschreitest du mit einem Wurf das Spielziel (z. B. mehr als 301 Punkte),",
+        "  ist die gesamte Aufnahme ungültig und dein Punktestand wird auf den Wert vor der Runde zurückgesetzt.",
+        "• Siegbedingung: Wer zuerst mit einem gültigen Pfeil exakt die 301 erreicht, gewinnt das Spiel."
     ],
     "Fruit Splasher": [
-        "Das rasante VisionPi2000 Action-Spiel in zwei Spielvarianten:",
-        "• Juice Press (3 oder 5 Beeren): Jeder Spieler erhält eine eigene Zielzahl.",
-        "  Treffer auf die eigene Zahl oder Bullseye pumpen die Frucht auf (Single +1,",
-        "  Double +2, Triple +3). Bei 7/7 Juice platzt die Beere ('SPLASH! +1') und",
-        "  eine neue Zahl wird vergeben. Im 'Battle'-Modus klaut Bullseye zudem",
-        "  Juice-Punkte vom führenden Gegner!",
-        "• Berry Hunt (10 / 15 Runden): 6 Früchte mit wechselnden Zahlen plus die",
-        "  Golden-Berry (Bullseye = 50/100 Pkt.) liegen offen aus. Jede getroffene",
-        "  Frucht bringt sofort Punkte (Zahl × Multiplikator) und wechselt das Feld."
+        "ZIEL: Das exklusive VisionPi2000 Action-Game – wahlweise als 'Juice Press' oder 'Berry Hunt'!",
+        "• Juice Press (3 / 5 Beeren): Jeder Spieler bekommt eine eigene Zielzahl (1–20). Treffer auf die eigene",
+        "  Zahl oder das Bullseye pumpen deine Frucht auf (Single = +1, Double/Bull = +2, Triple/D-Bull = +3 Juice).",
+        "  Bei 7/7 Juice platzt die Beere ('SPLASH! +1'), du erhältst 1 Punkt und eine neue Zufallszahl.",
+        "• Juice Press (Battle - Bull klaut): Wie Standard, aber jeder Treffer auf das Bullseye pumpt nicht nur",
+        "  die eigene Beere auf, sondern stiehlt dem aktuell führenden Mitspieler zusätzlich 1 bis 2 Juice-Stufen!",
+        "• Berry Hunt (10 / 15 Runden): 6 Früchte mit Zahlen (1–20) sowie die Golden-Berry (Bullseye) liegen offen",
+        "  aus (auch auf den 6 Cricket-Displays sichtbar). Jeder Treffer zerquetscht die Frucht für Direktpunkte",
+        "  (Zahl × Multiplikator; Bull = 50 / 100 Pkt.) und spawnt sofort eine neue Frucht auf einer freien Zahl."
+    ],
+    "Bedienung, Modi & Bot": [
+        "STEUERUNG AM AUTOMATEN, SONDERFUNKTIONEN & SPIELMODI:",
+        "• Menü-Auswahl: Taste ROT = Spiel wählen  |  Taste BLAU = Spiel-Option  |  Taste GRAU = Modus wählen",
+        "  Taste SPIELERWECHSEL = Spieleranzahl (1–8)  |  Taste START = Ausgewähltes Spiel starten.",
+        "• Spielerwechsel im Spiel: Nach 3 geworfenen Pfeilen blinkt die Spielerwechsel-Taste. Ziehe die Pfeile",
+        "  aus der Scheibe: Der Infrarot-Sensor (IR) erkennt dich und schaltet nach kurzer Verzögerung automatisch",
+        "  auf den nächsten Spieler weiter. Alternativ schaltet die Taste SPIELERWECHSEL jederzeit sofort weiter.",
+        "• Spiel abbrechen / System-Info: Halte alle 3 Auswahltasten (ROT + BLAU + GRAU) gleichzeitig gedrückt,",
+        "  um im Spiel das Abbruch-Menü zu öffnen (oder im Hauptmenü die System- & Versionsübersicht anzuzeigen).",
+        "• Bullseye-Berry (Bot Stufe 1–3) & Online: Spiele allein oder mit bis zu 7 Freunden gegen den animierten",
+        "  Computergegner (Stufe 1 = Einsteiger, 2 = Fortgeschritten, 3 = Profi) oder über WLAN im Online-Modus!"
     ]
 }
 
@@ -274,8 +296,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     role_font = pygame.font.SysFont("arial", int(sh * 0.028), bold=True)
     sub_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
-    text_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
-    hint_font = pygame.font.SysFont("arial", int(sh * 0.021), bold=True)
+    text_font = pygame.font.SysFont("arial", int(sh * 0.0185), bold=True)
+    hint_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
     
     GOLD = (255, 205, 45)
     WHITE = (255, 255, 255)
@@ -345,30 +367,38 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         # Cyber-Shell als Rahmen und Hintergrund zeichnen
         box_x, box_y, box_w, box_h = render_cyber_shell(
-            screen, bg_img, header_img, role_font, "SPIELEANLEITUNG & REGELN"
+            screen, bg_img, header_img, role_font, "SPIELEANLEITUNG & REGELWERK"
         )
 
-        # Ausgewähltes Spiel als Untertitel in der Box (inkl. Seitenanzeige)
-        page_str = f"Ausgewähltes Spiel ({current_opt_idx + 1}/{len(OPTIONS)}): {option}"
+        # Ausgewähltes Thema als Untertitel in der Box (inkl. Seitenanzeige)
+        page_str = f"Thema ({current_opt_idx + 1}/{len(OPTIONS)}): {option}"
         opt_surf = sub_font.render(page_str, True, NEON_GREEN)
-        screen.blit(opt_surf, ((sw - opt_surf.get_width()) // 2, box_y + int(box_h * 0.155)))
+        screen.blit(opt_surf, ((sw - opt_surf.get_width()) // 2, box_y + int(box_h * 0.145)))
 
         # Trennlinie unter dem Titel
-        pygame.draw.line(screen, (40, 75, 95), (box_x + 40, box_y + int(box_h * 0.22)), (box_x + box_w - 40, box_y + int(box_h * 0.22)), 2)
+        pygame.draw.line(screen, (40, 75, 95), (box_x + 35, box_y + int(box_h * 0.205)), (box_x + box_w - 35, box_y + int(box_h * 0.205)), 2)
 
-        # Regeltextzeilen innerhalb der Cyber-Box ausgeben
+        # Regeltextzeilen dynamisch innerhalb der Cyber-Box verteilen
         lines = EXPLANATIONS.get(option, ["Keine Beschreibung verfügbar."])
-        y_text = box_y + int(box_h * 0.26)
-        line_step = int(box_h * 0.058)
-        for line in lines:
-            col = NEON_CYAN if line.strip().startswith("•") else WHITE
+        y_text = box_y + int(box_h * 0.235)
+        avail_text_h = int(box_h * 0.65)
+        line_step = min(int(box_h * 0.068), avail_text_h // max(1, len(lines)))
+
+        for idx, line in enumerate(lines):
+            stripped = line.strip()
+            if idx == 0 and (stripped.startswith("ZIEL:") or stripped.startswith("STEUERUNG")):
+                col = GOLD
+            elif stripped.startswith("•"):
+                col = NEON_CYAN
+            else:
+                col = WHITE
             line_surf = text_font.render(line, True, col)
-            screen.blit(line_surf, (box_x + int(box_w * 0.05), y_text))
+            screen.blit(line_surf, (box_x + int(box_w * 0.045), y_text))
             y_text += line_step
 
         # Steuerungs- und Schließen-Hinweis ganz unten in der Box
-        back_hint = hint_font.render("Taste BLAU = Nächstes Spiel  |  START oder SPIELERWECHSEL = Zurück zum Menü", True, GOLD)
-        screen.blit(back_hint, back_hint.get_rect(center=(sw // 2, box_y + box_h - int(box_h * 0.055))))
+        back_hint = hint_font.render("BLAU / ROT = Vor / Zurück blättern   |   START oder SPIELERWECHSEL = Hauptmenü", True, GOLD)
+        screen.blit(back_hint, back_hint.get_rect(center=(sw // 2, box_y + box_h - int(box_h * 0.05))))
 
         pygame.display.flip()
         clock.tick(30)
@@ -380,3 +410,4 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             ser.flush()
         except Exception:
             pass
+ 
