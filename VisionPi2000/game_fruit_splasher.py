@@ -1,6 +1,6 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.2.2
-# VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition - Fast-Load Cache & HW-Display Fix)
+# Version: 1.2.3
+# VisionPi2000 - Fruit Splasher (Juice Press & Berry Hunt Edition - Fast-Load Cache & Immediate Victory Fix)
 
 import pygame
 import math
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.2.2"
+VERSION = "1.2.3"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -507,7 +507,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             display.set_disp_char(d_ten, " ")
                             display.set_disp_char(d_unit, " ")
             else:
-                # BERRY HUNT: Die ersten 6 regulären Ziele auf die 6 Hardware-Slots verteilen
                 for s_idx, hw_key in enumerate(hw_keys):
                     if s_idx < len(hunt_targets) - 1:
                         t_val = hunt_targets[s_idx]
@@ -516,7 +515,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                             t_str = f"{t_val:2d}"
                             display.set_disp_char(d_ten, t_str[0])
                             display.set_disp_char(d_unit, t_str[1])
-                # Das 7. Ziel (BULL / 25) steuert das dedizierte Bullseye-Icon an
                 if 25 in hunt_targets:
                     display.set_bullseye_icon(True)
 
@@ -949,4 +947,3 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         pygame.display.flip()
         clock.tick(30)
- 
