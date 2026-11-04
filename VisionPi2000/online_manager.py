@@ -26,9 +26,9 @@ except ImportError:
 
 try:
     import qrcode
-    QR_AVAILABLE = True
-except ImportError:
-    QR_AVAILABLE = False
+    QR_LIB_AVAILABLE = True
+except Exception:
+    QR_LIB_AVAILABLE = False
 
 VERSION = "1.2.4"
 
@@ -62,9 +62,137 @@ _frame_cache = {}
 _qr_surface_cache = {}
 
 
+def _generate_qr_matrix_fallback(text):
+    """Autarker Pure-Python ISO-18004 QR-Generator (Version 3-L, 29x29) für bis zu 53 Zeichen ohne externe Pakete."""
+    data = text.encode("iso-8859-1", "ignore")[:53]
+    bits = [0, 1, 0, 0]  # Byte-Modus (4 Bit)
+    for i in range(7, -1, -1):
+        bits.append((len(data) >> i) & 1)
+    for b in data:
+        for i in range(7, -1, -1):
+            bits.append((b >> i) & 1)
+    bits.extend([0] * min(4, 440 - len(bits)))
+    while len(bits) % 8 != 0:
+        bits.append(0)
+    codewords = [int("".join(str(b) for b in bits[i:i + 8]), 2) for i in range(0, len(bits), 8)]
+    pad = [0xEC, 0x11]
+    while len(codewords) < 55:
+        codewords.append(pad[(len(codewords) - len(data) - 2) % 2])
+
+    # Reed-Solomon GF(256) für 15 EC-Codewords (Version 3-L)
+    gf_exp = [0] * 512
+    gf_log = [0] * 256
+    x = 1
+    for i in range(255):
+        gf_exp[i] = x
+        gf_log[x] = i
+        x <<= 1
+        if x & 0x100:
+            x ^= 0x11D
+    for i in range(255, 512):
+        gf_exp[i] = gf_exp[i - 255]
+
+    gen = [1]
+    for i in range(15):
+        nxt = [0] * (len(gen) + 1)
+        for j, val in enumerate(gen):
+            nxt[j] ^= val
+            nxt[j + 1] ^= gf_exp[gf_log[val] + i] if val else 0
+        gen = nxt
+
+    ec = [0] * 15
+    for b in codewords:
+        factor = b ^ ec[0]
+        ec = ec[1:] + [0]
+        if factor:
+            for j in range(15):
+                ec[j] ^= gf_exp[gf_log[gen[j + 1]] + gf_log[factor]]
+
+    all_cw = codewords + ec
+    stream = []
+    for cw in all_cw:
+        for i in range(7, -1, -1):
+            stream.append((cw >> i) & 1)
+    stream.extend([0] * 7)
+
+    size = 29
+    mat = [[None] * size for _ in range(size)]
+    is_func = [[False] * size for _ in range(size)]
+
+    def set_f(r, c, val):
+        if 0 <= r < size and 0 <= c < size:
+            mat[r][c] = bool(val)
+            is_func[r][c] = True
+
+    for fr, fc in [(0, 0), (0, size - 7), (size - 7, 0)]:
+        for dr in range(-1, 8):
+            for dc in range(-1, 8):
+                if 0 <= dr <= 6 and 0 <= dc <= 6:
+                    v = dr in (0, 6) or dc in (0, 6) or (2 <= dr <= 4 and 2 <= dc <= 4)
+                    set_f(fr + dr, fc + dc, v)
+                else:
+                    set_f(fr + dr, fc + dc, False)
+
+    for i in range(8, size - 8):
+        set_f(6, i, i % 2 == 0)
+        set_f(i, 6, i % 2 == 0)
+
+    for dr in range(-2, 3):
+        for dc in range(-2, 3):
+            set_f(22 + dr, 22 + dc, max(abs(dr), abs(dc)) != 1)
+
+    set_f(size - 8, 8, True)
+    for i in range(9):
+        if i != 6:
+            set_f(8, i, False)
+            set_f(i, 8, False)
+    for i in range(8):
+        set_f(8, size - 1 - i, False)
+        set_f(size - 1 - i, 8, False)
+
+    bit_idx = 0
+    up = True
+    for right in range(size - 1, 0, -2):
+        if right == 6:
+            right = 5
+        rows = range(size - 1, -1, -1) if up else range(size)
+        for r in rows:
+            for c in (right, right - 1):
+                if not is_func[r][c]:
+                    val = bool(stream[bit_idx]) if bit_idx < len(stream) else False
+                    bit_idx += 1
+                    if (r + c) % 2 == 0:
+                        val = not val
+                    mat[r][c] = val
+        up = not up
+
+    # Format-Bits für Level L (01), Maske 0 (000) -> 0x77C4
+    fmt = 0x77C4
+    f_bits = [(fmt >> i) & 1 for i in range(15)]
+    for i in range(6):
+        mat[8][i] = bool(f_bits[i])
+    mat[8][7] = bool(f_bits[6])
+    mat[8][8] = bool(f_bits[7])
+    mat[7][8] = bool(f_bits[8])
+    for i in range(9, 15):
+        mat[14 - i][8] = bool(f_bits[i])
+    for i in range(8):
+        mat[size - 1 - i][8] = bool(f_bits[i])
+    for i in range(8, 15):
+        mat[8][size - 15 + i] = bool(f_bits[i])
+
+    border = 2
+    full_sz = size + border * 2
+    bordered = [[False] * full_sz for _ in range(full_sz)]
+    for r in range(size):
+        for c in range(size):
+            bordered[r + border][c + border] = bool(mat[r][c])
+    return bordered
+
+
 def build_qr_surface(url, target_size):
-    """Erzeugt einmalig ein Pygame-Surface mit dem QR-Code (ohne PIL/Pillow-Abhängigkeit, 0 RAM-Leak)."""
-    if not QR_AVAILABLE or not url:
+    """Erzeugt einmalig ein Pygame-Surface mit dem QR-Code (nutzt qrcode oder internen Fallback, 0 RAM-Leak)."""
+    if not url:
         return None
     cache_key = (url, target_size)
     if cache_key in _qr_surface_cache:
@@ -73,15 +201,25 @@ def build_qr_surface(url, target_size):
     try:
         if len(_qr_surface_cache) > 8:
             _qr_surface_cache.clear()
-        qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_L,
-            box_size=1,
-            border=2
-        )
-        qr.add_data(url)
-        qr.make(fit=True)
-        matrix = qr.get_matrix()
+
+        matrix = None
+        if QR_LIB_AVAILABLE:
+            try:
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                    box_size=1,
+                    border=2
+                )
+                qr.add_data(url)
+                qr.make(fit=True)
+                matrix = qr.get_matrix()
+            except Exception:
+                matrix = None
+
+        if not matrix:
+            matrix = _generate_qr_matrix_fallback(url)
+
         rows = len(matrix)
         if rows == 0:
             return None
@@ -842,7 +980,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             try:
                 raw_av = pygame.image.load(f_found).convert_alpha()
                 box_h_est = int(sh * 0.78)
-                base_sz = int(box_h_est * 0.28) if QR_AVAILABLE else int(box_h_est * 0.40)
+                base_sz = int(box_h_est * 0.28)
                 # 5 Animationsstufen einmalig vorab berechnen statt 30x pro Sekunde smoothscale!
                 for offset in [-6, -3, 0, 3, 6]:
                     sz = base_sz + offset
@@ -1011,8 +1149,7 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
 
         slot_y = box_y + int(box_h * 0.175)
         slot_h = int(box_h * 0.085)
-        has_right_col = bool(berry_avatars_precomputed or QR_AVAILABLE)
-        card_w = int(box_w * 0.66) if has_right_col else int(box_w * 0.82)
+        card_w = int(box_w * 0.66)
         card_x = box_x + int(box_w * 0.05)
 
         for s_idx in range(8):
@@ -1048,11 +1185,11 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
             av_scaled = berry_avatars_precomputed[idx_anim]
             anim_sz = av_scaled.get_width()
             av_x = right_center_x - anim_sz // 2
-            av_y = (box_y + int(box_h * 0.175)) if (QR_AVAILABLE and session.room_id) else (box_y + int(box_h * 0.30))
+            av_y = (box_y + int(box_h * 0.175)) if session.room_id else (box_y + int(box_h * 0.30))
             screen.blit(av_scaled, (av_x, av_y))
 
         # QR-Code für Handy-Videochat (Jitsi-Raum passend zur aktuellen Lobby-ID)
-        if QR_AVAILABLE and session.room_id:
+        if session.room_id:
             clean_room = session.room_id.replace("-", "_")
             stream_url = f"https://meet.jit.si/VP2000_{clean_room}"
             qr_size = int(min(box_w * 0.20, box_h * 0.28))
@@ -1071,7 +1208,6 @@ def run_online_lobby_and_match(screen, ser, display, local_players, game_name, o
         if is_host:
             hint_str = "START drücken: Online-Match starten   |   SPIELERWECHSEL: Abbrechen"
         else:
-            # Anzahl passender offener Lobbys anzeigen
             open_cnt = len(session.get_open_lobbies(target_game_name=game_name))
             if open_cnt > 1:
                 hint_str = f"BLAU: Lobby wechseln ({open_cnt} passende offen)   |   SPIELERWECHSEL: Abbrechen"
