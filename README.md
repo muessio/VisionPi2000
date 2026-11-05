@@ -63,7 +63,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 * **Tastenbeleuchtung (Start & Spielerwechsel):** 2× **Arcade-LED-Birnchen** (erhältlich über [dartdoktor.de](https://www.dartdoktor.de)). Die sparsamen LED-Birnchen ermöglichen eine **direkte Ansteuerung über die Optokoppler**, wodurch zusätzliche Transistortreiberstufen komplett eingespart werden.
 * **Anzeigen-Peripherie:** Originale LED-Kaskaden und Segmentdisplays des Automaten (in **bedrahteter THT-Ausführung**).
 
-### Ergänzende Hardware (aus Montage & Stückliste)
+### Ergänzende Hardware
 | Komponente | Beschreibung / Details | Ungefährer Preis |
 | :--- | :--- | :--- |
 | **GeeekPi Terminal Block Breakout Board** | HAT mit Reset-Button & LED-Anzeige für Arduino MEGA 2560 R3 | ca. 31,99 € |
