@@ -57,7 +57,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 ## 🧰 Benötigte Hardware & Stückliste
 
 ### Kernkomponenten & Peripherie
-* **Host-System:** Raspberry Pi 4B (**1 GB RAM Variante** – dank gezielter RAM-Optimierung der gesamten Engine vollkommen ausreichend; alternativ 2 GB Variante) inklusive passendem Gehäuse und Micro-SD-Karte ($\ge$ 8 GB) – ca. **55,00 € – 70,00 €** (*Hinweis: Der Raspberry Pi 3B ist aufgrund instabiler USB-Verbindungen zum Arduino ausgeschlossen*).
+* **Host-System:** Raspberry Pi 4B (**1 GB RAM Variante** – dank gezielter RAM-Optimierung der gesamten Engine vollkommen ausreichend; alternativ 2 GB Variante) inklusive passendem Gehäuse und Micro-SD-Karte (8 GB) – ca. **55,00 € – 70,00 €** (*Hinweis: Der Raspberry Pi 3B ist aufgrund instabiler USB-Verbindungen zum Arduino ausgeschlossen*).
 * **Interface-Brücke:** Arduino Mega 2560 Klon (z. B. Keyestudio Mega 2560 Plus) – ca. **15,00 € – 20,00 €** zur Ansteuerung der Matrix, der gemultiplexten LED-/Segmentanzeigen (MAX7219-Kaskaden), der Tasten-Leuchtmelder sowie der Sensor-Komponenten.
 * **Original-Platinenabschnitte (Reuse):** Heraustrennte Original-Platinenteile (Matrixstecker, Spannungsversorgung, Displayspannungsversorgung und Tasterstecker) zur sauberen und passgenauen Weiternutzung der Originalkabelbäume.
 * **Tastenbeleuchtung (Start & Spielerwechsel):** 2× **Arcade-LED-Birnchen** (erhältlich über [dartdoktor.de](https://www.dartdoktor.de)). Die sparsamen LED-Birnchen ermöglichen eine **direkte Ansteuerung über die Optokoppler**, wodurch zusätzliche Transistortreiberstufen komplett eingespart werden.
@@ -83,7 +83,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 ### 💰 Gesamtkosten-Kalkulation (Ungefährer Richtwert)
 Durch die konsequente Optimierung der Software auf den **Raspberry Pi 4B mit 1 GB RAM**, den Verzicht auf separate Transistortreiberstufen sowie die clevere Weiternutzung von herausgetrennten Original-Platinenabschnitten reduzieren sich die Gesamtkosten des Umbaus deutlich:
 
-* **Raspberry Pi 4B (1 GB RAM) inkl. Gehäuse & $\ge$8GB SD-Karte:** ca. 60,00 €
+* **Raspberry Pi 4B (1 GB RAM) inkl. Gehäuse & 8GB SD-Karte:** ca. 60,00 €
 * **Arduino Mega 2560 Klon:** ca. 18,00 €
 * **Zusatzhardware & Module (Breakout-Boards, ATX-Platine, Sensoren, Arcade-LED-Birnchen über dartdoktor.de, Lautsprecher, Hutschienen-Halter etc.):** ca. 125,80 €
 
