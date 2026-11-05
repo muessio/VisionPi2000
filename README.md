@@ -1,4 +1,4 @@
-(visionPi2000/Start_16_9.jpg)
+(VisionPi2000/Start_16_9.jpg)
 # VisionPi2000 / OpenRetroDart
 
 **Custom Dartsports Engine • Developed by Oliver Müssig**  
