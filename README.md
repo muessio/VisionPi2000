@@ -37,7 +37,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
   * **Klassiker & Training:** *Shanghai* (inkl. Sofortsieg), *Split Score* (9 Runden Disziplin-Test), *Around the Clock* (Standard & Double Only) und *Elimination*.
   * **Solo- / Bot-Modus (*Bullseye-Berry*):** Animierter Computergegner in 3 Schwierigkeitsstufen (Stufe 1: Original, Stufe 2: Cyber, Stufe 3: Ninja) für bis zu 7 menschliche Mitspieler (bei 8 menschlichen Spielern wird der Bot automatisch ausgeblendet).
 * **MQTT Online-Multiplayer:** Vernetze zwei oder mehr VisionPi2000-Automaten über das Internet oder lokale Netzwerk. Ein Automat fungiert als *Host (Lobby)*, weitere treten als *Gast* (inklusive QR-Code-Raumanzeige) bei.
-* **Integrierter HD-Web-Streamer (Live-View):** Über Port `8080` (`http://<IP-des-Pi>:8080`) stellt der Automat einen extrem ressourcenschonenden, asynchronen MJPEG-Livestream im Cyber-Circuit-Design bereit (`1280x720` bei 16:9 bzw. `1024x768` bei 4:3). Ohne verbundene Zuschauer verbraucht der Streamer **0 % CPU und 0 MB RAM**.
+* **Integrierter HD-Web-Streamer (Live-View):** Über Port `8080` (`http://<IP-des-Pi>:8080`) stellt der Automat einen extrem ressourcenschonenden, asynchronen MJPEG-Livestream im Cyber-Circuit-Design bereit (`800x450` bei 16:9 bzw. `768x576` bei 4:3). Ohne verbundene Zuschauer verbraucht der Streamer **0 % CPU und 0 MB RAM**.
 * **Zero-Lag Asset-Preloading:** Während des Boot-Splashscreens werden sämtliche Schriften, Soundeffekte, Hintergründe und Bot-Animationen einmalig in einen globalen RAM-Cache geladen. Dadurch starten alle Spiele ohne Nachladezeiten (0 ms) und schonen die SD-Karte.
 * **Native 4:3- & 16:9-Unterstützung:** Volle Unterstützung für klassische 4:3-Monitore (`1024x768`) sowie moderne 16:9-Widescreen-Displays (`1920x1080`), umschaltbar direkt über das Service-Menü oder die `settings.json`.
 
@@ -96,7 +96,7 @@ Durch die konsequente Optimierung der Software auf den **Raspberry Pi 4B mit 1 G
 > **⚠️ Wichtiger Sicherheitshinweis zur Verkabelung:**  
 > Werden mehrere separate Netzteile/Stromquellen (z. B. USB-Netzteile für Raspberry Pi und Verstärker/Peripherie) im System verwendet, **müssen unbedingt sämtliche Massen (GND) aller verwendeten Netzteile und Komponenten sternförmig miteinander verbunden werden**, um Potentialunterschiede, Signalfehler und Fehlfunktionen bei der seriellen Datenübertragung zu verhindern!
 
-Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen (Matrix Rows/Cols, MAX7219 CLK/LOAD/D0–D4, Leuchtmelder an Pin 11 & 12 über Optokoppler direkt auf die LED-Birnchen von dartdoktor.de, Beleuchtungsrelais an Pin 3, IR-Sensor an Pin 2, Piezo an A0) sowie anschauliche Detailfotos zur Wiederverwendung der herausgetrennten Original-Platinenabschnitte befinden sich im Ordner **`Dokumentation/`** dieses Repositories.
+Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen (Matrix, 7-Segment-Anzeigen, Leuchtmelder, Beleuchtungsrelais, IR-Sensor, Piezo) sowie anschauliche Detailfotos zur Wiederverwendung der herausgetrennten Original-Platinenabschnitte befinden sich im Ordner **`Dokumentation/`** dieses Repositories.
 
 ---
 
