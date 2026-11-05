@@ -23,6 +23,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 
 ## ⚙️ Technische Besonderheiten & Neue Features
 
+* **Clevere Weiternutzung von Original-Platinenabschnitten:** Um aufwendiges Neulöten oder Adapter-Basteleien an den empfindlichen Flachbandkabeln zu vermeiden, werden gezielt **herausgetrennte Segmente aus dem Original-Platinenboard** (insbesondere die Sektionen mit dem Matrixstecker, der Spannungsversorgung, der Displayspannungsversorgung und dem Tasterstecker) weiterverwendet. Detaillierte Fotos und Anleitungen dazu befinden sich im Ordner **`Dokumentation/`** dieses Repositories.
 * **Speziell für den Raspberry Pi 4B (1 GB RAM) optimiert:** Durch tiefgreifende Software- und Betriebssystem-Optimierungen (24-Bit-Surfaces, einmalig allokierte RAM-Puffer im Web-Streamer, Deaktivierung unnötiger Systemdienste und 16-MB-Deckelung des Systemd-Journals im RAM) läuft das gesamte System inklusive Online-Multiplayer und Live-Streaming absolut stabil auf dem günstigen **Raspberry Pi 4B mit nur 1 GB RAM**. Das senkt die Hardware-Anschaffungskosten spürbar, ohne Kompromisse bei der Performance einzugehen.
 * **Präzises Hardware-Mapping (Display-Mapper):** Die mitgelieferte `display_mapper_Vision_Dart.py` wurde speziell für das originale Display-Layout des **Turnierdart 2000 / Vision Dart** entwickelt. Sie berücksichtigt exakt die platinenspezifischen Segment- und Zeilen-Zuordnungen der **klassischen Ausführung mit bedrahteten THT-LEDs** (keine SMD-Bestückung) und steuert alle 5 MAX7219-Stränge zu 100 % synchron über den Arduino Mega an.
 * **Vollständige 5-Tasten-Bedienung & Kombi-Shortcuts:** Die Software ist kompromisslos auf die Bedienung über die originalen Gehäusetasten optimiert. Durch gleichzeitiges Gedrückthalten der Tasten **ROT + BLAU + GRAU** lässt sich im Hauptmenü die System- und Versionsübersicht aller Module aufrufen oder während eines laufenden Spiels das Abbruch-Menü öffnen.
@@ -55,6 +56,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 ### Kernkomponenten & Peripherie
 * **Host-System:** Raspberry Pi 4B (**1 GB RAM Variante** – dank gezielter RAM-Optimierung der gesamten Engine vollkommen ausreichend; alternativ 2 GB Variante) inklusive passendem Gehäuse und Micro-SD-Karte ($\ge$ 8 GB) – ca. **55,00 € – 70,00 €** (*Hinweis: Der Raspberry Pi 3B ist aufgrund instabiler USB-Verbindungen zum Arduino ausgeschlossen*).
 * **Interface-Brücke:** Arduino Mega 2560 Klon (z. B. Keyestudio Mega 2560 Plus) – ca. **15,00 € – 20,00 €** zur Ansteuerung der Matrix, der gemultiplexten LED-/Segmentanzeigen (MAX7219-Kaskaden), der Tasten-Leuchtmelder sowie der Sensor-Komponenten.
+* **Original-Platinenabschnitte (Reuse):** Heraustrennte Original-Platinenteile (Matrixstecker, Spannungsversorgung, Displayspannungsversorgung und Tasterstecker) zur sauberen und passgenauen Weiternutzung der Originalkabelbäume.
 * **Tastenbeleuchtung (Start & Spielerwechsel):** 2× **Arcade-LED-Birnchen** (erhältlich über [dartdoktor.de](https://www.dartdoktor.de)). Die sparsamen LED-Birnchen ermöglichen eine **direkte Ansteuerung über die Optokoppler**, wodurch zusätzliche Transistortreiberstufen komplett eingespart werden.
 * **Anzeigen-Peripherie:** Originale LED-Kaskaden und Segmentdisplays des Automaten (in **bedrahteter THT-Ausführung**).
 
@@ -76,7 +78,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 ---
 
 ### 💰 Gesamtkosten-Kalkulation (Ungefährer Richtwert)
-Durch die konsequente Optimierung der Software auf den **Raspberry Pi 4B mit 1 GB RAM** sowie den Verzicht auf separate Transistortreiberstufen bei der Tastenbeleuchtung reduzieren sich die Gesamtkosten des Umbaus deutlich:
+Durch die konsequente Optimierung der Software auf den **Raspberry Pi 4B mit 1 GB RAM**, den Verzicht auf separate Transistortreiberstufen sowie die clevere Weiternutzung von herausgetrennten Original-Platinenabschnitten reduzieren sich die Gesamtkosten des Umbaus deutlich:
 
 * **Raspberry Pi 4B (1 GB RAM) inkl. Gehäuse & $\ge$8GB SD-Karte:** ca. 60,00 €
 * **Arduino Mega 2560 Klon:** ca. 18,00 €
@@ -91,11 +93,11 @@ Durch die konsequente Optimierung der Software auf den **Raspberry Pi 4B mit 1 G
 > **⚠️ Wichtiger Sicherheitshinweis zur Verkabelung:**  
 > Werden mehrere separate Netzteile/Stromquellen (z. B. USB-Netzteile für Raspberry Pi und Verstärker/Peripherie) im System verwendet, **müssen unbedingt sämtliche Massen (GND) aller verwendeten Netzteile und Komponenten sternförmig miteinander verbunden werden**, um Potentialunterschiede, Signalfehler und Fehlfunktionen bei der seriellen Datenübertragung zu verhindern!
 
-Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen (Matrix Rows/Cols, MAX7219 CLK/LOAD/D0–D4, Leuchtmelder an Pin 11 & 12 über Optokoppler direkt auf die LED-Birnchen von dartdoktor.de, Beleuchtungsrelais an Pin 3, IR-Sensor an Pin 2, Piezo an A0) befindet sich im Ordner **`Arduino-MEGA-2560_Schnittstellen_VisionPi2000/`** bzw. **`arduino/`** in diesem Repository.
+Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen (Matrix Rows/Cols, MAX7219 CLK/LOAD/D0–D4, Leuchtmelder an Pin 11 & 12 über Optokoppler direkt auf die LED-Birnchen von dartdoktor.de, Beleuchtungsrelais an Pin 3, IR-Sensor an Pin 2, Piezo an A0) sowie anschauliche Detailfotos zur Wiederverwendung der herausgetrennten Original-Platinenabschnitte befinden sich im Ordner **`Dokumentation/`** dieses Repositories.
 
 ---
 
-## 🚀 Installation & Schnellstart
+## 🚀 Installation & Update
 
 > **⚠️ Wichtiger Hinweis zum Systembenutzer (Raspberry Pi OS Lite / Trixie / Bookworm):**  
 > Bei der Einrichtung des Raspberry Pi OS Lite muss der Hauptbenutzer zwingend den Namen **`visionpi2000`** tragen, da alle Systempfade (`/home/visionpi2000/VisionPi2000/`), Autostart-Skripte und Berechtigungen fest darauf ausgelegt sind!
@@ -103,25 +105,16 @@ Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen
 ### 1. Vorbereitung der Hardware
 Flashe den bereitgestellten Arduino-Sketch (`Arduino-MEGA-2560_Schnittstellen_VisionPi2000.ino`) über die Arduino IDE auf den Arduino Mega 2560.
 
-### 2. Software-Installation auf dem Raspberry Pi
+### 2. Vollständige Installation (Einrichtung)
+Das Master-Skript `Software_u_Setup.sh` erledigt die komplette Einrichtung vollautomatisch: Es setzt das USB-Stromlimit hoch, deaktiviert den USB- & WLAN-Energiesparmodus, schaltet unnötige Hintergrunddienste für den 1-GB-RAM-Betrieb ab, installiert die minimale X11/Openbox-Kiosk-Umgebung, lädt den aktuellen **`stable`**-Branch von GitHub, bettet `paho-mqtt` sowie `qrcode` direkt ein, generiert die Sounddateien, verlinkt die `settings.json` auf die Boot-Partition und aktiviert abschließend den schützenden **OverlayFS-Schreibschutz**.
 
-**Weg A: Automatisierte Erstinstallation per Master-Skript (Dringend empfohlen)**  
-Das Skript `Software_u_Setup.sh` erledigt die komplette Einrichtung vollautomatisch: Es setzt das USB-Stromlimit hoch, deaktiviert den USB- & WLAN-Energiesparmodus, schaltet unnötige Hintergrunddienste für den 1-GB-RAM-Betrieb ab, installiert die minimale X11/Openbox-Kiosk-Umgebung, lädt den aktuellen **`stable`**-Branch von GitHub, bettet `paho-mqtt` sowie `qrcode` direkt ein, generiert die Sounddateien, verlinkt die `settings.json` auf die Boot-Partition und aktiviert abschließend den **OverlayFS-Schreibschutz**.
-
-Führe dazu auf einem frisch installierten Raspberry Pi OS Lite (eingeloggt als Benutzer `visionpi2000`) folgenden Befehl aus:
+Führe dazu auf einem frisch installierten Raspberry Pi OS Lite (eingeloggt als Benutzer `visionpi2000`) diesen Befehl aus:
 ```bash
 curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Software_u_Setup.sh | bash
 ```
 
-**Weg B: Bestehendes System aktualisieren (Update-Skript)**  
-Um einen bereits installierten Automaten (auch bei aktivem OverlayFS-Schreibschutz) auf den neuesten Stand des `stable`-Zweigs zu bringen, nutze entweder die Update-Funktion direkt im **Service-Menü** des Automaten oder führe per SSH folgenden Befehl aus:
+### 3. System-Aktualisierung (Update)
+Um einen bereits installierten Automaten auf den neuesten Stand des `stable`-Zweigs zu bringen, nutze entweder die Update-Funktion direkt im **Service-Menü** des Automaten oder führe per SSH folgenden Befehl aus:
 ```bash
 curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.sh | bash
 ```
-
-**Weg C: Manuelle Installation (Nur für erfahrene Linux-Nutzer)**  
-Wer das System komplett manuell ohne Setup-Skript aufsetzen möchte, muss folgende Schritte eigenständig durchführen:
-* **Repository klonen (`stable`-Zweig):** `git clone --branch stable https://github.com/muessio/VisionPi2000.git`
-* **Abhängigkeiten installieren:** `sudo apt install xserver-xorg x11-xserver-utils xinit openbox lightdm python3-pygame python3-serial python3-paho-mqtt python3-qrcode pulseaudio alsa-utils unclutter curl -y`
-* **Berechtigungen setzen:** `sudo usermod -a -G audio,dialout visionpi2000`
-* **Autostart einrichten:** Openbox-Autostart unter `/home/visionpi2000/.config/openbox/autostart` konfigurieren, sodass `python3 visionpi.py` im Ordner `/home/visionpi2000/VisionPi2000` im Vollbildmodus startet.
