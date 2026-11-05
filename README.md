@@ -1,5 +1,7 @@
 # VisionPi2000 / OpenRetroDart
 
+![Bullseye-Berries](VisionPi2000/Start_16_9.jpg)
+
 **Custom Dartsports Engine • Developed by Oliver Müssig**  
 **Ein alternatives, plattformunabhängiges Open-Source-Software- und Hardwaresystem als Retrofitlösung für klassische elektronische Dartautomaten der 90er- und 2000er-Jahre (z. B. Turnierdart 2000 / Vision Dart Gehäuse).**
 
