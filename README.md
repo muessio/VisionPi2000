@@ -1,6 +1,7 @@
 # VisionPi2000 / OpenRetroDart
 
-**Ein alternatives, plattformunabhängiges Open-Source-Software- und Hardwaresystem als Retrofitlösung für klassische elektronische Dartautomaten der 90er- und 2000er-Jahre (z. B. Turnierdart 2000 / Vision Dart Gehäuse).**
+**Custom Dartsports Engine • Developed by Oliver Müssig**  
+**Ein alternatives, plattformunabhängiges Open-Source-Software- und Hardwaresystem als Retrofitlösung für klassische elektronische Dartautomaten der 90er- und 2000er-Jahre (z. B. Turnierdart 2000 / Vision Dart / HB8 Gehäuse).**
 
 > **Wichtiger rechtlicher Hinweis (Disclaimer):**  
 > *Dieses Projekt ist eine unabhängige, private Hobby-Entwicklung und steht in keinerlei Verbindung, Partnerschaft oder Sponsoring zu den Herstellern der Original-Hardware (wie Löwen-Entertainment o. Ä.). Alle genannten Marken-, Produkt- und Firmennamen sind Eigentum ihrer jeweiligen Inhaber und dienen hier ausschließlich der technischen Identifikation und Kompatibilitätsbeschreibung (Ersatzteil-, Reparatur- und Retrofit-Kontext). Das System greift nicht in geschützte Herstellungsverfahren ein, sondern stellt eine freie, alternative Open-Source-Firmware bereit, um defekte Original-Steuereinheiten privater Altgeräte durch moderne Eigenbau-Komponenten (z. B. Raspberry Pi / Arduino) zu ersetzen.*
@@ -12,42 +13,52 @@
 Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turnierdart 2000** oder das **Vision Dart**) sind mechanisch oft unverwüstlich, leiden heute jedoch häufig unter defekten, veralteten oder nicht mehr beschaffbaren Original-Hauptplatinen (CPU-Boards). 
 
 **VisionPi2000** bietet eine nachhaltige Open-Source-Retrofitlösung, um solche Automaten vor dem Elektroschrott zu bewahren. Das Konzept erlaubt es, die **voll funktionsfähige Original-Peripherie** weiterzuverwenden – namentlich:
-* Das originale Gehäuse und die Treffer-Matrix,
-* Die originalen kaskadierten MAX7219-basierten LED-/Segmentanzeigen, Cricket-Markierungen und Spieler-Statuslampen,
-* Die originale **5-Tasten-Bedienung** (Rot, Blau, Grau, Start, Spielerwechsel) für die komplette Navigation und Steuerung im Gehäuse.
+* Das originale Gehäuse und die 4×16 Treffer-Matrix,
+* Die originalen kaskadierten MAX7219-basierten LED-/Segmentanzeigen, Cricket-Markierungen, das Bullseye-Icon und die Spieler-Statuslampen,
+* Die originale **5-Tasten-Bedienung** (Rot, Blau, Grau, Start, Spielerwechsel) für die komplette Navigation und Steuerung im Gehäuse – inklusive **autonomer Leuchtmelder-Ansteuerung** (Aus, Dauerlicht, 2-Hz-Blinken) für die Tasten *Start* und *Spielerwechsel*.
 
-*(Hinweis zur Sensorik: Die gesamte Sensorik wird an dieser Stelle durch moderne Komponenten ersetzt und mit einer modernen, flexiblen Softwarelogik gesteuert).*
-
----
-
-## ⚙️ Technische Besonderheiten des Systems
-
-* **Präzises Hardware-Mapping (Display-Mapper):** Die mitgelieferte `display_mapper_Vision_Dart.py` wurde speziell für das originale Display-Layout des **Turnierdart 2000 / Vision Dart** entwickelt. Sie berücksichtigt exakt die platinenspezifischen Segment- und Zeilen-Zuordnungen der **klassischen Ausführung mit bedrahteter THT-LEDs** (keine SMD-Bestückung).
-* **Vollständige 5-Tasten-Bedienung:** Die Software ist kompromisslos auf die Bedienung über die originalen Gehäusetasten optimiert, sodass kein externer Computer-Bildschirm oder Maus/Tastatur im Normalbetrieb notwendig ist.
-* **Umfangreicher Spielekatalog:** Inklusive X01 (301, 501, 701 mit diversen In/Out-Optionen), Cricket, Shanghai, Split Score, Around the Clock, Elimination sowie einem integrierten Solo-/Bot-Modus (*Bullseye-Berry*).
-* **Dynamische Bildschirmskalierung (Letterboxing):** Automatische Skalierung der GUI. Das System zwingt moderne 16:9-Monitore durch intelligente Skalierung (Letterboxing) in ein klassisches 4:3-Format, ohne dass runde Elemente (wie die virtuelle Dartscheibe oder Grafiken) verzerrt oder gestreckt werden.
+*(Hinweis zur Sensorik & Tastenbeleuchtung: Die Wurferkennung für Fehlwürfe und der Spielerwechsel werden über moderne Piezo-Vibrationssensoren und Infrarot-Lichtschranken abgebildet. Für die Beleuchtung der Start- und Spielerwechsel-Taste werden passende Arcade-LED-Birnchen verwendet, die über [dartdoktor.de](https://www.dartdoktor.de) bezogen werden können. Um das Projekt kostengünstig zu halten, wurde bewusst auf separate Transistortreiberstufen verzichtet – die stromsparenden LED-Birnchen werden direkt über die Optokoppler angesteuert).*
 
 ---
 
-## 🛠️ System-Eigenschaften & Betriebssystem-Hinweise (Version 1.1.0)
+## ⚙️ Technische Besonderheiten & Neue Features
 
-* **Bequeme Online-Installation:** Das System kann unkompliziert und schnell direkt per Online-Skript eingerichtet werden.
-* **Ausfallsicheres Betriebssystem (Read-Only OS):** Das System ist dafür ausgelegt, auf einem schreibgeschützten (Read-Only) Raspberry Pi Image betrieben zu werden. 
-  * **Vorteile:** Verhindert korrupte SD-Karten zuverlässig, wenn der Automat "hart" über den Hauptschalter ausgeschaltet wird. Einstellungen und Spielstände werden separat gespeichert.
-* **Intelligente WLAN-Konfiguration:** Obwohl das System schreibgeschützt läuft, ist die WLAN-Einrichtung oder Änderung extrem einfach und komfortabel gelöst. Das System verlässt sich nicht auf eingefrorene Image-Daten, sondern liest WLAN-Zugangsdaten direkt von der FAT32-formatierten Boot-Partition aus einer `settings.json`. Dies ermöglicht zwei bequeme Wege zur WLAN-Einrichtung:
-  1. **Über das Automaten-Service-Menü (WPS):** Navigiere am Automaten in das Service-Menü unter "WLAN & WPS". Drücke die Blaue Taste am Automaten und betätige die WPS-Taste an deinem Router. Das System extrahiert SSID und Passwort automatisch und sichert diese dauerhaft in der `settings.json` auf der Boot-Partition.
-  2. **Manuell am PC (Offline):** Stecke die SD-Karte (oder den USB-Stick) einfach in einen Windows-, Mac- oder Linux-PC. Öffne das erkannte Laufwerk (unter Windows z. B. Laufwerk `E:\`, oft auch `bootfs` genannt) und bearbeite die direkt dort auf der obersten Ebene liegende Datei `settings.json` mit einem Texteditor. Trage dort unter `"wifi_ssid"` den Namen deines WLANs und unter `"wifi_password"` dein Passwort ein. Beim nächsten Einstecken in den Pi verbindet sich das System sofort.
-* **Integriertes Service-Menü & Hardware-Diagnose:** Ein direkt über die Gehäusetasten erreichbares Menü ermöglicht tiefgreifende Hardware-Tests (Matrix-Drucktest, Sensor-Prüfung, Chip- und Segment-Tests für die MAX7219-Kaskaden) sowie das Umschalten von Bildschirmformaten. Das Menü bedient sich analog zum Hauptmenü mit **ROT** für Navigation, **BLAU** für Aktionen und **SPIELERWECHSEL** als universelle Zurück-Taste.
-* **Online-Update (OTA) am Automaten:** Über das Service-Menü kann das System auf Knopfdruck per Shell-Skript aktualisiert werden. Das Skript entsperrt das Read-Only-Dateisystem automatisch (`remount,rw`), zieht die neuesten Updates aus dem Repository und schützt das System anschließend sofort wieder (`remount,ro`).
+* **Clevere Weiternutzung von Original-Platinenabschnitten:** Um aufwendiges Neulöten oder Adapter-Basteleien an den empfindlichen Flachbandkabeln zu vermeiden, werden gezielt **herausgetrennte Segmente aus dem Original-Platinenboard** (insbesondere die Sektionen mit dem Matrixstecker, der Spannungsversorgung, der Displayspannungsversorgung und dem Tasterstecker) weiterverwendet. Detaillierte Fotos und Anleitungen dazu befinden sich im Ordner **`Dokumentation/`** dieses Repositories.
+* **Speziell für den Raspberry Pi 4B (1 GB RAM) optimiert:** Durch tiefgreifende Software- und Betriebssystem-Optimierungen (24-Bit-Surfaces, einmalig allokierte RAM-Puffer im Web-Streamer, Deaktivierung unnötiger Systemdienste und 16-MB-Deckelung des Systemd-Journals im RAM) läuft das gesamte System inklusive Online-Multiplayer und Live-Streaming absolut stabil auf dem günstigen **Raspberry Pi 4B mit nur 1 GB RAM**. Das senkt die Hardware-Anschaffungskosten spürbar, ohne Kompromisse bei der Performance einzugehen.
+* **Präzises Hardware-Mapping (Display-Mapper):** Die mitgelieferte `display_mapper_Vision_Dart.py` wurde speziell für das originale Display-Layout des **Turnierdart 2000 / Vision Dart** entwickelt. Sie berücksichtigt exakt die platinenspezifischen Segment- und Zeilen-Zuordnungen der **klassischen Ausführung mit bedrahteten THT-LEDs** (keine SMD-Bestückung) und steuert alle 5 MAX7219-Stränge zu 100 % synchron über den Arduino Mega an.
+* **Vollständige 5-Tasten-Bedienung & Kombi-Shortcuts:** Die Software ist kompromisslos auf die Bedienung über die originalen Gehäusetasten optimiert. Durch gleichzeitiges Gedrückthalten der Tasten **ROT + BLAU + GRAU** lässt sich im Hauptmenü die System- und Versionsübersicht aller Module aufrufen oder während eines laufenden Spiels das Abbruch-Menü öffnen.
+* **Umfangreicher Spielekatalog:**
+  * **X01 (301 / 501 / 701):** Mit Open In/Out, Double In, Double Out, Master Out sowie echtem **Team-Modus** (2er-Teams für 4, 6 oder 8 Spieler).
+  * **Cricket:** Standard, Cut Throat, *You Pick It* (mit Vorab-Zahlenauswahl vor Runde 1) und *Crazy (Zufall)* – inklusive dynamisch skalierender Spielerbalken.
+  * **Fruit Splasher:** Exklusives Action-Game mit den Modi *Juice Press* (Standard, Party, Battle-Modus mit Punkte-Klau über Bullseye) sowie *Berry Hunt* (10 oder 15 Runden mit direktem Hardware-Mapping auf die 6 Cricket-Anzeigen und das Bullseye-Symbol).
+  * **Klassiker & Training:** *Shanghai* (inkl. Sofortsieg), *Split Score* (9 Runden Disziplin-Test), *Around the Clock* (Standard & Double Only) und *Elimination*.
+  * **Solo- / Bot-Modus (*Bullseye-Berry*):** Animierter Computergegner in 3 Schwierigkeitsstufen (Stufe 1: Original, Stufe 2: Cyber, Stufe 3: Ninja) für bis zu 7 menschliche Mitspieler (bei 8 menschlichen Spielern wird der Bot automatisch ausgeblendet).
+* **MQTT Online-Multiplayer:** Vernetze zwei oder mehr VisionPi2000-Automaten über das Internet oder lokale Netzwerk. Ein Automat fungiert als *Host (Lobby)*, weitere treten als *Gast* (inklusive QR-Code-Raumanzeige) bei.
+* **Integrierter HD-Web-Streamer (Live-View):** Über Port `8080` (`http://<IP-des-Pi>:8080`) stellt der Automat einen extrem ressourcenschonenden, asynchronen MJPEG-Livestream im Cyber-Circuit-Design bereit (`1280x720` bei 16:9 bzw. `1024x768` bei 4:3). Ohne verbundene Zuschauer verbraucht der Streamer **0 % CPU und 0 MB RAM**.
+* **Zero-Lag Asset-Preloading:** Während des Boot-Splashscreens werden sämtliche Schriften, Soundeffekte, Hintergründe und Bot-Animationen einmalig in einen globalen RAM-Cache geladen. Dadurch starten alle Spiele ohne Nachladezeiten (0 ms) und schonen die SD-Karte.
+* **Native 4:3- & 16:9-Unterstützung:** Volle Unterstützung für klassische 4:3-Monitore (`1024x768`) sowie moderne 16:9-Widescreen-Displays (`1920x1080`), umschaltbar direkt über das Service-Menü oder die `settings.json`.
+
+---
+
+## 🛠️ System-Eigenschaften & Betriebssystem-Hinweise (ab Version 1.1.13 / Stable)
+
+* **Ausfallsicheres Betriebssystem (Read-Only OverlayFS):** Das System läuft im geschützten Read-Only-Modus (`OverlayFS`). Dadurch sind Dateisystem-Schäden an der SD-Karte ausgeschlossen, wenn der Automat nach dem Spielen direkt über den Hauptschalter stromlos geschaltet wird.
+* **Intelligente Konfiguration auf der Boot-Partition:** Obwohl das Hauptsystem schreibgeschützt ist, liegt die zentrale Konfigurationsdatei `settings.json` (für Bildformat, Display-Mapper, MQTT-Broker und WLAN-Daten) per Symlink verknüpft direkt auf der ungeschützten FAT32-Boot-Partition (`/boot/firmware/settings.json`):
+  1. **Über das Automaten-Service-Menü (WPS):** Im Service-Menü unter „WLAN & WPS" auf Knopfdruck mit dem Router koppeln.
+  2. **Manuell am PC (Offline):** SD-Karte in einen beliebigen PC stecken und die Datei `settings.json` direkt auf dem Laufwerk `bootfs` mit einem Texteditor anpassen (`"wifi_ssid"`, `"wifi_password"`, `"format": "16:9"` oder `"4:3"`).
+* **Integriertes Service-Menü, Spieleanleitung & Projekt-Info:** Direkt über das Hauptmenü aufrufbare Module im Cyber-Circuit-Design für Hardware-Diagnose (Matrix-, Sensor-, Lampen- und MAX7219-Tests), detailliertes Regelwerk aller Spiele (mit Blätterfunktion) und System-Informationen.
+* **Online-Update (OTA) über den `stable`-Branch:** Über das Service-Menü oder per `Update.sh` entsperrt das System kurzzeitig die Partition (`/media/root-ro`), lädt den aktuellen Stand aus dem **`stable`**-Zweig von GitHub in den RAM, bettet benötigte Python-Module (`paho-mqtt`, `qrcode`) direkt Trixie-sicher ein, rüstet die RAM-/System-Optimierungen nach und verriegelt die SD-Karte anschließend sofort wieder.
 
 ---
 
 ## 🧰 Benötigte Hardware & Stückliste
 
 ### Kernkomponenten & Peripherie
-* **Host-System:** Raspberry Pi 4B (2 GB Variante) inklusive passendem Gehäuse und Micro-SD-Karte ($\ge$ 8 GB) – ca. **75,00 € – 95,00 €** (*Hinweis: Der Raspberry Pi 3B wurde aufgrund instabiler USB-Verbindungen als ungeeignet eingestuft*).
-* **Interface-Brücke:** Arduino Mega 2560 Klon (kompatibles Board) – ca. **15,00 € – 20,00 €** zur Ansteuerung der Matrix, der gemultiplexten LED-/Segmentanzeigen (MAX7219-Kaskaden) sowie der modernen Sensor-Komponenten.
-* **Anzeigen-Peripherie:** Originale LED-Kaskaden und Segmentdisplays des Automaten (in **bedrahteter Ausführung**).
+* **Host-System:** Raspberry Pi 4B (**1 GB RAM Variante** – dank gezielter RAM-Optimierung der gesamten Engine vollkommen ausreichend; alternativ 2 GB Variante) inklusive passendem Gehäuse und Micro-SD-Karte ($\ge$ 8 GB) – ca. **55,00 € – 70,00 €** (*Hinweis: Der Raspberry Pi 3B ist aufgrund instabiler USB-Verbindungen zum Arduino ausgeschlossen*).
+* **Interface-Brücke:** Arduino Mega 2560 Klon (z. B. Keyestudio Mega 2560 Plus) – ca. **15,00 € – 20,00 €** zur Ansteuerung der Matrix, der gemultiplexten LED-/Segmentanzeigen (MAX7219-Kaskaden), der Tasten-Leuchtmelder sowie der Sensor-Komponenten.
+* **Original-Platinenabschnitte (Reuse):** Heraustrennte Original-Platinenteile (Matrixstecker, Spannungsversorgung, Displayspannungsversorgung und Tasterstecker) zur sauberen und passgenauen Weiternutzung der Originalkabelbäume.
+* **Tastenbeleuchtung (Start & Spielerwechsel):** 2× **Arcade-LED-Birnchen** (erhältlich über [dartdoktor.de](https://www.dartdoktor.de)). Die sparsamen LED-Birnchen ermöglichen eine **direkte Ansteuerung über die Optokoppler**, wodurch zusätzliche Transistortreiberstufen komplett eingespart werden.
+* **Anzeigen-Peripherie:** Originale LED-Kaskaden und Segmentdisplays des Automaten (in **bedrahteter THT-Ausführung**).
 
 ### Ergänzende Hardware (aus Montage & Stückliste)
 | Komponente | Beschreibung / Details | Ungefährer Preis |
@@ -59,47 +70,51 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 | **Nongxiang USB-Ladegerät (2er-Pack)** | 40W Mehrfachstecker (USB-A & USB-C, PD + QC3.0 Netzteile) | ca. 22,99 € |
 | **Hailege E18-D80NK** | 2 Stk. Infrarot-Lichtschranken / Hindernisvermeidungssensoren | ca. 9,79 € |
 | **Youmile Piezoelektrischer Keramik-Vibrationssensor** | 5 Stk. Modul Analogue Controller mit Dupont-Kabel | ca. 7,99 € |
-| **JZK PAM8403 Mini Digital Verstärker** | 5 Stk. 5V 2x3W Dual Channel Mini HiFi Verstärker mit Poti | ca. 7,69 € |
+| **Arcade-LED-Birnchen (für Start & Spielerwechsel)** | 2 Stk. über [dartdoktor.de](https://www.dartdoktor.de) beziehbare LED-Leuchtmittel zur Direkt-Ansteuerung über Optokoppler | ca. 4,00 € |
+| **Speedlink TWOXO Stereo PC Lautsprecher** | Klein, 3,5mm Klinke, 10W, schwarz | ca. 8,00 € |
 | **QWORK Hutschiene (3 Stk.)** | Montageschiene DIN, 35 mm breit, 7,5 mm hoch, 300 mm lang | *Variabel* |
 | **Binmiza Hutschiene Adapter Set** | 20 Stk. (10 Sätze) PCB DIN C45 Halter mit Schrauben | ca. 7,99 € |
 
 ---
 
 ### 💰 Gesamtkosten-Kalkulation (Ungefährer Richtwert)
-* **Raspberry Pi 4B (2GB) inkl. Gehäuse & $\ge$8GB SD-Karte:** ca. 85,00 €
-* **Arduino Mega 2560 Klon:** ca. 18,00 €
-* **Zusatzhardware & Module (Breakout-Boards, ATX-Platine, Sensoren, Hutschiene etc.):** ca. 131,48 €
+Durch die konsequente Optimierung der Software auf den **Raspberry Pi 4B mit 1 GB RAM**, den Verzicht auf separate Transistortreiberstufen sowie die clevere Weiternutzung von herausgetrennten Original-Platinenabschnitten reduzieren sich die Gesamtkosten des Umbaus deutlich:
 
-* **Ungefährer Gesamtpreis (Summe der Komponenten):** **ca. 234,48 €** *(exklusive variabel bepreister Hutschienen)*
+* **Raspberry Pi 4B (1 GB RAM) inkl. Gehäuse & $\ge$8GB SD-Karte:** ca. 60,00 €
+* **Arduino Mega 2560 Klon:** ca. 18,00 €
+* **Zusatzhardware & Module (Breakout-Boards, ATX-Platine, Sensoren, Arcade-LED-Birnchen über dartdoktor.de, Lautsprecher, Hutschienen-Halter etc.):** ca. 125,80 €
+
+* **Ungefährer Gesamtpreis (Summe der Komponenten):** **ca. 203,80 €** *(exklusive variabel bepreister Hutschienen)*
 
 ---
 
 ## 🔌 Verdrahtung & Schnittstellenbeschreibung
 
 > **⚠️ Wichtiger Sicherheitshinweis zur Verkabelung:**  
-> Werden mehrere separate Netzteile/Stromquellen (z. B. USB-Netzteile für Raspberry Pi und Verstärker/Peripherie) im System verwendet, **müssen unbedingt sämtliche Massen (GND) aller verwendeten Netzteile und Komponenten sternförmig miteinander verbunden werden**, um Potentialunterschiede, Signalfehler und Fehlfunktionen bei der Datenübertragung zu verhindern!
+> Werden mehrere separate Netzteile/Stromquellen (z. B. USB-Netzteile für Raspberry Pi und Verstärker/Peripherie) im System verwendet, **müssen unbedingt sämtliche Massen (GND) aller verwendeten Netzteile und Komponenten sternförmig miteinander verbunden werden**, um Potentialunterschiede, Signalfehler und Fehlfunktionen bei der seriellen Datenübertragung zu verhindern!
 
-Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen, Diagrammen und der vollständigen Verdrahtungsanleitung für alle Komponenten befindet sich im beiliegenden Ordner **`arduino/`** in diesem Repository.
+Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen (Matrix Rows/Cols, MAX7219 CLK/LOAD/D0–D4, Leuchtmelder an Pin 11 & 12 über Optokoppler direkt auf die LED-Birnchen von dartdoktor.de, Beleuchtungsrelais an Pin 3, IR-Sensor an Pin 2, Piezo an A0) sowie anschauliche Detailfotos zur Wiederverwendung der herausgetrennten Original-Platinenabschnitte befinden sich im Ordner **`Dokumentation/`** dieses Repositories.
 
 ---
 
-## 🚀 Installation & Schnellstart
+## 🚀 Installation & Update
 
-> **⚠️ Wichtiger Hinweis für Pi4light OS (Trixi):**  
-> Bei der Verwendung von Pi4light OS muss der Hauptbenutzer auf dem Raspberry Pi zwingend den Namen **`visionpi2000`** tragen, da Pfade und Skripte fest darauf ausgelegt sind!
+> **⚠️ Wichtiger Hinweis zum Systembenutzer (Raspberry Pi OS Lite / Trixie / Bookworm):**  
+> Bei der Einrichtung des Raspberry Pi OS Lite muss der Hauptbenutzer zwingend den Namen **`visionpi2000`** tragen, da alle Systempfade (`/home/visionpi2000/VisionPi2000/`), Autostart-Skripte und Berechtigungen fest darauf ausgelegt sind!
 
 ### 1. Vorbereitung der Hardware
-Flashe den bereitgestellten Arduino-Sketch (`Arduino-MEGA-2560_Schnittstellen_VisionPi2000.ino`) auf den Arduino Mega Klon.
+Flashe den bereitgestellten Arduino-Sketch (`Arduino-MEGA-2560_Schnittstellen_VisionPi2000.ino`) über die Arduino IDE auf den Arduino Mega 2560.
 
-### 2. Software-Installation (Zwei Wege)
+### 2. Vollständige Installation (Einrichtung)
+Das Master-Skript `Software_u_Setup.sh` erledigt die komplette Einrichtung vollautomatisch: Es setzt das USB-Stromlimit hoch, deaktiviert den USB- & WLAN-Energiesparmodus, schaltet unnötige Hintergrunddienste für den 1-GB-RAM-Betrieb ab, installiert die minimale X11/Openbox-Kiosk-Umgebung, lädt den aktuellen **`stable`**-Branch von GitHub, bettet `paho-mqtt` sowie `qrcode` direkt ein, generiert die Sounddateien, verlinkt die `settings.json` auf die Boot-Partition und aktiviert abschließend den schützenden **OverlayFS-Schreibschutz**.
 
-**Weg A: Automatisierte Installation per Skript (Dringend empfohlen)**  
-Das Skript installiert nicht nur das System, sondern richtet auch automatisch Autostart-Dienste, Systemabhängigkeiten (`NetworkManager`) und die korrekten Zugriffsrechte für die serielle Schnittstelle (Arduino) ein. 
-Führe dazu das Installationsskript aus dem Ordner `Pi_Setup` dieses Repositories auf deinem Raspberry Pi aus.
+Führe dazu auf einem frisch installierten Raspberry Pi OS Lite (eingeloggt als Benutzer `visionpi2000`) diesen Befehl aus:
+```bash
+curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Software_u_Setup.sh | bash
+```
 
-**Weg B: Manuelle Installation (Nur für erfahrene Linux-Nutzer)**  
-Wer das System komplett manuell aufsetzen möchte, muss neben dem Klonen der Python-Dateien zwingend folgende Schritte eigenständig durchführen:
-* **Python-Abhängigkeiten installieren:** `pip install pygame pyserial` (bzw. über `apt install python3-pygame python3-serial`).
-* **Systempakete:** Sicherstellen, dass `network-manager` (für die `nmcli`-Steuerung) und `wpasupplicant` (für WPS) installiert und aktiv sind. Ebenso `curl` für die OTA-Update-Funktion.
-* **Berechtigungen:** Der ausführende Benutzer (`visionpi2000`) muss zwingend Mitglied der Gruppe `dialout` sein, um mit dem Arduino über USB/Serial kommunizieren zu dürfen (`sudo usermod -a -G dialout visionpi2000`).
-* **Autostart:** Einrichten eines Systemd-Services oder einer Autostart-Routine (z. B. via `.bashrc` oder Wayland/X11-Kiosk), um `visionpi.py` beim Booten im Vollbildmodus zu starten.
+### 3. System-Aktualisierung (Update)
+Um einen bereits installierten Automaten auf den neuesten Stand des `stable`-Zweigs zu bringen, nutze entweder die Update-Funktion direkt im **Service-Menü** des Automaten oder führe per SSH folgenden Befehl aus:
+```bash
+curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.sh | bash
+```
