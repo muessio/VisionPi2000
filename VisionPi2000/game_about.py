@@ -1,70 +1,195 @@
+# Datei: game_about.py
+# Version: 1.2.0
+# Über das Projekt im VisionPi2000 Cyber-Circuit-Design
+
 import pygame
 import os
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 GAMES = ["Über das Projekt"]
 OPTIONS = ["Projektziel & Infos"]
+
+_frame_cache = {}
+
+
+def find_image_file(preferred_names):
+    if isinstance(preferred_names, str):
+        preferred_names = [preferred_names]
+    for name in preferred_names:
+        if os.path.exists(name):
+            return name
+    try:
+        files = os.listdir('.')
+        files_lower = {f.lower(): f for f in files}
+        for name in preferred_names:
+            if name.lower() in files_lower:
+                return files_lower[name.lower()]
+    except Exception:
+        pass
+    return None
+
+
+def draw_cyber_frame(surface, x, y, w, h, cut=22):
+    """Zeichnet den gecachten VisionPi2000 Cyber-Tech-Rahmen ohne Rand-Clipping."""
+    key = ("cyber_frame_v2", w, h, cut)
+    if key not in _frame_cache:
+        if len(_frame_cache) > 16:
+            _frame_cache.clear()
+        NEON_GREEN = (0, 255, 157)
+        NEON_CYAN = (0, 216, 255)
+        NEON_RED = (255, 56, 76)
+        GOLD_TRACE = (180, 140, 40)
+        PANEL_BG = (8, 20, 32, 225)
+
+        panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        r = w - 2
+        b = h - 2
+        pts_local = [
+            (cut, 1), (r - cut, 1), (r, cut), (r, b - cut),
+            (r - cut, b), (cut, b), (1, b - cut), (1, cut)
+        ]
+        pygame.draw.polygon(panel_surf, PANEL_BG, pts_local)
+
+        traces = [
+            [(cut + 20, 14), (cut + 90, 14), (cut + 110, 34)],
+            [(r - cut - 20, 14), (r - cut - 90, 14), (r - cut - 110, 34)],
+            [(cut + 20, b - 14), (cut + 90, b - 14), (cut + 110, b - 34)],
+            [(r - cut - 20, b - 14), (r - cut - 90, b - 14), (r - cut - 110, b - 34)]
+        ]
+        for tr in traces:
+            pygame.draw.lines(panel_surf, (20, 65, 60, 160), False, tr, 2)
+            pygame.draw.circle(panel_surf, (0, 255, 157, 160), tr[-1], 4, 1)
+
+        pygame.draw.polygon(panel_surf, (0, 110, 75), pts_local, 6)
+        pygame.draw.polygon(panel_surf, NEON_GREEN, pts_local, 2)
+
+        c_len = int(h * 0.22)
+        pygame.draw.line(panel_surf, NEON_RED, (1, cut), (cut, 1), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (1, b - cut), (cut, b), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, cut + 12), (2, cut + c_len), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, b - cut - 12), (2, b - cut - c_len), 4)
+
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, 1), (r, cut), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, b), (r, b - cut), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, cut + 12), (r - 1, cut + c_len), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, b - cut - 12), (r - 1, b - cut - c_len), 4)
+
+        for cx, cy in [(cut + 10, 8), (r - cut - 10, 8), (cut + 10, b - 8), (r - cut - 10, b - 8)]:
+            pygame.draw.circle(panel_surf, GOLD_TRACE, (cx, cy), 4)
+
+        _frame_cache[key] = panel_surf
+
+    surface.blit(_frame_cache[key], (x, y))
+
 
 def run_game(screen, ser, display, players, game_name, option, mode):
     sw, sh = screen.get_width(), screen.get_height()
     clock = pygame.time.Clock()
     
-    title_font = pygame.font.SysFont("arial", int(sh * 0.034), bold=True)
+    role_font = pygame.font.SysFont("arial", int(sh * 0.028), bold=True)
+    title_font = pygame.font.SysFont("arial", int(sh * 0.032), bold=True)
     sub_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
     heading_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)
-    text_font = pygame.font.SysFont("arial", int(sh * 0.021), bold=True)
-    hint_font = pygame.font.SysFont("arial", int(sh * 0.025), bold=True)
+    text_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
+    hint_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
     qr_label_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
     
-    HIGHLIGHT, WHITE, GRAY = (255, 215, 0), (255, 255, 255), (180, 180, 180)
+    HIGHLIGHT, WHITE, GRAY = (255, 205, 45), (255, 255, 255), (180, 200, 215)
+    NEON_GREEN, NEON_CYAN = (0, 255, 157), (0, 216, 255)
 
-    # Hardware-Anzeige im Info-Modus sauber leeren/abschalten
     if display:
         try:
             display.clear_all()
             if hasattr(display, 'update'): display.update()
-        except: pass
+        except Exception:
+            pass
 
-    # QR-Code Bild laden, falls vorhanden
+    is_16_9 = (sw / float(sh)) > 1.5
+    bg_candidates = ["background_16_9.jpg", "background_16_9.png", "background_16_9.PNG"] if is_16_9 else ["background.jpg", "background.png", "Background.png", "background.PNG"]
+    bg_file = find_image_file(bg_candidates)
+    bg_img = None
+    if bg_file:
+        try:
+            raw_bg = pygame.image.load(bg_file).convert()
+            bg_img = pygame.transform.scale(raw_bg, (sw, sh))
+            darker = pygame.Surface((sw, sh))
+            darker.set_alpha(165)
+            darker.fill((4, 12, 20))
+            bg_img.blit(darker, (0, 0))
+        except Exception:
+            pass
+
+    header_file = find_image_file(["header.png", "Header.png", "HEADER.png"])
+    header_img = None
+    if header_file:
+        try:
+            raw_h = pygame.image.load(header_file).convert_alpha()
+            header_h = int(sh * 0.16)
+            header_w = int(raw_h.get_width() * (header_h / raw_h.get_height()))
+            header_img = pygame.transform.smoothscale(raw_h, (header_w, header_h))
+        except Exception:
+            pass
+
     qr_img = None
     if os.path.exists("qrcode.png"):
         try:
-            qr_size = int(sh * 0.26)
+            qr_size = int(sh * 0.25)
             raw_qr = pygame.image.load("qrcode.png").convert()
             qr_img = pygame.transform.smoothscale(raw_qr, (qr_size, qr_size))
-        except: pass
+        except Exception:
+            pass
 
     running = True
     while running:
         raw_data = ser.readline().decode('utf-8', 'ignore').strip() if ser and ser.in_waiting > 0 else None
         
         for event in pygame.event.get():
-            if event.type in [pygame.KEYDOWN, pygame.MOUSEQUIT]:
-                if event.type == pygame.KEYDOWN and event.key in [pygame.K_ESCAPE, pygame.K_p, pygame.K_SPACE, pygame.K_RETURN]:
+            if event.type == pygame.KEYDOWN:
+                if event.key in [pygame.K_ESCAPE, pygame.K_p, pygame.K_SPACE, pygame.K_RETURN]:
                     running = False
 
         if raw_data in ["BTN:PLAYER", "BTN:START", "BTN:COMBO"]:
             running = False
 
-        screen.fill((10, 10, 20))
+        if bg_img:
+            screen.blit(bg_img, (0, 0))
+        else:
+            screen.fill((6, 17, 28))
 
-        # Textinhalte mit Leerzeilen vor Überschriften
+        if header_img:
+            screen.blit(header_img, ((sw - header_img.get_width()) // 2, 6))
+            box_y = int(sh * 0.15)
+            box_h = int(sh * 0.81)
+        else:
+            box_y = int(sh * 0.04)
+            box_h = int(sh * 0.92)
+
+        box_w = int(sw * 0.90)
+        box_x = (sw - box_w) // 2
+
+        draw_cyber_frame(screen, box_x, box_y, box_w, box_h, cut=22)
+
+        head_surf = role_font.render("PROJEKT-INFORMATIONEN  •  VISIONPI2000 / OPENRETRODART", True, HIGHLIGHT)
+        screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, box_y + int(box_h * 0.028)))
+
+        line_y = box_y + int(box_h * 0.10)
+        pygame.draw.line(screen, NEON_GREEN, (box_x + 35, line_y), (box_x + box_w - 35, line_y), 2)
+        pygame.draw.circle(screen, HIGHLIGHT, (sw // 2, line_y), 5)
+
         lines = [
-            ("VisionPi2000 / OpenRetroDart", HIGHLIGHT, title_font),
-            ("Custom Dartsports Engine • Developed by Oliver Müssig", GRAY, sub_font),
+            ("VisionPi2000 / OpenRetroDart", NEON_GREEN, title_font),
+            ("Custom Dartsports Engine • Developed by Oliver Müssig", NEON_CYAN, sub_font),
             ("", WHITE, text_font),
             ("Ein alternatives Open-Source-System als hochmoderne", WHITE, text_font),
             ("Retrofit-Lösung für klassische Dartautomaten der 90er/", WHITE, text_font),
             ("2000er-Jahre (z.B. Turnierdart 2000 / Vision Dart Gehäuse).", WHITE, text_font),
             ("", WHITE, text_font),
-            ("", WHITE, text_font),  # Zusätzliche Leerzeile vor Überschrift
             ("Projektziel & Zielsetzung:", HIGHLIGHT, heading_font),
             ("• Rettung alter, robuster Gehäuse vor dem Elektroschrott.", WHITE, text_font),
             ("• Weiternutzung von Matrix, Kaskaden-Anzeigen und Lampen.", WHITE, text_font),
             ("• Vollständige Bedienung über die originalen 5 Gehäusetasten.", WHITE, text_font),
             ("• Modernes Innenleben durch Raspberry Pi 4B & Arduino Mega.", WHITE, text_font),
             ("", WHITE, text_font),
-            ("", WHITE, text_font),  # Zusätzliche Leerzeile vor Überschrift
             ("Highlights & Display-Mapper:", HIGHLIGHT, heading_font),
             ("• Präziser Display-Mapper (display_mapper_Vision_Dart.py)", WHITE, text_font),
             ("  exakt für das originale THT-Layout (keine SMD-Bestückung).", WHITE, text_font),
@@ -73,72 +198,57 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             ("• Integriertes Service-Menü und OTA-Online-Updates.", WHITE, text_font)
         ]
 
-        # Kasten-Dimensionen
-        box_w = int(sw * 0.88)
-        box_h = int(sh * 0.88)
-        box_x = (sw - box_w) // 2
-        box_y = (sh - box_h) // 2 - int(sh * 0.02)
-
-        # 1. Schatten (Drop Shadow) unter dem Kasten
-        shadow_rect = pygame.Rect(box_x + 6, box_y + 6, box_w, box_h)
-        pygame.draw.rect(screen, (0, 0, 0), shadow_rect, border_radius=14)
-
-        # 2. Satter, dunkler Hintergrund für den Kasten
-        pygame.draw.rect(screen, (10, 10, 18), (box_x, box_y, box_w, box_h), border_radius=14)
-        
-        # 3. Edler goldener Rahmen
-        pygame.draw.rect(screen, HIGHLIGHT, (box_x, box_y, box_w, box_h), width=2, border_radius=14)
-
-        # Gesamthöhe des Textblocks vorab berechnen, um ihn perfekt vertikal zu zentrieren
         total_text_height = 0
         for text, color, font_obj in lines:
             if text == "":
-                total_text_height += int(sh * 0.008)
+                total_text_height += int(sh * 0.010)
             elif font_obj == title_font:
-                total_text_height += int(sh * 0.038)
+                total_text_height += int(sh * 0.036)
             elif font_obj == heading_font:
-                total_text_height += int(sh * 0.035)
+                total_text_height += int(sh * 0.032)
             else:
-                total_text_height += int(sh * 0.027)
+                total_text_height += int(sh * 0.025)
 
-        # Start-Y so berechnen, dass der Text im Kasten vertikal zentriert ist
-        usable_height = box_h - int(sh * 0.12) # Platz für Hinweistext unten freihalten
-        curr_y = box_y + (usable_height - total_text_height) // 2 + int(sh * 0.01)
+        content_top = line_y + int(sh * 0.015)
+        content_bottom = box_y + box_h - int(sh * 0.075)
+        usable_height = content_bottom - content_top
+        curr_y = content_top + max(0, (usable_height - total_text_height) // 2)
 
-        # Zeilen rendern
         for text, color, font_obj in lines:
             if text == "":
-                curr_y += int(sh * 0.008)
+                curr_y += int(sh * 0.010)
                 continue
             
             surf = font_obj.render(text, True, color)
-            screen.blit(surf, (box_x + int(box_w * 0.035), curr_y))
+            screen.blit(surf, (box_x + int(box_w * 0.04), curr_y))
             
             if font_obj == title_font:
-                curr_y += int(sh * 0.038)
+                curr_y += int(sh * 0.036)
             elif font_obj == heading_font:
-                curr_y += int(sh * 0.035)
+                curr_y += int(sh * 0.032)
             else:
-                curr_y += int(sh * 0.027)
+                curr_y += int(sh * 0.025)
 
-        # QR-Code rechts im Kasten vertikal zentrieren
         if qr_img:
             qr_w = qr_img.get_width()
             qr_h = qr_img.get_height()
-            label_h = qr_label_font.get_height() + 6
-            total_qr_block_h = qr_h + label_h
+            label_h = qr_label_font.get_height() + 8
+            card_pad = 16
+            qr_box_w = qr_w + card_pad * 2
+            qr_box_h = qr_h + label_h + card_pad * 2
             
-            qr_x = box_x + box_w - qr_w - int(box_w * 0.04)
-            qr_y = box_y + (box_h - total_qr_block_h) // 2
-            
-            screen.blit(qr_img, (qr_x, qr_y))
-            
-            # Label unter dem QR-Code
-            lbl_surf = qr_label_font.render("GitHub / stable", True, HIGHLIGHT)
-            screen.blit(lbl_surf, (qr_x + (qr_w - lbl_surf.get_width()) // 2, qr_y + qr_h + 6))
+            qr_box_x = box_x + box_w - qr_box_w - int(box_w * 0.045)
+            qr_box_y = content_top + (usable_height - qr_box_h) // 2
 
-        # Schließen-Hinweis ganz unten im Kasten
-        hint_surf = hint_font.render("Zum Schließen: Spielerwechsel-Taste oder START drücken", True, HIGHLIGHT)
+            pygame.draw.rect(screen, (12, 30, 46), (qr_box_x, qr_box_y, qr_box_w, qr_box_h), border_radius=12)
+            pygame.draw.rect(screen, NEON_CYAN, (qr_box_x, qr_box_y, qr_box_w, qr_box_h), width=2, border_radius=12)
+            
+            screen.blit(qr_img, (qr_box_x + card_pad, qr_box_y + card_pad))
+            
+            lbl_surf = qr_label_font.render("GitHub / stable", True, HIGHLIGHT)
+            screen.blit(lbl_surf, (qr_box_x + (qr_box_w - lbl_surf.get_width()) // 2, qr_box_y + card_pad + qr_h + 6))
+
+        hint_surf = hint_font.render("▶  Zum Schließen: SPIELERWECHSEL oder START drücken  ◀", True, HIGHLIGHT)
         screen.blit(hint_surf, hint_surf.get_rect(center=(sw // 2, box_y + box_h - int(box_h * 0.045))))
 
         pygame.display.flip()
