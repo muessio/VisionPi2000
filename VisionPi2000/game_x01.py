@@ -1,5 +1,5 @@
 # Datei: game_x01.py
-# Version: 1.1.6
+# Version: 1.1.7
 # VisionPi2000 - X01 (301, 501, 701) - Cyber-Circuit-Design, Berry-Rahmenfarben & Fast-Load Cache
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.6"
+VERSION = "1.1.7"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -31,7 +31,7 @@ _frame_cache = {}
 
 def draw_cyber_frame(surface, x, y, w, h, cut=22):
     """Zeichnet den gecachten VisionPi2000 Cyber-Tech-Rahmen wie im Service-Menü."""
-    key = ("cyber_frame", w, h, cut)
+    key = ("cyber_frame_v2", w, h, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 16:
             _frame_cache.clear()
@@ -42,17 +42,19 @@ def draw_cyber_frame(surface, x, y, w, h, cut=22):
         PANEL_BG = (8, 20, 32, 225)
 
         panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        r = w - 2
+        b = h - 2
         pts_local = [
-            (cut, 0), (w - cut, 0), (w, cut), (w, h - cut),
-            (w - cut, h), (cut, h), (0, h - cut), (0, cut)
+            (cut, 1), (r - cut, 1), (r, cut), (r, b - cut),
+            (r - cut, b), (cut, b), (1, b - cut), (1, cut)
         ]
         pygame.draw.polygon(panel_surf, PANEL_BG, pts_local)
 
         traces = [
             [(cut + 20, 14), (cut + 90, 14), (cut + 110, 34)],
-            [(w - cut - 20, 14), (w - cut - 90, 14), (w - cut - 110, 34)],
-            [(cut + 20, h - 14), (cut + 90, h - 14), (cut + 110, h - 34)],
-            [(w - cut - 20, h - 14), (w - cut - 90, h - 14), (w - cut - 110, h - 34)]
+            [(r - cut - 20, 14), (r - cut - 90, 14), (r - cut - 110, 34)],
+            [(cut + 20, b - 14), (cut + 90, b - 14), (cut + 110, b - 34)],
+            [(r - cut - 20, b - 14), (r - cut - 90, b - 14), (r - cut - 110, b - 34)]
         ]
         for tr in traces:
             pygame.draw.lines(panel_surf, (20, 65, 60, 160), False, tr, 2)
@@ -62,17 +64,17 @@ def draw_cyber_frame(surface, x, y, w, h, cut=22):
         pygame.draw.polygon(panel_surf, NEON_GREEN, pts_local, 2)
 
         c_len = int(h * 0.22)
-        pygame.draw.line(panel_surf, NEON_RED, (0, cut), (cut, 0), 4)
-        pygame.draw.line(panel_surf, NEON_RED, (0, h - cut), (cut, h), 4)
-        pygame.draw.line(panel_surf, NEON_CYAN, (0, cut + 12), (0, cut + c_len), 4)
-        pygame.draw.line(panel_surf, NEON_CYAN, (0, h - cut - 12), (0, h - cut - c_len), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (1, cut), (cut, 1), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (1, b - cut), (cut, b), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, cut + 12), (2, cut + c_len), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, b - cut - 12), (2, b - cut - c_len), 4)
 
-        pygame.draw.line(panel_surf, NEON_RED, (w - cut, 0), (w, cut), 4)
-        pygame.draw.line(panel_surf, NEON_RED, (w - cut, h), (w, h - cut), 4)
-        pygame.draw.line(panel_surf, NEON_CYAN, (w - 1, cut + 12), (w - 1, cut + c_len), 4)
-        pygame.draw.line(panel_surf, NEON_CYAN, (w - 1, h - cut - 12), (w - 1, h - cut - c_len), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, 1), (r, cut), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, b), (r, b - cut), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, cut + 12), (r - 1, cut + c_len), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, b - cut - 12), (r - 1, b - cut - c_len), 4)
 
-        for cx, cy in [(cut + 10, 8), (w - cut - 10, 8), (cut + 10, h - 8), (w - cut - 10, h - 8)]:
+        for cx, cy in [(cut + 10, 8), (r - cut - 10, 8), (cut + 10, b - 8), (r - cut - 10, b - 8)]:
             pygame.draw.circle(panel_surf, GOLD_TRACE, (cx, cy), 4)
 
         _frame_cache[key] = panel_surf
@@ -81,33 +83,37 @@ def draw_cyber_frame(surface, x, y, w, h, cut=22):
 
 
 def draw_cyber_player_card(surface, x, y, w, h, p_col, is_act, cut=12):
-    """Zeichnet eine gecachte Spieler-/Team-Karte im Cyber-Circuit-Stil mit Berry-Farben."""
-    key = ("cyber_card", w, h, p_col, is_act, cut)
+    """Zeichnet eine gecachte Spieler-/Team-Karte im Cyber-Circuit-Stil mit Berry-Farben ohne Rand-Clipping."""
+    key = ("cyber_card_v2", w, h, p_col, is_act, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 32:
             _frame_cache.clear()
         card_surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        bg_col = (18, 42, 62, 235) if is_act else (8, 20, 32, 215)
+        bg_col = (18, 42, 62, 235) if is_act else (8, 20, 32, 220)
+        
+        # 2px Innenabstand verhindert das Abschneiden an der rechten und unteren Surface-Kante
+        r = w - 3
+        b = h - 3
         pts = [
-            (cut, 0), (w - cut, 0), (w, cut), (w, h - cut),
-            (w - cut, h), (cut, h), (0, h - cut), (0, cut)
+            (cut, 2), (r - cut, 2), (r, cut), (r, b - cut),
+            (r - cut, b), (cut, b), (2, b - cut), (2, cut)
         ]
         pygame.draw.polygon(card_surf, bg_col, pts)
 
         if is_act:
-            glow_col = (p_col[0], p_col[1], p_col[2], 90)
-            pygame.draw.polygon(card_surf, glow_col, pts, 6)
+            glow_col = (p_col[0], p_col[1], p_col[2], 95)
+            pygame.draw.polygon(card_surf, glow_col, pts, 7)
 
-        pygame.draw.polygon(card_surf, p_col, pts, 3 if is_act else 2)
+        pygame.draw.polygon(card_surf, p_col, pts, 4 if is_act else 3)
 
         # Horizontale Tech-Trennlinie unter dem Spielernamen
         div_y = int(h * 0.30)
-        line_col = p_col if is_act else (40, 75, 95)
-        pygame.draw.line(card_surf, line_col, (12, div_y), (w - 12, div_y), 2 if is_act else 1)
+        line_col = p_col if is_act else (p_col[0] // 2, p_col[1] // 2, p_col[2] // 2, 200)
+        pygame.draw.line(card_surf, line_col, (12, div_y), (w - 12, div_y), 2)
 
         # Goldene / Farbige Lötpunkte in den Ecken
-        dot_col = (255, 205, 45) if is_act else (120, 100, 35)
-        for cx, cy in [(cut + 6, 7), (w - cut - 6, 7), (cut + 6, h - 7), (w - cut - 6, h - 7)]:
+        dot_col = (255, 205, 45) if is_act else (140, 115, 40)
+        for cx, cy in [(cut + 6, 8), (r - cut - 6, 8), (cut + 6, b - 6), (r - cut - 6, b - 6)]:
             pygame.draw.circle(card_surf, dot_col, (cx, cy), 3)
 
         _frame_cache[key] = card_surf
