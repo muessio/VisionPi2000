@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.2.6
+# Version: 1.2.7
 # VisionPi2000 - Fruit Splasher (Original-Spiel mit Cyber-Circuit Karten-Design)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.2.6"
+VERSION = "1.2.7"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -32,7 +32,9 @@ BERRY_PROFILES = [
 
 GOLDEN_BERRY = {"name": "Golden-Raspberry", "fruit": "Golden-Berry", "color": (255, 215, 0), "hi": (255, 255, 190), "style": "cluster"}
 
-_ASSET_CACHE = {}
+if not hasattr(pygame, "_vp2000_cache"):
+    pygame._vp2000_cache = {}
+_ASSET_CACHE = pygame._vp2000_cache
 _frame_cache = {}
 
 
@@ -515,9 +517,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     big_font = _get_cached_font(int(sh * 0.044))
     win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.16)
     win_font = _get_cached_font(win_font_size)
-    giant_font = _get_font(int(sh * 0.20))
+    giant_font = _get_cached_font(int(sh * 0.20))
 
-    HIGHLIGHT, WHITE, RED_COL, NEON_GREEN, NEON_CYAN = (255, 215, 0), (255, 255, 255), (255, 60, 80), (0, 255, 157), (0, 216, 255)
+    HIGHLIGHT, WHITE, RED_COL, NEON_GREEN, NEON_CYAN = (255, 215, 0), (255, 255, 255), (180, 30, 30), (0, 255, 157), (0, 216, 255)
 
     scores = [0] * total_players
     pump_levels = [0] * total_players
@@ -897,7 +899,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     prof = BERRY_PROFILES[0] if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
                     is_act = (i == active_player - 1)
 
-                    # --- CYBER-CIRCUIT RAHMEN STATT STANDARD RECHTECK ---
+                    # --- NUR DIE KÄSTCHEN IM CYBER-LOOK EINGEFASST ---
                     draw_cyber_player_card(screen, cx, cy, card_w, card_h, prof["color"], is_act, cut=14)
 
                     lbl = "Bullseye-Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
@@ -939,7 +941,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     h_prof = hunt_profiles[h_i]
                     is_gold = (t_num == 25)
 
-                    # --- CYBER-CIRCUIT RAHMEN FÜR HUNCH-KARTEN ---
                     draw_cyber_player_card(screen, hx, hunt_y, card_w, card_h, HIGHLIGHT if is_gold else h_prof["color"], is_gold, cut=10)
 
                     num_lbl = "BULL" if is_gold else str(t_num)
@@ -1022,7 +1023,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
                 win_y = int(sh * 0.22)
                 txt_head = win_font.render("BERRY SPLASH!", True, (50, 255, 50))
-                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
+                screen.blit(txt_head, ((sw - win_font.render("BERRY SPLASH!", True, (50, 255, 50)).get_width()) // 2, win_y))
 
                 win_prof = BERRY_PROFILES[0] if (is_berry_game and winner_idx == total_players - 1) else BERRY_PROFILES[winner_idx % len(BERRY_PROFILES)]
                 winner_name = "Bullseye-Berry" if (is_berry_game and winner_idx == total_players - 1) else f"Spieler {winner_idx + 1}"
