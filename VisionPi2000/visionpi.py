@@ -1,5 +1,6 @@
 # Datei: visionpi.py
-# Version: 1.1.13-stable
+# Version: 1.1.15-main
+# VisionPi2000 - Hauptmenü im Cyber-Circuit-Design mit farbigen Spalten-Hintergründen
 
 import pygame
 import serial
@@ -40,16 +41,124 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.13-stable"
+VERSION = "1.1.15-main"
 
 # Globaler RAM-schonender Asset-Cache für 0ms Spielstart auf dem Pi 4B (1GB RAM)
 GLOBAL_FONT_CACHE = {}
 GLOBAL_SOUND_CACHE = {}
 GLOBAL_IMAGE_CACHE = {}
 SHARED_GAME_ASSETS = {}
+_frame_cache = {}
 
 _orig_sysfont = pygame.font.SysFont
 _orig_sound = None
+
+
+def draw_cyber_frame_colored(surface, x, y, w, h, bg_color, cut=18):
+    """Zeichnet den Cyber-Tech-Rahmen mit einer spezifischen Hintergrundfarbe für die Spalten."""
+    key = ("cyber_frame_col", w, h, bg_color, cut)
+    if key not in _frame_cache:
+        if len(_frame_cache) > 24:
+            _frame_cache.clear()
+        NEON_GREEN = (0, 255, 157)
+        NEON_CYAN = (0, 216, 255)
+        NEON_RED = (255, 56, 76)
+        GOLD_TRACE = (180, 140, 40)
+
+        panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        r = w - 2
+        b = h - 2
+        pts_local = [
+            (cut, 1), (r - cut, 1), (r, cut), (r, b - cut),
+            (r - cut, b), (cut, b), (1, b - cut), (1, cut)
+        ]
+        
+        # Hintergrundfarbe mit leichter Transparenz (210 von 255) einfüllen, damit das Design erhalten bleibt
+        col_with_alpha = (bg_color[0], bg_color[1], bg_color[2], 210)
+        pygame.draw.polygon(panel_surf, col_with_alpha, pts_local)
+
+        traces = [
+            [(cut + 15, 12), (cut + 60, 12), (cut + 75, 26)],
+            [(r - cut - 15, 12), (r - cut - 60, 12), (r - cut - 75, 26)],
+            [(cut + 15, b - 12), (cut + 60, b - 12), (cut + 75, b - 26)]
+        ]
+        for tr in traces:
+            pygame.draw.lines(panel_surf, (255, 255, 255, 70), False, tr, 1)
+            pygame.draw.circle(panel_surf, (0, 255, 157, 120), tr[-1], 3, 1)
+
+        pygame.draw.polygon(panel_surf, (0, 110, 75), pts_local, 5)
+        pygame.draw.polygon(panel_surf, NEON_GREEN, pts_local, 2)
+
+        c_len = int(h * 0.20)
+        pygame.draw.line(panel_surf, NEON_RED, (1, cut), (cut, 1), 3)
+        pygame.draw.line(panel_surf, NEON_RED, (1, b - cut), (cut, b), 3)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, cut + 10), (2, cut + c_len), 3)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, b - cut - 10), (2, b - cut - c_len), 3)
+
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, 1), (r, cut), 3)
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, b), (r, b - cut), 3)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, cut + 10), (r - 1, cut + c_len), 3)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, b - cut - 10), (r - 1, b - cut - c_len), 3)
+
+        for cx, cy in [(cut + 8, 6), (r - cut - 8, 6), (cut + 8, b - 6), (r - cut - 8, b - 6)]:
+            pygame.draw.circle(panel_surf, GOLD_TRACE, (cx, cy), 3)
+
+        _frame_cache[key] = panel_surf
+
+    surface.blit(_frame_cache[key], (x, y))
+
+
+def draw_cyber_frame(surface, x, y, w, h, cut=22):
+    """Standard Cyber-Rahmen für Popups und Infos."""
+    key = ("cyber_frame_v2", w, h, cut)
+    if key not in _frame_cache:
+        if len(_frame_cache) > 16:
+            _frame_cache.clear()
+        NEON_GREEN = (0, 255, 157)
+        NEON_CYAN = (0, 216, 255)
+        NEON_RED = (255, 56, 76)
+        GOLD_TRACE = (180, 140, 40)
+        PANEL_BG = (8, 20, 32, 225)
+
+        panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        r = w - 2
+        b = h - 2
+        pts_local = [
+            (cut, 1), (r - cut, 1), (r, cut), (r, b - cut),
+            (r - cut, b), (cut, b), (1, b - cut), (1, cut)
+        ]
+        pygame.draw.polygon(panel_surf, PANEL_BG, pts_local)
+
+        traces = [
+            [(cut + 20, 14), (cut + 90, 14), (cut + 110, 34)],
+            [(r - cut - 20, 14), (r - cut - 90, 14), (r - cut - 110, 34)],
+            [(cut + 20, b - 14), (cut + 90, b - 14), (cut + 110, b - 34)],
+            [(r - cut - 20, b - 14), (r - cut - 90, b - 14), (r - cut - 110, b - 34)]
+        ]
+        for tr in traces:
+            pygame.draw.lines(panel_surf, (20, 65, 60, 160), False, tr, 2)
+            pygame.draw.circle(panel_surf, (0, 255, 157, 160), tr[-1], 4, 1)
+
+        pygame.draw.polygon(panel_surf, (0, 110, 75), pts_local, 6)
+        pygame.draw.polygon(panel_surf, NEON_GREEN, pts_local, 2)
+
+        c_len = int(h * 0.22)
+        pygame.draw.line(panel_surf, NEON_RED, (1, cut), (cut, 1), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (1, b - cut), (cut, b), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, cut + 12), (2, cut + c_len), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, b - cut - 12), (2, b - cut - c_len), 4)
+
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, 1), (r, cut), 4)
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, b), (r, b - cut), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, cut + 12), (r - 1, cut + c_len), 4)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, b - cut - 12), (r - 1, b - cut - c_len), 4)
+
+        for cx, cy in [(cut + 10, 8), (r - cut - 10, 8), (cut + 10, b - 8), (r - cut - 10, b - 8)]:
+            pygame.draw.circle(panel_surf, GOLD_TRACE, (cx, cy), 4)
+
+        _frame_cache[key] = panel_surf
+
+    surface.blit(_frame_cache[key], (x, y))
 
 
 def _cached_sysfont(name, size, bold=False, italic=False):
@@ -143,7 +252,6 @@ def find_image_file(preferred_names):
 
 def preload_all_game_assets(sw, sh, is_16_9, raw_bg_surface):
     """Lädt und skaliert alle Spiel-Ressourcen einmalig während des Boot-Splashscreens."""
-    # 1. Gemeinsames Spiel-Hintergrundbild (mit 160 Alpha Abdunkelung) einmalig erzeugen
     if raw_bg_surface is not None:
         game_bg = raw_bg_surface.copy()
         darker_overlay = pygame.Surface((sw, sh))
@@ -152,7 +260,6 @@ def preload_all_game_assets(sw, sh, is_16_9, raw_bg_surface):
         game_bg.blit(darker_overlay, (0, 0))
         SHARED_GAME_ASSETS[f"bg_{sw}_{sh}_{is_16_9}"] = game_bg
 
-    # 2. Alle Sounddateien vorab in den RAM laden
     sound_files = [
         "sounds/click.wav", "sounds/start.wav", "sounds/victory.wav",
         "sounds/champ.wav", "sounds/hit_single.wav", "sounds/hit_double.wav",
@@ -167,7 +274,6 @@ def preload_all_game_assets(sw, sh, is_16_9, raw_bg_surface):
             except Exception:
                 SHARED_GAME_ASSETS[f"snd_{snd_path}"] = None
 
-    # 3. Screensaver-Avatare (100x100) und Bot-Animationsframes einmalig vorab skalieren
     ss_imgs = []
     berry_files = [
         "Bullseye-Berry_Original.png",
@@ -183,14 +289,12 @@ def preload_all_game_assets(sw, sh, is_16_9, raw_bg_surface):
                 GLOBAL_IMAGE_CACHE[b_file] = raw_av
                 ss_imgs.append(pygame.transform.smoothscale(raw_av, (100, 100)))
 
-                # Standard-Spiel-Bot-Frames (0.28 * sh)
                 if b_file != "Bullseye-Berry_Champ.png":
                     base_28 = int(sh * 0.28)
                     SHARED_GAME_ASSETS[f"av28_{b_file}_{sh}"] = [
                         pygame.transform.smoothscale(raw_av, (base_28 + off, base_28 + off))
                         for off in [-10, -5, 0, 5, 10]
                     ]
-                    # Fruit-Splasher-Bot-Frames (0.25 * sh)
                     base_25 = int(sh * 0.25)
                     SHARED_GAME_ASSETS[f"av_{b_file}_{sh}"] = [
                         pygame.transform.smoothscale(raw_av, (base_25 + off, base_25 + off))
@@ -207,14 +311,12 @@ def preload_all_game_assets(sw, sh, is_16_9, raw_bg_surface):
                 pass
     SHARED_GAME_ASSETS["ss_avatars"] = ss_imgs
 
-    # 4. Häufig genutzte Schriftgrößen aller Spiele vorab im Font-Cache anlegen
     font_ratios = [0.018, 0.020, 0.021, 0.022, 0.024, 0.025, 0.026, 0.028, 0.030, 0.032, 0.033, 0.034, 0.040, 0.044, 0.045, 0.12, 0.20]
     for r in font_ratios:
         sz = int(sh * r)
         pygame.font.SysFont("arial", sz, bold=True)
         SHARED_GAME_ASSETS[f"font_{sz}"] = pygame.font.SysFont("arial", sz, bold=True)
 
-    # 5. Gemeinsamen Asset-Cache direkt in alle Spielmodule injizieren
     for mod in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_fruit_splasher]:
         if mod is not None:
             if hasattr(mod, "_ASSET_CACHE") and isinstance(mod._ASSET_CACHE, dict):
@@ -343,14 +445,20 @@ def init_serial():
     return None
 
 def draw_column(screen, font, title_font, x, y, w, h, color, title, items, sel_idx):
-    pygame.draw.rect(screen, color, (x, y, w, h), border_radius=12)
-    t_surf = title_font.render(title, True, (255, 255, 255))
-    screen.blit(t_surf, (x + (w - t_surf.get_width()) // 2, y + 15))
-    pygame.draw.line(screen, (255, 255, 255), (x + 15, y + 50), (x + w - 15, y + 50), 2)
-    y_off = y + 65
+    NEON_GREEN = (0, 255, 157)
+    
+    # Hier wird nun die übergebene Farbe (Rot, Blau, Grau) als dezenter Hintergrund-Ton eingesetzt
+    draw_cyber_frame_colored(screen, x, y, w, h, color, cut=18)
+    
+    t_surf = title_font.render(title, True, (255, 205, 45))
+    screen.blit(t_surf, (x + (w - t_surf.get_width()) // 2, y + 14))
+    pygame.draw.line(screen, NEON_GREEN, (x + 15, y + 46), (x + w - 15, y + 46), 2)
+    
+    y_off = y + 58
     for i, item in enumerate(items):
-        item_color = (255, 215, 0) if i == sel_idx else (255, 255, 255)
-        prefix = "> " if i == sel_idx else "  " 
+        is_sel = (i == sel_idx)
+        item_color = (0, 255, 157) if is_sel else (255, 255, 255)
+        prefix = "▶  " if is_sel else "    " 
         screen.blit(font.render(prefix + item, True, item_color), (x + 15, y_off))
         y_off += (font.get_height() + 10) 
 
@@ -421,7 +529,7 @@ def main():
             raw_scaled_bg = pygame.transform.scale(raw_bg, (TARGET_WIDTH, TARGET_HEIGHT))
             bg_img = raw_scaled_bg.copy()
             darker_overlay = pygame.Surface((TARGET_WIDTH, TARGET_HEIGHT))
-            darker_overlay.set_alpha(120); darker_overlay.fill((0, 0, 0))
+            darker_overlay.set_alpha(165); darker_overlay.fill((4, 12, 20))
             bg_img.blit(darker_overlay, (0, 0))
         except Exception:
             pass
@@ -564,8 +672,6 @@ def main():
         raw_data = None
         if ser and ser.in_waiting > 0:
             try:
-                # Im Menü IR:DETECT und MISS:1 komplett ignorieren, damit weder Piezo-Rauschen
-                # den Timer zurücksetzt noch ein auslösender IR-Sensor den Schoner sofort beendet
                 while ser.in_waiting > 0:
                     line = ser.readline().decode('utf-8', 'ignore').strip()
                     if line.startswith(("BTN:", "HIT:")):
@@ -622,12 +728,11 @@ def main():
                 box_x = (TARGET_WIDTH - box_w) // 2
                 box_y = (TARGET_HEIGHT - box_h) // 2
                 
-                pygame.draw.rect(screen, (10, 10, 10), (box_x, box_y, box_w, box_h), border_radius=16)
-                pygame.draw.rect(screen, (255, 215, 0), (box_x, box_y, box_w, box_h), width=3, border_radius=16)
+                draw_cyber_frame(screen, box_x, box_y, box_w, box_h, cut=22)
 
                 cur_y = box_y + int(box_h * 0.04)
                 
-                t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,215,0))
+                t_surf = info_title_font.render("SYSTEM-INFORMATIONEN & SOFTWARE-STÄNDE", True, (255,205,45))
                 screen.blit(t_surf, (box_x + (box_w - t_surf.get_width()) // 2, cur_y))
                 cur_y += int(box_h * 0.08)
 
@@ -652,13 +757,13 @@ def main():
 
                 for mod_name, mod_obj in modules_to_check:
                     mod_ver = getattr(mod_obj, 'VERSION', 'Unbekannt') if mod_obj else 'Nicht geladen'
-                    color = (100, 255, 100) if mod_obj else (255, 100, 100)
+                    color = (0, 255, 157) if mod_obj else (255, 56, 76)
                     text_str = f"• {mod_name}: v{mod_ver}" if mod_obj else f"• {mod_name}: Modul fehlt"
                     mod_surf = info_font.render(text_str, True, color)
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
                     cur_y += int(box_h * 0.048)
 
-                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken", True, (255, 215, 0))
+                hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken", True, (255, 205, 45))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.08)))
 
                 pygame.display.flip()
@@ -737,8 +842,8 @@ def main():
         if header_img: 
             screen.blit(header_img, ((TARGET_WIDTH - header_img.get_width()) // 2, header_y_pos))
         else:
-            hx = (TARGET_WIDTH - big_font.render("VisionPi2000", True, (255,215,0)).get_width()) // 2
-            screen.blit(big_font.render("VisionPi2000", True, (255,215,0)), (hx, header_y_pos + 10))
+            hx = (TARGET_WIDTH - big_font.render("VisionPi2000", True, (255,205,45)).get_width()) // 2
+            screen.blit(big_font.render("VisionPi2000", True, (255,205,45)), (hx, header_y_pos + 10))
         
         cw = int(TARGET_WIDTH * 0.28)
         ch = int(TARGET_HEIGHT * 0.48)  
@@ -747,9 +852,10 @@ def main():
         
         sy = int(TARGET_HEIGHT * 0.38)  
         
-        draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
-        draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
-        draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
+        # Hier werden die klassischen Farben (Rot, Blau, Grau) als dezent getönter Hintergrund in die Spalten übergeben
+        draw_column(screen, font, title_font, sx, sy, cw, ch, (180, 30, 30), "SPIEL", g_list, sel_game)
+        draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30, 80, 180), "OPTION", c_opts, sel_option)
+        draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80, 80, 80), "MODUS", modes, sel_mode)
 
         if current_game_name in ["Service-Menü", "Spieleanleitung", "Über das Projekt"]:
             screen.blit(big_font.render("System-Funktion", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))

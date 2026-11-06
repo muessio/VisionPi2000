@@ -410,3 +410,4 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             ser.flush()
         except Exception:
             pass
+ 
