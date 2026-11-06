@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.2.7
+# Version: 1.2.8
 # VisionPi2000 - Fruit Splasher (Original-Spiel mit Cyber-Circuit Karten-Design)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.2.7"
+VERSION = "1.2.8"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -39,7 +39,6 @@ _frame_cache = {}
 
 
 def draw_cyber_frame(surface, x, y, w, h, cut=22):
-    """Zeichnet den gecachten VisionPi2000 Cyber-Tech-Rahmen für Popups."""
     key = ("cyber_frame_v2", w, h, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 16:
@@ -92,7 +91,6 @@ def draw_cyber_frame(surface, x, y, w, h, cut=22):
 
 
 def draw_cyber_player_card(surface, x, y, w, h, p_col, is_act, cut=12):
-    """Zeichnet die Beeren-Karten & Scoreboards im Cyber-Circuit-Stil ohne Rand-Clipping."""
     key = ("cyber_card_v2", w, h, p_col, is_act, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 32:
@@ -899,7 +897,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     prof = BERRY_PROFILES[0] if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
                     is_act = (i == active_player - 1)
 
-                    # --- NUR DIE KÄSTCHEN IM CYBER-LOOK EINGEFASST ---
                     draw_cyber_player_card(screen, cx, cy, card_w, card_h, prof["color"], is_act, cut=14)
 
                     lbl = "Bullseye-Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
@@ -953,7 +950,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     p_surf = small_font.render(pts_lbl, True, h_prof["color"])
                     screen.blit(p_surf, (hx + (card_w - p_surf.get_width()) // 2, hunt_y + card_h - int(sh * 0.045)))
 
-                # --- UNTERES SCOREBOARD IM CYBER-LOOK ---
                 sb_y = int(sh * 0.65)
                 box_h = int(sh * 0.28)
                 p_box_w = int(sw * 0.88 / total_players) - 10
