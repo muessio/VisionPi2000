@@ -1,6 +1,6 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.2.5
-# VisionPi2000 - Fruit Splasher (Cyber-Circuit-Design Integration)
+# Version: 1.2.6
+# VisionPi2000 - Fruit Splasher (Original-Spiel mit Cyber-Circuit Karten-Design)
 
 import pygame
 import math
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.2.5"
+VERSION = "1.2.6"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -37,7 +37,7 @@ _frame_cache = {}
 
 
 def draw_cyber_frame(surface, x, y, w, h, cut=22):
-    """Zeichnet den gecachten VisionPi2000 Cyber-Tech-Rahmen."""
+    """Zeichnet den gecachten VisionPi2000 Cyber-Tech-Rahmen für Popups."""
     key = ("cyber_frame_v2", w, h, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 16:
@@ -90,7 +90,7 @@ def draw_cyber_frame(surface, x, y, w, h, cut=22):
 
 
 def draw_cyber_player_card(surface, x, y, w, h, p_col, is_act, cut=12):
-    """Zeichnet eine gecachte Spieler-/Team-Karte im Cyber-Circuit-Stil ohne Rand-Clipping."""
+    """Zeichnet die Beeren-Karten & Scoreboards im Cyber-Circuit-Stil ohne Rand-Clipping."""
     key = ("cyber_card_v2", w, h, p_col, is_act, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 32:
@@ -515,9 +515,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     big_font = _get_cached_font(int(sh * 0.044))
     win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.16)
     win_font = _get_cached_font(win_font_size)
-    giant_font = _get_cached_font(int(sh * 0.20))
+    giant_font = _get_font(int(sh * 0.20))
 
-    HIGHLIGHT, WHITE, RED_COL, NEON_GREEN, NEON_CYAN = (255, 205, 45), (255, 255, 255), (255, 56, 76), (0, 255, 157), (0, 216, 255)
+    HIGHLIGHT, WHITE, RED_COL, NEON_GREEN, NEON_CYAN = (255, 215, 0), (255, 255, 255), (255, 60, 80), (0, 255, 157), (0, 216, 255)
 
     scores = [0] * total_players
     pump_levels = [0] * total_players
@@ -859,101 +859,117 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         if bg_img:
             screen.blit(bg_img, (0, 0))
         else:
-            screen.fill((6, 17, 28))
+            screen.fill((0, 0, 0))
 
         if current_state in ["GAME", "ABORT_MENU", "WIN"]:
-            # --- OBERES CYBER-CIRCUIT HAUPTPANEL ---
-            hud_w = int(sw * 0.90)
-            hud_x = (sw - hud_w) // 2
-            hud_y = int(sh * 0.02)
-            hud_h = int(sh * 0.635)
-            draw_cyber_frame(screen, hud_x, hud_y, hud_w, hud_h, cut=22)
-
             rnd_txt = f"Runde {round_num}/{max_rounds}" if is_hunt_mode else f"Runde {round_num} (Ziel: {target_splashes} Splashes)"
-            head_txt = f"FRUIT SPLASHER   •   {option.upper()}   •   {rnd_txt.upper()}"
-            head_surf = title_font.render(head_txt, True, HIGHLIGHT)
-            screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, hud_y + int(sh * 0.018)))
-
-            line_y = hud_y + int(sh * 0.068)
-            pygame.draw.line(screen, NEON_GREEN, (hud_x + 35, line_y), (hud_x + hud_w - 35, line_y), 2)
-            pygame.draw.circle(screen, HIGHLIGHT, (sw // 2, line_y), 5)
+            screen.blit(title_font.render(f"FRUIT SPLASHER | {option} | {rnd_txt}", True, HIGHLIGHT), (int(sw * 0.04), int(sh * 0.04)))
 
             active_prof = BERRY_PROFILES[0] if is_berrys_turn else BERRY_PROFILES[(active_player - 1) % len(BERRY_PROFILES)]
             p_title = "Bullseye-Berry" if is_berrys_turn else f"Spieler {active_player}"
-            
-            name_surf = big_font.render(f"▶  {p_title}  ◀", True, active_prof["color"])
-            screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh * 0.105)))
-            
+            name_surf = big_font.render(p_title, True, active_prof["color"])
+            screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh * 0.09)))
+
             if not is_hunt_mode:
                 sub_str = f"Triff Segment [ {player_targets[active_player - 1]} ] oder [ BULL ] zum Aufpumpen!"
             else:
-                sub_str = f"Runden-Punkte: {round_points}   •   Triff die markierten Beeren-Segmente!"
-            temp_score_surf = title_font.render(sub_str, True, NEON_CYAN)
-            screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh * 0.165)))
+                sub_str = f"Runden-Punkte: {round_points}   |   Triff die markierten Beeren-Segmente!"
+            sub_surf = title_font.render(sub_str, True, (200, 200, 200))
+            screen.blit(sub_surf, ((sw - sub_surf.get_width()) // 2, int(sh * 0.14)))
 
             if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
-                block_hint = title_font.render("Bitte Pfeile ziehen  ▶  IR-Sensor oder Spielerwechsel drücken!", True, RED_COL)
-                bh_w = block_hint.get_width() + 40
-                bh_h = block_hint.get_height() + 10
-                bh_x = (sw - bh_w) // 2
-                bh_y = int(sh * 0.525)
-                pygame.draw.rect(screen, (42, 14, 22), (bh_x, bh_y, bh_w, bh_h), border_radius=8)
-                pygame.draw.rect(screen, RED_COL, (bh_x, bh_y, bh_w, bh_h), 2, border_radius=8)
-                screen.blit(block_hint, (bh_x + 20, bh_y + 5))
-
-            # --- PFEIL-STATUS & CYBER-DOTS ---
-            darts_surf = title_font.render(f"Pfeile: {darts_thrown} / 3", True, (200, 215, 225))
-            d_total_w = darts_surf.get_width() + 90
-            d_start_x = (sw - d_total_w) // 2
-            d_y = int(sh * 0.592)
-            screen.blit(darts_surf, (d_start_x, d_y))
-            dot_base_x = d_start_x + darts_surf.get_width() + 25
-            dot_cy = d_y + darts_surf.get_height() // 2
-            for d_i in range(3):
-                is_rem = d_i < (3 - darts_thrown)
-                c_dot = NEON_GREEN if is_rem else (35, 60, 75)
-                pygame.draw.circle(screen, c_dot, (dot_base_x + d_i * 24, dot_cy), 8)
-                pygame.draw.circle(screen, HIGHLIGHT if is_rem else (70, 95, 110), (dot_base_x + d_i * 24, dot_cy), 8, 2)
-
-            # --- UNTERES SPIELER- & BERRY-SCOREBOARD (Cyber-Karten) ---
-            sb_y = int(sh * 0.68)
-            box_h = int(sh * 0.28)
+                block_hint = title_font.render("Bitte Pfeile ziehen -> IR-Sensor oder Spielerwechsel drücken!", True, RED_COL)
+                screen.blit(block_hint, ((sw - block_hint.get_width()) // 2, int(sh * 0.56)))
 
             if not is_hunt_mode:
-                p_box_w = int(sw * 0.90 / total_players) - 10
-                sb_x = (sw - (total_players * (p_box_w + 10) - 10)) // 2
+                cols = min(4, total_players)
+                rows = math.ceil(total_players / float(cols))
+                card_w = int(sw * 0.88 / cols) - 16
+                card_h = int(sh * (0.58 if rows == 1 else 0.30))
+                grid_x = (sw - (cols * (card_w + 16) - 16)) // 2
+                grid_y = int(sh * 0.20)
 
                 for i in range(total_players):
-                    px = sb_x + i * (p_box_w + 10)
-                    is_act = (i == active_player - 1)
+                    r_idx = i // cols
+                    c_idx = i % cols
+                    cx = grid_x + c_idx * (card_w + 16)
+                    cy = grid_y + r_idx * (card_h + 18)
                     prof = BERRY_PROFILES[0] if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
-                    
-                    draw_cyber_player_card(screen, px, sb_y, p_box_w, box_h, prof["color"], is_act, cut=12)
+                    is_act = (i == active_player - 1)
+
+                    # --- CYBER-CIRCUIT RAHMEN STATT STANDARD RECHTECK ---
+                    draw_cyber_player_card(screen, cx, cy, card_w, card_h, prof["color"], is_act, cut=14)
 
                     lbl = "Bullseye-Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
-                    pn_surf = scoreboard_font.render(lbl, True, prof["color"])
-                    screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + int(box_h * 0.08)))
+                    t_s = title_font.render(lbl, True, prof["color"])
+                    screen.blit(t_s, (cx + (card_w - t_s.get_width()) // 2, cy + 8))
 
-                    sc_text = f"Ziel: {player_targets[i]}  |  {scores[i]}/{target_splashes}"
-                    sc_surf = big_font.render(sc_text, True, HIGHLIGHT if is_act else WHITE)
-                    screen.blit(sc_surf, (px + (p_box_w - sc_surf.get_width()) // 2, sb_y + int(box_h * 0.44)))
+                    badge_txt1 = tiny_font.render(f"ZIEL: {player_targets[i]}", True, HIGHLIGHT)
+                    badge_txt2 = tiny_font.render("BULLSEYE AKTIV", True, (0, 220, 255))
+
+                    screen.blit(badge_txt1, (cx + (card_w - badge_txt1.get_width()) // 2, cy + int(card_h * 0.14)))
+                    screen.blit(badge_txt2, (cx + (card_w - badge_txt2.get_width()) // 2, cy + int(card_h * 0.25)))
+
+                    base_rad = int(min(card_w, card_h) * 0.14)
+                    draw_berry_icon(screen, cx + card_w // 2, cy + int(card_h * 0.52), base_rad, prof, pump_levels[i], max_pump)
+
+                    bar_w = int(card_w * 0.82)
+                    bar_h = int(card_h * 0.08)
+                    bar_x = cx + (card_w - bar_w) // 2
+                    bar_y = cy + card_h - bar_h - int(card_h * 0.18)
+                    pygame.draw.rect(screen, (30, 30, 40), (bar_x, bar_y, bar_w, bar_h), border_radius=6)
+                    fill_w = int(bar_w * (pump_levels[i] / float(max_pump)))
+                    if fill_w > 0:
+                        pygame.draw.rect(screen, prof["color"], (bar_x, bar_y, fill_w, bar_h), border_radius=6)
+                    pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_w, bar_h), 1, border_radius=6)
+
+                    score_str = tiny_font.render(f"Splashes: {scores[i]}/{target_splashes}  |  Juice: {pump_levels[i]}/{max_pump}", True, NEON_GREEN if scores[i] > 0 else (190, 190, 190))
+                    screen.blit(score_str, (cx + (card_w - score_str.get_width()) // 2, cy + card_h - int(card_h * 0.08)))
+
             else:
-                p_box_w = int(sw * 0.90 / total_players) - 10
+                hunt_y = int(sh * 0.22)
+                card_w = int(sw * 0.12)
+                card_h = int(sh * 0.38)
+                gap = int(sw * 0.012)
+                start_x = (sw - (7 * card_w + 6 * gap)) // 2
+
+                for h_i in range(7):
+                    hx = start_x + h_i * (card_w + gap)
+                    t_num = hunt_targets[h_i]
+                    h_prof = hunt_profiles[h_i]
+                    is_gold = (t_num == 25)
+
+                    # --- CYBER-CIRCUIT RAHMEN FÜR HUNCH-KARTEN ---
+                    draw_cyber_player_card(screen, hx, hunt_y, card_w, card_h, HIGHLIGHT if is_gold else h_prof["color"], is_gold, cut=10)
+
+                    num_lbl = "BULL" if is_gold else str(t_num)
+                    n_surf = big_font.render(num_lbl, True, HIGHLIGHT if is_gold else WHITE)
+                    screen.blit(n_surf, (hx + (card_w - n_surf.get_width()) // 2, hunt_y + 8))
+
+                    draw_berry_icon(screen, hx + card_w // 2, hunt_y + int(card_h * 0.52), int(card_w * 0.25), h_prof, 2, 7)
+
+                    pts_lbl = "50/100" if is_gold else f"{t_num} Pkt"
+                    p_surf = small_font.render(pts_lbl, True, h_prof["color"])
+                    screen.blit(p_surf, (hx + (card_w - p_surf.get_width()) // 2, hunt_y + card_h - int(sh * 0.045)))
+
+                # --- UNTERES SCOREBOARD IM CYBER-LOOK ---
+                sb_y = int(sh * 0.65)
+                box_h = int(sh * 0.28)
+                p_box_w = int(sw * 0.88 / total_players) - 10
                 sb_x = (sw - (total_players * (p_box_w + 10) - 10)) // 2
-                
                 for i in range(total_players):
                     px = sb_x + i * (p_box_w + 10)
-                    is_act = (i == active_player - 1)
                     prof = BERRY_PROFILES[0] if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
+                    is_act = (i == active_player - 1)
                     
                     draw_cyber_player_card(screen, px, sb_y, p_box_w, box_h, prof["color"], is_act, cut=12)
 
                     p_name = "Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i + 1}"
                     pn_surf = scoreboard_font.render(p_name, True, prof["color"])
-                    screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + int(box_h * 0.08)))
+                    screen.blit(pn_surf, (px + (p_box_w - pn_surf.get_width()) // 2, sb_y + 10))
 
                     sc_surf = big_font.render(str(scores[i]), True, HIGHLIGHT if is_act else WHITE)
-                    screen.blit(sc_surf, (px + (p_box_w - sc_surf.get_width()) // 2, sb_y + int(box_h * 0.44)))
+                    screen.blit(sc_surf, (px + (p_box_w - sc_surf.get_width()) // 2, sb_y + int(box_h * 0.40)))
 
             for pt in particles[:]:
                 pt["x"] += pt["vx"]
@@ -977,55 +993,47 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if is_berrys_turn and avatar_frames:
                 idx_anim = int((math.sin(pygame.time.get_ticks() * 0.005) + 1.0) * 2.49)
                 idx_anim = max(0, min(len(avatar_frames) - 1, idx_anim))
-                screen.blit(avatar_frames[idx_anim], (int(sw * 0.72), int(sh * 0.22)))
+                screen.blit(avatar_frames[idx_anim], (int(sw * 0.78), int(sh * 0.38)))
 
             if pygame.time.get_ticks() < champ_display_until and champ_img:
                 screen.blit(champ_img, ((sw - champ_img.get_width()) // 2, (sh - champ_img.get_height()) // 2))
 
             if current_state == "ABORT_MENU":
                 overlay = pygame.Surface((sw, sh))
-                overlay.set_alpha(210)
-                overlay.fill((4, 10, 18))
+                overlay.set_alpha(220)
+                overlay.fill((0, 0, 0))
                 screen.blit(overlay, (0, 0))
-                
-                pop_w, pop_h = int(sw * 0.66), int(sh * 0.46)
-                pop_x, pop_y = (sw - pop_w) // 2, (sh - pop_h) // 2
-                draw_cyber_frame(screen, pop_x, pop_y, pop_w, pop_h, cut=22)
 
+                menu_y = int(sh * 0.35)
                 txt_head = big_font.render("SPIEL ABBRECHEN?", True, HIGHLIGHT)
-                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, pop_y + int(pop_h * 0.14)))
-                pygame.draw.line(screen, NEON_GREEN, (pop_x + 40, pop_y + int(pop_h * 0.32)), (pop_x + pop_w - 40, pop_y + int(pop_h * 0.32)), 2)
-                
-                txt_start = title_font.render("▶  START = Weiterspielen  ◀", True, NEON_GREEN)
-                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, pop_y + int(pop_h * 0.48)))
-                
-                txt_end = title_font.render("▶  SPIELERWECHSEL = Beenden  ◀", True, RED_COL)
-                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, pop_y + int(pop_h * 0.68)))
+                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, menu_y))
+
+                txt_start = title_font.render("> START = Weiterspielen <", True, (50, 255, 50))
+                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, menu_y + int(sh * 0.15)))
+
+                txt_end = title_font.render("> SPIELERWECHSEL = Beenden <", True, RED_COL)
+                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, menu_y + int(sh * 0.25)))
 
             if current_state == "WIN":
                 overlay = pygame.Surface((sw, sh))
-                overlay.set_alpha(215)
-                overlay.fill((4, 10, 18))
+                overlay.set_alpha(220)
+                overlay.fill((0, 0, 0))
                 screen.blit(overlay, (0, 0))
-                
-                pop_w, pop_h = int(sw * 0.78), int(sh * 0.66)
-                pop_x, pop_y = (sw - pop_w) // 2, (sh - pop_h) // 2
-                draw_cyber_frame(screen, pop_x, pop_y, pop_w, pop_h, cut=24)
 
-                txt_head = win_font.render("BERRY SPLASH!", True, NEON_GREEN)
-                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, pop_y + int(pop_h * 0.08)))
+                win_y = int(sh * 0.22)
+                txt_head = win_font.render("BERRY SPLASH!", True, (50, 255, 50))
+                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
 
                 win_prof = BERRY_PROFILES[0] if (is_berry_game and winner_idx == total_players - 1) else BERRY_PROFILES[winner_idx % len(BERRY_PROFILES)]
                 winner_name = "Bullseye-Berry" if (is_berry_game and winner_idx == total_players - 1) else f"Spieler {winner_idx + 1}"
                 txt_winner = big_font.render(f"{winner_name} gewinnt!", True, win_prof["color"])
-                screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, pop_y + int(pop_h * 0.42)))
-                pygame.draw.line(screen, NEON_GREEN, (pop_x + 50, pop_y + int(pop_h * 0.56)), (pop_x + pop_w - 50, pop_y + int(pop_h * 0.56)), 2)
+                screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
 
-                txt_start = title_font.render("▶  START = Spiel neu starten  ◀", True, NEON_GREEN)
-                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, pop_y + int(pop_h * 0.66)))
+                txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
+                screen.blit(txt_start, ((sw - txt_start.get_width()) // 2, win_y + int(sh * 0.36)))
 
-                txt_end = title_font.render("▶  SPIELERWECHSEL = Hauptmenü  ◀", True, RED_COL)
-                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, pop_y + int(pop_h * 0.80)))
+                txt_end = title_font.render("> SPIELERWECHSEL = Hauptmenü <", True, RED_COL)
+                screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.46)))
 
         pygame.display.flip()
         clock.tick(30)
