@@ -1,6 +1,6 @@
 # Datei: visionpi.py
-# Version: 1.1.14-main
-# VisionPi2000 - Hauptmenü im Cyber-Circuit-Design
+# Version: 1.1.15-main
+# VisionPi2000 - Hauptmenü im Cyber-Circuit-Design mit farbigen Spalten-Hintergründen
 
 import pygame
 import serial
@@ -41,7 +41,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.14-main"
+VERSION = "1.1.15-main"
 
 # Globaler RAM-schonender Asset-Cache für 0ms Spielstart auf dem Pi 4B (1GB RAM)
 GLOBAL_FONT_CACHE = {}
@@ -54,8 +54,62 @@ _orig_sysfont = pygame.font.SysFont
 _orig_sound = None
 
 
+def draw_cyber_frame_colored(surface, x, y, w, h, bg_color, cut=18):
+    """Zeichnet den Cyber-Tech-Rahmen mit einer spezifischen Hintergrundfarbe für die Spalten."""
+    key = ("cyber_frame_col", w, h, bg_color, cut)
+    if key not in _frame_cache:
+        if len(_frame_cache) > 24:
+            _frame_cache.clear()
+        NEON_GREEN = (0, 255, 157)
+        NEON_CYAN = (0, 216, 255)
+        NEON_RED = (255, 56, 76)
+        GOLD_TRACE = (180, 140, 40)
+
+        panel_surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        r = w - 2
+        b = h - 2
+        pts_local = [
+            (cut, 1), (r - cut, 1), (r, cut), (r, b - cut),
+            (r - cut, b), (cut, b), (1, b - cut), (1, cut)
+        ]
+        
+        # Hintergrundfarbe mit leichter Transparenz (210 von 255) einfüllen, damit das Design erhalten bleibt
+        col_with_alpha = (bg_color[0], bg_color[1], bg_color[2], 210)
+        pygame.draw.polygon(panel_surf, col_with_alpha, pts_local)
+
+        traces = [
+            [(cut + 15, 12), (cut + 60, 12), (cut + 75, 26)],
+            [(r - cut - 15, 12), (r - cut - 60, 12), (r - cut - 75, 26)],
+            [(cut + 15, b - 12), (cut + 60, b - 12), (cut + 75, b - 26)]
+        ]
+        for tr in traces:
+            pygame.draw.lines(panel_surf, (255, 255, 255, 70), False, tr, 1)
+            pygame.draw.circle(panel_surf, (0, 255, 157, 120), tr[-1], 3, 1)
+
+        pygame.draw.polygon(panel_surf, (0, 110, 75), pts_local, 5)
+        pygame.draw.polygon(panel_surf, NEON_GREEN, pts_local, 2)
+
+        c_len = int(h * 0.20)
+        pygame.draw.line(panel_surf, NEON_RED, (1, cut), (cut, 1), 3)
+        pygame.draw.line(panel_surf, NEON_RED, (1, b - cut), (cut, b), 3)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, cut + 10), (2, cut + c_len), 3)
+        pygame.draw.line(panel_surf, NEON_CYAN, (2, b - cut - 10), (2, b - cut - c_len), 3)
+
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, 1), (r, cut), 3)
+        pygame.draw.line(panel_surf, NEON_RED, (r - cut, b), (r, b - cut), 3)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, cut + 10), (r - 1, cut + c_len), 3)
+        pygame.draw.line(panel_surf, NEON_CYAN, (r - 1, b - cut - 10), (r - 1, b - cut - c_len), 3)
+
+        for cx, cy in [(cut + 8, 6), (r - cut - 8, 6), (cut + 8, b - 6), (r - cut - 8, b - 6)]:
+            pygame.draw.circle(panel_surf, GOLD_TRACE, (cx, cy), 3)
+
+        _frame_cache[key] = panel_surf
+
+    surface.blit(_frame_cache[key], (x, y))
+
+
 def draw_cyber_frame(surface, x, y, w, h, cut=22):
-    """Zeichnet den gecachten VisionPi2000 Cyber-Tech-Rahmen."""
+    """Standard Cyber-Rahmen für Popups und Infos."""
     key = ("cyber_frame_v2", w, h, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 16:
@@ -392,7 +446,9 @@ def init_serial():
 
 def draw_column(screen, font, title_font, x, y, w, h, color, title, items, sel_idx):
     NEON_GREEN = (0, 255, 157)
-    draw_cyber_frame(screen, x, y, w, h, cut=18)
+    
+    # Hier wird nun die übergebene Farbe (Rot, Blau, Grau) als dezenter Hintergrund-Ton eingesetzt
+    draw_cyber_frame_colored(screen, x, y, w, h, color, cut=18)
     
     t_surf = title_font.render(title, True, (255, 205, 45))
     screen.blit(t_surf, (x + (w - t_surf.get_width()) // 2, y + 14))
@@ -796,9 +852,10 @@ def main():
         
         sy = int(TARGET_HEIGHT * 0.38)  
         
-        draw_column(screen, font, title_font, sx, sy, cw, ch, (180,30,30), "SPIEL", g_list, sel_game)
-        draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30,80,180), "OPTION", c_opts, sel_option)
-        draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80,80,80), "MODUS", modes, sel_mode)
+        # Hier werden die klassischen Farben (Rot, Blau, Grau) als dezent getönter Hintergrund in die Spalten übergeben
+        draw_column(screen, font, title_font, sx, sy, cw, ch, (180, 30, 30), "SPIEL", g_list, sel_game)
+        draw_column(screen, font, title_font, sx + cw + pad, sy, cw, ch, (30, 80, 180), "OPTION", c_opts, sel_option)
+        draw_column(screen, font, title_font, sx + 2 * (cw + pad), sy, cw, ch, (80, 80, 80), "MODUS", modes, sel_mode)
 
         if current_game_name in ["Service-Menü", "Spieleanleitung", "Über das Projekt"]:
             screen.blit(big_font.render("System-Funktion", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
