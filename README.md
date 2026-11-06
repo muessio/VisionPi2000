@@ -121,3 +121,17 @@ Um einen bereits installierten Automaten auf den neuesten Stand des `stable`-Zwe
 ```bash
 curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.sh | bash
 ```
+
+---
+
+## ☕ Unterstützung & Spenden (Support the Project)
+
+**VisionPi2000** ist ein reines, in der Freizeit entwickeltes Open-Source-Hobbyprojekt. Es ist zu 100 % kostenlos und wird niemals hinter einer Paywall versteckt. 
+
+Die Entwicklung, das Testen auf echter Hardware, die Programmierung des Bot-Gegners und das Bereitstellen der Live-Stream-Architektur kosten jedoch sehr viel Zeit und gelegentlich auch Geld (für Ersatzteile oder defekte Testplatinen).
+
+Wenn dir dieses Projekt gefällt, dir dabei geholfen hat, deinen alten Dartautomaten vor dem Schrottplatz zu retten, oder du einfach die Weiterentwicklung unterstützen möchtest, freue ich mich über einen kleinen "virtuellen Kaffee" oder eine freiwillige Spende.
+
+💖 **[Supporte das Projekt via GitHub Sponsors](https://github.com/sponsors/muessio)** 💖
+
+*(Rechtlicher Hinweis: Da ich dieses Projekt als Privatperson und nicht gewerblich betreibe, handelt es sich bei allen Unterstützungen um rein freiwillige Zuwendungen/Schenkungen ohne Anspruch auf exklusive Gegenleistungen, kommerziellen Support oder Rechnungsstellung mit ausgewiesener Umsatzsteuer).*
