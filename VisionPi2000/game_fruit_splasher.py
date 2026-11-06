@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.2.4
+# Version: 1.2.5
 # VisionPi2000 - Fruit Splasher (Cyber-Circuit-Design Integration)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -514,8 +514,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     title_font = _get_cached_font(int(sh * 0.030))
     big_font = _get_cached_font(int(sh * 0.044))
     win_font_size = int(sh * 0.12) if sh <= 768 else int(sh * 0.16)
-    win_font = _get_font(win_font_size)
-    giant_font = _get_font(int(sh * 0.20))
+    win_font = _get_cached_font(win_font_size)
+    giant_font = _get_cached_font(int(sh * 0.20))
 
     HIGHLIGHT, WHITE, RED_COL, NEON_GREEN, NEON_CYAN = (255, 205, 45), (255, 255, 255), (255, 56, 76), (0, 255, 157), (0, 216, 255)
 
