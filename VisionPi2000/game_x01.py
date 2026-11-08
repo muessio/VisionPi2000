@@ -1,5 +1,5 @@
 # Datei: game_x01.py
-# Version: 1.1.7
+# Version: 1.1.8
 # VisionPi2000 - X01 (301, 501, 701) - Cyber-Circuit-Design, Berry-Rahmenfarben & Fast-Load Cache
 
 import pygame
@@ -91,7 +91,6 @@ def draw_cyber_player_card(surface, x, y, w, h, p_col, is_act, cut=12):
         card_surf = pygame.Surface((w, h), pygame.SRCALPHA)
         bg_col = (18, 42, 62, 235) if is_act else (8, 20, 32, 220)
         
-        # 2px Innenabstand verhindert das Abschneiden an der rechten und unteren Surface-Kante
         r = w - 3
         b = h - 3
         pts = [
@@ -106,12 +105,10 @@ def draw_cyber_player_card(surface, x, y, w, h, p_col, is_act, cut=12):
 
         pygame.draw.polygon(card_surf, p_col, pts, 4 if is_act else 3)
 
-        # Horizontale Tech-Trennlinie unter dem Spielernamen
         div_y = int(h * 0.30)
         line_col = p_col if is_act else (p_col[0] // 2, p_col[1] // 2, p_col[2] // 2, 200)
         pygame.draw.line(card_surf, line_col, (12, div_y), (w - 12, div_y), 2)
 
-        # Goldene / Farbige Lötpunkte in den Ecken
         dot_col = (255, 205, 45) if is_act else (140, 115, 40)
         for cx, cy in [(cut + 6, 8), (r - cut - 6, 8), (cut + 6, b - 6), (r - cut - 6, b - 6)]:
             pygame.draw.circle(card_surf, dot_col, (cx, cy), 3)
@@ -430,6 +427,29 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: 
             combo_press_start = 0
 
+        # Direkte Unterstützung von Tastatur und Seriell im WIN-Zustand
+        if current_state == "WIN":
+            if raw_data == "BTN:PLAYER" or keys[pygame.K_p]:
+                if sound_switch: sound_switch.play()
+                display.clear_all()
+                return "menu"
+            elif raw_data == "BTN:START" or keys[pygame.K_SPACE]:
+                if sound_switch: sound_switch.play()
+                player_scores = [start_score] * total_players
+                player_in_checked = [not has_double_in for _ in range(total_players)]
+                turn_idx = 0
+                active_player = turn_order[turn_idx]
+                darts_thrown, round_num, round_points = 0, 1, 0
+                round_start_score, round_start_in_checked = start_score, player_in_checked[0]
+                switch_delay_timer = 0
+                current_state = "GAME"
+                if ser:
+                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
+                    except Exception: pass
+                display.clear_all()
+                sync_hw_display()
+                raw_data = None
+
         if current_state == "ABORT_MENU":
             if raw_data == "BTN:START":
                 current_state = "GAME"
@@ -469,8 +489,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif pygame.time.get_ticks() > bot_timer:
                     raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option)}"; bot_timer = 0 
 
-        if raw_data:
-            if current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+        if raw_data and current_state == "GAME":
+            if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
@@ -548,28 +568,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         trigger_victory(ser, display)
                         display.clear_all()
                         sync_hw_display()
-
-        elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
-            if raw_data == "BTN:PLAYER":
-                if sound_switch: sound_switch.play()
-                display.clear_all()
-                return "menu"
-            elif raw_data == "BTN:START":
-                if sound_switch: sound_switch.play()
-                player_scores = [start_score] * total_players
-                player_in_checked = [not has_double_in for _ in range(total_players)]
-                turn_idx = 0
-                active_player = turn_order[turn_idx]
-                darts_thrown, round_num, round_points = 0, 1, 0
-                round_start_score, round_start_in_checked = start_score, player_in_checked[0]
-                switch_delay_timer = 0
-                current_state = "GAME"
-                if ser:
-                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
-                    except Exception: pass
-                display.clear_all()
-                sync_hw_display()
-                raw_data = None
 
         if screensaver.check():
             screensaver.update_and_draw(screen, title_font); pygame.display.flip(); clock.tick(30); continue

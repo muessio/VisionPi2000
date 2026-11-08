@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.2
-# Ultra-leichter HTTP-Streamer (0% CPU ohne Zuschauer, Asynchroner Encoder, RAM-gepiniet, TCP_NODELAY)
+# Version: 1.1.7
+# Ultra-leichter HTTP-Streamer (Hybrid, Double-Buffered, Auto-Reconnect & Keep-Alive für Online-Lobbies)
 
 import http.server
 import socketserver
@@ -11,12 +11,11 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.2"
+VERSION = "1.1.7"
 PORT = 8080
 
-# Leicht erhöhte Bildfrequenz (~11 FPS / 0.09s) – dank Hintergrund-Thread ohne Ruckeln im Hauptprogramm
 FRAME_INTERVAL = 0.09
-MAX_CLIENTS = 4
+MAX_CLIENTS = 2
 
 latest_jpeg = None
 frame_id = 0
@@ -25,8 +24,8 @@ frame_condition = threading.Condition()
 active_clients = 0
 clients_lock = threading.Lock()
 
-# Asynchroner Übergabe-Puffer zwischen Pygame-Mainloop und Encoder-Thread
-_raw_frame = None
+_write_surface = None
+_read_surface = None
 _raw_event = threading.Event()
 _raw_lock = threading.Lock()
 _last_capture_time = 0.0
@@ -58,40 +57,41 @@ def get_header_bytes():
 
 
 def _encoder_worker():
-    """Hintergrund-Thread: Skaliert und komprimiert Bilder, ohne Pygame auszubremsen."""
-    global latest_jpeg, frame_id
-    scaled_surface = None
-    scaled_size = (0, 0)
-    # Einmalig allokierter RAM-Puffer verhindert Speicher-Fragmentierung auf dem 1GB Pi
+    """Hintergrund-Thread mit Keep-Alive: Verhindert Einfrieren bei Netzwerk-Ladezeiten (Lobby-Host)."""
+    global latest_jpeg, frame_id, _read_surface
+    scaled_720p_surface = None
     jpeg_buffer = io.BytesIO()
 
     while True:
-        _raw_event.wait()
+        # Timeout von 1 Sekunde: Falls die Lobby blockiert, schickt er das letzte Bild als Keep-Alive
+        has_new = _raw_event.wait(timeout=1.0)
         _raw_event.clear()
 
         if active_clients <= 0:
             continue
 
         with _raw_lock:
-            src = _raw_frame
+            src = _read_surface
 
         if src is None:
             continue
 
         try:
             sw, sh = src.get_width(), src.get_height()
-            target_size = (800, 450) if (sw / float(sh)) > 1.5 else (768, 576)
+            is_16_9 = (sw / float(sh)) > 1.5
 
-            # 24-Bit Surface (ohne Alpha-Kanal) spart 25% RAM und beschleunigt den JPEG-Export
-            if scaled_surface is None or scaled_size != target_size:
-                scaled_surface = pygame.Surface(target_size, 0, 24)
-                scaled_size = target_size
-
-            pygame.transform.smoothscale(src, target_size, scaled_surface)
+            if is_16_9 and (sw > 1280 or sh > 720):
+                target_size = (1280, 720)
+                if scaled_720p_surface is None or scaled_720p_surface.get_size() != target_size:
+                    scaled_720p_surface = pygame.Surface(target_size, 0, 24)
+                pygame.transform.scale(src, target_size, scaled_720p_surface)
+                encode_surf = scaled_720p_surface
+            else:
+                encode_surf = src
 
             jpeg_buffer.seek(0)
             jpeg_buffer.truncate(0)
-            pygame.image.save(scaled_surface, jpeg_buffer, "frame.jpg")
+            pygame.image.save(encode_surf, jpeg_buffer, "frame.jpg")
             jpg_bytes = jpeg_buffer.getvalue()
 
             with frame_condition:
@@ -242,6 +242,16 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             <img class="stream-view" src="/stream.mjpg" alt="VisionPi2000 Live Stream" />
         </div>
     </main>
+
+    <script>
+        // Auto-Reconnect Script: Falls der Stream durch einen Moduswechsel kurz pausiert, verbindet sich der Browser automatisch neu
+        const img = document.querySelector('.stream-view');
+        img.onerror = function() {
+            setTimeout(() => {
+                img.src = '/stream.mjpg?t=' + new Date().getTime();
+            }, 1500);
+        };
+    </script>
 </body>
 </html>"""
                 self.send_response(200)
@@ -273,7 +283,6 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
 
                 try:
                     self.connection.settimeout(5.0)
-                    # TCP_NODELAY schickt MJPEG-Frames sofort ohne Puffer-Verzögerung auf die Reise
                     self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
                     self.send_response(200)
@@ -286,14 +295,14 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                     my_last_id = -1
                     while True:
                         with frame_condition:
+                            # Verkürzter Wait-Timeout (0.5s), damit der Streamer bei Pausen sofort reagiert
                             if frame_id == my_last_id:
-                                frame_condition.wait(timeout=1.0)
-                            if frame_id == my_last_id or latest_jpeg is None:
+                                frame_condition.wait(timeout=0.5)
+                            if latest_jpeg is None:
                                 continue
                             frame = latest_jpeg
                             my_last_id = frame_id
 
-                        # Kompakter Write-Aufruf in einem Stück spart Syscalls
                         header = (
                             f"--FRAME\r\n"
                             f"Content-Type: image/jpeg\r\n"
@@ -334,24 +343,28 @@ def start_streaming_thread():
 
 
 def update_stream_frame(screen):
-    global _raw_frame, _last_capture_time
-    # 0% CPU & 0 RAM wenn kein Zuschauer verbunden ist
+    global _write_surface, _read_surface, _last_capture_time
     if active_clients <= 0 or screen is None:
         return
 
     now = time.time()
+    # Damit während Übergängen (Lobby/Menü) flüssig gerendert wird, erlauben wir Updates
     if now - _last_capture_time < FRAME_INTERVAL:
         return
     _last_capture_time = now
 
     try:
         sw, sh = screen.get_width(), screen.get_height()
-        # Schneller Blit in den Übergabe-Puffer (< 1ms), die teure Skalierung macht der Hintergrund-Thread!
+        if _write_surface is None or _write_surface.get_size() != (sw, sh):
+            _write_surface = pygame.Surface((sw, sh), 0, 24)
+        
+        _write_surface.blit(screen, (0, 0))
+
         with _raw_lock:
-            if _raw_frame is None or _raw_frame.get_size() != (sw, sh):
-                _raw_frame = pygame.Surface((sw, sh), 0, 24)
-            _raw_frame.blit(screen, (0, 0))
+            if _read_surface is None or _read_surface.get_size() != (sw, sh):
+                _read_surface = pygame.Surface((sw, sh), 0, 24)
+            _write_surface, _read_surface = _read_surface, _write_surface
+
         _raw_event.set()
     except Exception:
         pass
- 
