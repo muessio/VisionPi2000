@@ -42,13 +42,18 @@ TASTER SPIELER (Wechsel)    NO -> Pin D50  | COM -> GND
 ----------------------------------------------------------------------------
 4.1 TASTEN-LEUCHTMELDER (LEDs FÜR START & SPIELERWECHSEL)
 ----------------------------------------------------------------------------
-(Stromversorgung für die integrierten LEDs der Buttons. Falls es sich um 
-nackte LEDs ohne integrierten 5V-Vorwiderstand handelt, bitte Widerstand 
-zwischenschalten!)
+(Anschluss über einen Optokoppler - Schaltung mit GND gegen festverdarhtete +12V )
 
-LED TASTER START            [+] -> Pin D11  | [-] -> GND
-LED TASTER SPIELER          [+] -> Pin D12  | [-] -> GND
+LED TASTER START    
+LED [X1] -> Optokoppler OD3 [OUT] -> [Optokoppler] -> Optokoppler OD3 [IN] -> Pin D11 
+LED [X2] -> +12V
 
+LED TASTER SPIELER  
+LED [X1] -> Optokoppler OD2 [OUT] -> [Optokoppler] -> Optokoppler OD2 [IN] -> Pin D12  |
+LED [X2] -> +12V
+
+Optokoppler [GND] -> an Arduino Pin GND
+Optokoppler [VCC] -> +12V
 ----------------------------------------------------------------------------
 5. INFRAROT-SENSOR (IR-MODUL FÜR SPIELERWECHSEL/PFEILE ZIEHEN)
 ----------------------------------------------------------------------------
@@ -59,10 +64,13 @@ IR-Modul Pin [OUT] ------------------------------------> an Arduino Pin D2
 ----------------------------------------------------------------------------
 6. LICHTSTEUERUNG (TRIAC / SOLID STATE RELAIS MODUL)
 ----------------------------------------------------------------------------
-Relais-Modul Pin [DC+] / [VCC] ------------------------> an Arduino Pin 5V
-Relais-Modul Pin [DC-] / [GND] ------------------------> an Arduino Pin GND
-Relais-Modul Pin [CH1] / [IN] (Signal) ----------------> an Arduino Pin D3
+(Anschluss über einen Optokoppler - Schaltung mit GND gegen festverdarhtete +12V)
 
+Lampentreiber [X1] -> Optokoppler OD1 [OUT] -> [Optokoppler] -> Optokoppler OD1 [IN] -> an Arduino Pin D3
+Lampentreiber [X2] -> +12V
+
+Optokoppler [GND] -> an Arduino Pin GND
+Optokoppler [VCC] -> +12V
 ----------------------------------------------------------------------------
 7. LÖWEN 8-PLAYER DISPLAY (ÜBER 20-POLIGEN STECKER ST1)
 ----------------------------------------------------------------------------
