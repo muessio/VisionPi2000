@@ -1,6 +1,6 @@
 # Datei: web_streamer.py
-# Version: 1.1.6
-# Ultra-leichter HTTP-Streamer (Hybrid, Double-Buffered, max. 2 Clients für maximale Performance)
+# Version: 1.1.7
+# Ultra-leichter HTTP-Streamer (Hybrid, Double-Buffered, Auto-Reconnect & Keep-Alive für Online-Lobbies)
 
 import http.server
 import socketserver
@@ -11,12 +11,11 @@ import io
 import os
 import pygame
 
-VERSION = "1.1.6"
+VERSION = "1.1.7"
 PORT = 8080
 
-# ~11 FPS (0.09s) – flüssiges Bild ohne das Hauptprogramm zu belasten
 FRAME_INTERVAL = 0.09
-MAX_CLIENTS = 2  # Reduziert auf max. 2 parallele Streams für maximale Performance
+MAX_CLIENTS = 2
 
 latest_jpeg = None
 frame_id = 0
@@ -25,7 +24,6 @@ frame_condition = threading.Condition()
 active_clients = 0
 clients_lock = threading.Lock()
 
-# Double-Buffering zwischen Pygame-Mainloop und Encoder-Thread
 _write_surface = None
 _read_surface = None
 _raw_event = threading.Event()
@@ -59,13 +57,14 @@ def get_header_bytes():
 
 
 def _encoder_worker():
-    """Hintergrund-Thread: 4:3 wird 1:1 ohne Skalierung kodiert, 16:9 blitzschnell auf 1280x720 (HD Ready) gedrosselt."""
+    """Hintergrund-Thread mit Keep-Alive: Verhindert Einfrieren bei Netzwerk-Ladezeiten (Lobby-Host)."""
     global latest_jpeg, frame_id, _read_surface
     scaled_720p_surface = None
     jpeg_buffer = io.BytesIO()
 
     while True:
-        _raw_event.wait()
+        # Timeout von 1 Sekunde: Falls die Lobby blockiert, schickt er das letzte Bild als Keep-Alive
+        has_new = _raw_event.wait(timeout=1.0)
         _raw_event.clear()
 
         if active_clients <= 0:
@@ -243,6 +242,16 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
             <img class="stream-view" src="/stream.mjpg" alt="VisionPi2000 Live Stream" />
         </div>
     </main>
+
+    <script>
+        // Auto-Reconnect Script: Falls der Stream durch einen Moduswechsel kurz pausiert, verbindet sich der Browser automatisch neu
+        const img = document.querySelector('.stream-view');
+        img.onerror = function() {
+            setTimeout(() => {
+                img.src = '/stream.mjpg?t=' + new Date().getTime();
+            }, 1500);
+        };
+    </script>
 </body>
 </html>"""
                 self.send_response(200)
@@ -286,9 +295,10 @@ class StreamHandler(http.server.BaseHTTPRequestHandler):
                     my_last_id = -1
                     while True:
                         with frame_condition:
+                            # Verkürzter Wait-Timeout (0.5s), damit der Streamer bei Pausen sofort reagiert
                             if frame_id == my_last_id:
-                                frame_condition.wait(timeout=1.0)
-                            if frame_id == my_last_id or latest_jpeg is None:
+                                frame_condition.wait(timeout=0.5)
+                            if latest_jpeg is None:
                                 continue
                             frame = latest_jpeg
                             my_last_id = frame_id
@@ -338,6 +348,7 @@ def update_stream_frame(screen):
         return
 
     now = time.time()
+    # Damit während Übergängen (Lobby/Menü) flüssig gerendert wird, erlauben wir Updates
     if now - _last_capture_time < FRAME_INTERVAL:
         return
     _last_capture_time = now
