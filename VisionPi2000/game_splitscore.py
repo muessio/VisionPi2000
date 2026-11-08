@@ -1,5 +1,5 @@
 # Datei: game_splitscore.py
-# Version: 1.1.4
+# Version: 1.1.5
 # VisionPi2000 - Split Score - Berry-Rahmenfarben & Fast-Load Cache
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.4"
+VERSION = "1.1.5"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 
@@ -114,22 +114,33 @@ def trigger_victory(ser, display=None):
             pass
     if ser or display:
         try:
-            for _ in range(6):
+            for _ in range(3):
                 if display: display.set_light(True)
-                if ser: ser.write(b"TEST:ON\n"); ser.flush()
-                time.sleep(0.25)
+                if ser: ser.write(b"TEST:ON
+"); ser.flush()
+                time.sleep(0.15)
                 
                 if display: display.set_light(False)
-                if ser: ser.write(b"TEST:OFF\n"); ser.flush()
-                time.sleep(0.25)
+                if ser: ser.write(b"TEST:OFF
+"); ser.flush()
+                time.sleep(0.15)
                 
             if display: display.set_light(True)
             if ser:
-                ser.write(b"LAMP:PLAYER:2\n")
-                ser.write(b"LAMP:START:0\n")
+                ser.write(b"LAMP:PLAYER:2
+")
+                ser.write(b"LAMP:START:1
+")
                 ser.flush()
         except Exception:
             pass
+
+def get_target_name(tgt):
+    """Gibt den ausgeschriebenen Namen für das Split-Score-Ziel zurück."""
+    if tgt == "D": return "Double"
+    if tgt == "T": return "Triple"
+    if tgt == "B": return "Bullseye"
+    return str(tgt)
 
 def get_bot_hit(target, mode):
     diff = 1 if "Stufe 1" in mode else (2 if "Stufe 2" in mode else 3)
@@ -211,7 +222,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
 
     if ser:
-        try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
+        try: ser.write(b"LAMP:PLAYER:1
+"); ser.write(b"LAMP:START:0
+"); ser.flush()
         except Exception: pass
 
     def sync_hw_display():
@@ -266,6 +279,25 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 display.clear_all()
                 return "menu"
 
+        elif current_state == "WIN":
+            if raw_data == "BTN:PLAYER" or keys[pygame.K_p]:
+                if sound_switch: sound_switch.play()
+                display.clear_all()
+                return "menu"
+            elif raw_data == "BTN:START" or keys[pygame.K_SPACE]:
+                if sound_switch: sound_switch.play()
+                scores = [40] * total_players
+                darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
+                current_state = "GAME"
+                if ser:
+                    try: ser.write(b"LAMP:PLAYER:1
+"); ser.write(b"LAMP:START:0
+"); ser.flush()
+                    except Exception: pass
+                display.clear_all()
+                sync_hw_display()
+                raw_data = None
+
         elif current_state == "GAME":
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks(); raw_data = None
@@ -291,7 +323,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 else:
                     if sound_switch: sound_switch.play()
                     if ser:
-                        try: ser.write(b"LAMP:PLAYER:1\n"); ser.flush()
+                        try: ser.write(b"LAMP:PLAYER:1
+"); ser.flush()
                         except Exception: pass
                     sync_hw_display(); bot_timer = 0; is_berrys_turn = (is_berry_game and active_player == total_players)
 
@@ -300,8 +333,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif pygame.time.get_ticks() > bot_timer:
                     raw_data = f"HIT:{get_bot_hit(targets[current_round], mode)}"; bot_timer = 0 
 
-        if raw_data:
-            if current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+        if raw_data and current_state == "GAME":
+            if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
@@ -330,31 +363,27 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         if sound_single: sound_single.play()
 
                 darts_thrown += 1
-                if darts_thrown == 3 and ser:
-                    try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                    except Exception: pass
+                if darts_thrown == 3:
                     if round_points == 0:
                         scores[p_idx] //= 2
                         if sound_bust: sound_bust.play()
+
+                    # Sofortige Prüfung nach dem 3. Pfeil des letzten Spielers, ob das Spiel beendet ist!
+                    # Verhindert, dass man auf IR-Sensor oder Spielerwechsel warten muss, bevor die Siegesmelodie kommt.
+                    is_last_player = (active_player == total_players)
+                    is_last_target = (current_round >= len(targets) - 1)
+                    
+                    if is_last_player and is_last_target:
+                        current_state = "WIN"
+                        trigger_victory(ser, display)
+                        display.clear_all()
+                        sync_hw_display()
+                    elif ser:
+                        try: ser.write(b"LAMP:PLAYER:2
+"); ser.flush()
+                        except Exception: pass
                 
                 sync_hw_display()
-
-            elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
-                if raw_data == "BTN:PLAYER":
-                    if sound_switch: sound_switch.play()
-                    display.clear_all()
-                    return "menu"
-                elif raw_data == "BTN:START":
-                    if sound_switch: sound_switch.play()
-                    scores = [40] * total_players
-                    darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
-                    current_state = "GAME"
-                    if ser:
-                        try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
-                        except Exception: pass
-                    display.clear_all()
-                    sync_hw_display()
-                    raw_data = None
 
         if screensaver.check():
             screensaver.update_and_draw(screen, title_font); pygame.display.flip(); clock.tick(30); continue
@@ -363,7 +392,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((0, 0, 0))
 
         if current_state in ["GAME", "ABORT_MENU", "WIN"]:
-            target_str = str(targets[current_round]) if current_round < len(targets) else "Ende"
+            target_val = targets[current_round] if current_round < len(targets) else "Ende"
+            target_str = get_target_name(target_val)
+            
             screen.blit(title_font.render(f"SPIEL: Split Score | Ziel: {target_str}", True, HIGHLIGHT), (int(sw*0.04), int(sh*0.04)))
             act_col = PLAYER_COLORS[0] if is_berrys_turn else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)]
             name_surf = big_font.render(mode if is_berrys_turn else f"Spieler {active_player}", True, act_col)
@@ -380,7 +411,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             darts_surf = title_font.render(f"Pfeile: {darts_thrown} / 3", True, (180, 180, 180))
             screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.62)))
 
-            # --- UNTERES SCOREBOARD (Berry-Rahmenfarben aus Fruit Splasher) ---
             sb_y = int(sh * 0.68)
             box_h = int(sh * 0.28)
             p_box_w = int(sw * 0.88 / total_players) - 10
@@ -433,10 +463,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 
                 win_y = int(sh * 0.22)
                 txt_head = win_font.render("GEWONNEN!", True, (50, 255, 50))
-                screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, win_y))
+                screen.blit(txt_head, ((sw - win_font.get_width()) // 2, win_y))
                 
-                winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
-                txt_winner = big_font.render(f"{winner_name} beendet!", True, act_col)
+                winner_name = mode if is_berrys_trigger_if_needed := is_berry_game else f"Spieler {active_player}"
+                txt_winner = big_font.render(f"Spielende erreicht!", True, act_col)
                 screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
                 
                 txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
@@ -446,4 +476,3 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 screen.blit(txt_end, ((sw - txt_end.get_width()) // 2, win_y + int(sh * 0.46)))
                 
         pygame.display.flip(); clock.tick(30)
- 
