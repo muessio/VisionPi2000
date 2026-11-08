@@ -114,23 +114,19 @@ def trigger_victory(ser, display=None):
             pass
     if ser or display:
         try:
-            for _ in range(3):
+            for _ in range(6):
                 if display: display.set_light(True)
-                if ser: ser.write(b"TEST:ON
-"); ser.flush()
-                time.sleep(0.15)
+                if ser: ser.write(b"TEST:ON\n"); ser.flush()
+                time.sleep(0.25)
                 
                 if display: display.set_light(False)
-                if ser: ser.write(b"TEST:OFF
-"); ser.flush()
-                time.sleep(0.15)
+                if ser: ser.write(b"TEST:OFF\n"); ser.flush()
+                time.sleep(0.25)
                 
             if display: display.set_light(True)
             if ser:
-                ser.write(b"LAMP:PLAYER:2
-")
-                ser.write(b"LAMP:START:1
-")
+                ser.write(b"LAMP:PLAYER:2\n")
+                ser.write(b"LAMP:START:0\n")
                 ser.flush()
         except Exception:
             pass
@@ -222,9 +218,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
 
     if ser:
-        try: ser.write(b"LAMP:PLAYER:1
-"); ser.write(b"LAMP:START:0
-"); ser.flush()
+        try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
         except Exception: pass
 
     def sync_hw_display():
@@ -270,16 +264,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: 
             combo_press_start = 0
 
-        if current_state == "ABORT_MENU":
-            if raw_data == "BTN:START":
-                current_state = "GAME"
-                raw_data = None
-            elif raw_data == "BTN:PLAYER":
-                if sound_switch: sound_switch.play()
-                display.clear_all()
-                return "menu"
-
-        elif current_state == "WIN":
+        # Direkte Unterstützung von Tastatur und Seriell im WIN-Zustand
+        if current_state == "WIN":
             if raw_data == "BTN:PLAYER" or keys[pygame.K_p]:
                 if sound_switch: sound_switch.play()
                 display.clear_all()
@@ -290,13 +276,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
                 current_state = "GAME"
                 if ser:
-                    try: ser.write(b"LAMP:PLAYER:1
-"); ser.write(b"LAMP:START:0
-"); ser.flush()
+                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                     except Exception: pass
                 display.clear_all()
                 sync_hw_display()
                 raw_data = None
+
+        if current_state == "ABORT_MENU":
+            if raw_data == "BTN:START":
+                current_state = "GAME"
+                raw_data = None
+            elif raw_data == "BTN:PLAYER":
+                if sound_switch: sound_switch.play()
+                display.clear_all()
+                return "menu"
 
         elif current_state == "GAME":
             if raw_data == "BTN:PLAYER":
@@ -323,8 +316,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 else:
                     if sound_switch: sound_switch.play()
                     if ser:
-                        try: ser.write(b"LAMP:PLAYER:1
-"); ser.flush()
+                        try: ser.write(b"LAMP:PLAYER:1\n"); ser.flush()
                         except Exception: pass
                     sync_hw_display(); bot_timer = 0; is_berrys_turn = (is_berry_game and active_player == total_players)
 
@@ -368,8 +360,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         scores[p_idx] //= 2
                         if sound_bust: sound_bust.play()
 
-                    # Sofortige Prüfung nach dem 3. Pfeil des letzten Spielers, ob das Spiel beendet ist!
-                    # Verhindert, dass man auf IR-Sensor oder Spielerwechsel warten muss, bevor die Siegesmelodie kommt.
+                    # Sofortige Prüfung nach dem 3. Pfeil des letzten Spielers im finalen Ziel ("B")
                     is_last_player = (active_player == total_players)
                     is_last_target = (current_round >= len(targets) - 1)
                     
@@ -379,8 +370,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         display.clear_all()
                         sync_hw_display()
                     elif ser:
-                        try: ser.write(b"LAMP:PLAYER:2
-"); ser.flush()
+                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
                         except Exception: pass
                 
                 sync_hw_display()
@@ -411,6 +401,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             darts_surf = title_font.render(f"Pfeile: {darts_thrown} / 3", True, (180, 180, 180))
             screen.blit(darts_surf, ((sw - darts_surf.get_width()) // 2, int(sh*0.62)))
 
+            # --- UNTERES SCOREBOARD (Berry-Rahmenfarben aus Fruit Splasher) ---
             sb_y = int(sh * 0.68)
             box_h = int(sh * 0.28)
             p_box_w = int(sw * 0.88 / total_players) - 10
@@ -465,8 +456,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 txt_head = win_font.render("GEWONNEN!", True, (50, 255, 50))
                 screen.blit(txt_head, ((sw - win_font.get_width()) // 2, win_y))
                 
-                winner_name = mode if is_berrys_trigger_if_needed := is_berry_game else f"Spieler {active_player}"
-                txt_winner = big_font.render(f"Spielende erreicht!", True, act_col)
+                winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
+                txt_winner = big_font.render(f"{winner_name} beendet!", True, act_col)
                 screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, win_y + int(sh * 0.22)))
                 
                 txt_start = title_font.render("> START = Spiel neu starten <", True, (50, 255, 50))
