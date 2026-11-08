@@ -1,6 +1,6 @@
 # Datei: game_splitscore.py
 # Version: 1.1.10
-# VisionPi2000 - Split Score - Cyber-Circuit-Design & "Shoot [Ziel]" auf Cricket-Anzeigen
+# VisionPi2000 - Split Score - Cyber-Circuit-Design & sauberes "tr" auf Feld 15
 
 import pygame
 import math
@@ -300,6 +300,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             "O": ["C", "D", "E", "G"],       # kleines o
             "T": ["D", "E", "F", "G"],       # kleines t
             "D": ["B", "C", "D", "E", "G"],  # kleines d
+            "R": ["E", "G"],                 # kleines r
             "B": ["C", "D", "E", "F", "G"],  # kleines b
             "U": ["C", "D", "E"],            # kleines u
             "I": ["B", "C"],                 # I
