@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.8"
+VERSION = "1.1.7"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -204,23 +204,19 @@ def trigger_victory(ser, display=None):
             pass
     if ser or display:
         try:
-            for _ in range(3):
+            for _ in range(6):
                 if display: display.set_light(True)
-                if ser: ser.write(b"TEST:ON
-"); ser.flush()
-                time.sleep(0.15)
+                if ser: ser.write(b"TEST:ON\n"); ser.flush()
+                time.sleep(0.25)
                 
                 if display: display.set_light(False)
-                if ser: ser.write(b"TEST:OFF
-"); ser.flush()
-                time.sleep(0.15)
+                if ser: ser.write(b"TEST:OFF\n"); ser.flush()
+                time.sleep(0.25)
                 
             if display: display.set_light(True)
             if ser:
-                ser.write(b"LAMP:PLAYER:2
-")
-                ser.write(b"LAMP:START:1
-")
+                ser.write(b"LAMP:PLAYER:2\n")
+                ser.write(b"LAMP:START:0\n")
                 ser.flush()
         except Exception:
             pass
@@ -381,9 +377,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     switch_delay_timer = 0
 
     if ser:
-        try: ser.write(b"LAMP:PLAYER:1
-"); ser.write(b"LAMP:START:0
-"); ser.flush()
+        try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
         except Exception: pass
 
     def sync_hw_display():
@@ -433,17 +427,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: 
             combo_press_start = 0
 
-        if current_state == "ABORT_MENU":
-            if raw_data == "BTN:START":
-                current_state = "GAME"
-                raw_data = None
-            elif raw_data == "BTN:PLAYER":
-                if sound_switch: sound_switch.play()
-                display.clear_all()
-                return "menu"
-
-        elif current_state == "WIN":
-            # Sofortige Tasten-Reaktion im Sieg-Zustand (Start für Neustart, Spielerwechsel für Hauptmenü)
+        # Direkte Unterstützung von Tastatur und Seriell im WIN-Zustand
+        if current_state == "WIN":
             if raw_data == "BTN:PLAYER" or keys[pygame.K_p]:
                 if sound_switch: sound_switch.play()
                 display.clear_all()
@@ -459,13 +444,20 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 switch_delay_timer = 0
                 current_state = "GAME"
                 if ser:
-                    try: ser.write(b"LAMP:PLAYER:1
-"); ser.write(b"LAMP:START:0
-"); ser.flush()
+                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                     except Exception: pass
                 display.clear_all()
                 sync_hw_display()
                 raw_data = None
+
+        if current_state == "ABORT_MENU":
+            if raw_data == "BTN:START":
+                current_state = "GAME"
+                raw_data = None
+            elif raw_data == "BTN:PLAYER":
+                if sound_switch: sound_switch.play()
+                display.clear_all()
+                return "menu"
 
         elif current_state == "GAME":
             if raw_data == "BTN:PLAYER":
@@ -488,8 +480,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 round_start_in_checked = player_in_checked[active_player - 1]
                 if sound_switch: sound_switch.play()
                 if ser:
-                    try: ser.write(b"LAMP:PLAYER:1
-"); ser.flush()
+                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.flush()
                     except Exception: pass
                 sync_hw_display(); bot_timer = 0; is_berrys_turn = (is_berry_game and active_player == total_players)
 
@@ -538,8 +529,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if hit_segment == "MISS":
                     darts_thrown += 1
                     if darts_thrown == 3 and ser:
-                        try: ser.write(b"LAMP:PLAYER:2
-"); ser.flush()
+                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
                         except Exception: pass
                     sync_hw_display()
                 elif bust: 
@@ -549,8 +539,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     round_points = 0
                     darts_thrown = 3 
                     if ser:
-                        try: ser.write(b"LAMP:PLAYER:2
-"); ser.flush()
+                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
                         except Exception: pass
                     sync_hw_display()
                 else:
@@ -569,8 +558,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         sound_single.play()
 
                     if darts_thrown == 3 and ser and new_score > 0:
-                        try: ser.write(b"LAMP:PLAYER:2
-"); ser.flush()
+                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
                         except Exception: pass
                     
                     sync_hw_display()
@@ -588,6 +576,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: screen.fill((6, 17, 28))
 
         if current_state in ["GAME", "ABORT_MENU", "WIN"]:
+            # --- OBERES CYBER-CIRCUIT HAUPTPANEL ---
             hud_w = int(sw * 0.90)
             hud_x = (sw - hud_w) // 2
             hud_y = int(sh * 0.02)
@@ -640,6 +629,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 pygame.draw.rect(screen, RED_COL, (bh_x, bh_y, bh_w, bh_h), 2, border_radius=8)
                 screen.blit(block_hint, (bh_x + 20, bh_y + 5))
 
+            # --- PFEIL-STATUS & CYBER-DOTS ---
             darts_surf = title_font.render(f"Pfeile: {darts_thrown} / 3", True, (200, 215, 225))
             d_total_w = darts_surf.get_width() + 90
             d_start_x = (sw - d_total_w) // 2
@@ -653,6 +643,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 pygame.draw.circle(screen, c_dot, (dot_base_x + d_i * 24, dot_cy), 8)
                 pygame.draw.circle(screen, HIGHLIGHT if is_rem else (70, 95, 110), (dot_base_x + d_i * 24, dot_cy), 8, 2)
 
+            # --- UNTERES SPIELER- & TEAM-SCOREBOARD (Cyber-Karten mit Berry-Rahmenfarben) ---
             sb_y = int(sh * 0.68)
             box_h = int(sh * 0.28)
             
