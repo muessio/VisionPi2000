@@ -1,6 +1,6 @@
 # Datei: game_splitscore.py
 # Version: 1.1.9
-# VisionPi2000 - Split Score - Cyber-Circuit-Design & "Shoot -[Ziel]-" auf Cricket-Anzeigen
+# VisionPi2000 - Split Score - Cyber-Circuit-Design & "Shoot" + do/tr + Bullseye-Icon auf Cricket-Anzeigen
 
 import pygame
 import math
@@ -231,10 +231,10 @@ def get_target_name(tgt):
 
 
 def get_target_cricket_code(tgt):
-    """Gibt das zweistellige Kürzel oder die Zahl für Cricket-Feld 15 zurück (eingerahmt in Bindestriche)."""
-    if tgt == "D": return "do"
-    if tgt == "T": return "tr"
-    if tgt == "B": return "bu"
+    """Gibt das zweistellige Kürzel oder die Zahl für Cricket-Feld 15 zurück (bei Bullseye leer, da das Icon leuchtet)."""
+    if tgt == "D": return "DO"
+    if tgt == "T": return "TR"
+    if tgt == "B": return "  "
     try:
         val = int(tgt)
         return f"{val:2d}"
@@ -292,14 +292,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(sw, sh)
     display.clear_all()
 
-    # 7-Segment-Font des Mappers zur Laufzeit um benötigte Buchstaben und Bindestrich erweitern
+    # 7-Segment-Font des Mappers zur Laufzeit um die benötigten Buchstaben für "Shoot" & "do"/"tr" erweitern
     if hasattr(display, "FONT") and isinstance(display.FONT, dict):
         display.FONT.update({
             "S": ["A", "C", "D", "F", "G"],  # S
             "H": ["C", "E", "F", "G"],       # kleines h
             "O": ["C", "D", "E", "G"],       # kleines o
             "T": ["D", "E", "F", "G"],       # kleines t
-            "-": ["G"],                      # Bindestrich
+            "R": ["E", "G"],                 # kleines r
             "D": ["B", "C", "D", "E", "G"],  # kleines d
             "B": ["C", "D", "E", "F", "G"],  # kleines b
             "U": ["C", "D", "E"],            # kleines u
@@ -351,31 +351,26 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         # Temp-Score zeigt die geworfenen Runden-Punkte der aktuellen Aufnahme
         display.set_temp_score(round_points)
 
-        # Layout für Cricket-Anzeigen (20 bis 16: "Shoot", 15: Ziel mit Bindestrichen)
-        layout_chars = [
-            (20, "S"),
-            (19, "H"),
-            (18, "O"),
-            (17, "O"),
-            (16, "T")
-        ]
-        for t_num, ch in layout_chars:
+        # Cricket-Anzeigen 20 bis 16 schreiben vertikal "Shoot" (20=S, 19=h, 18=o, 17=o, 16=t)
+        shoot_chars = ["S", "H", "O", "O", "T"]
+        cricket_keys_shoot = [20, 19, 18, 17, 16]
+        for idx, t_num in enumerate(cricket_keys_shoot):
             if t_num in display.CRICKET_TARGET_DISP:
                 d_t_ten, d_t_unit = display.CRICKET_TARGET_DISP[t_num]
                 display.set_disp_char(d_t_ten, " ")
-                display.set_disp_char(d_t_unit, ch)
+                display.set_disp_char(d_t_unit, shoot_chars[idx])
 
-        # Cricket-Anzeige 15 zeigt das Ziel eingerahmt in Bindestriche (z.B. -15-, -do-, -tr-, -bu-)
+        # Cricket-Anzeige 15 zeigt Zahl oder do/tr (bei Bullseye leer, da Bullseye-Icon leuchtet)
         tgt = targets[current_round] if current_round < len(targets) else 0
         code_str = get_target_cricket_code(tgt)
         if 15 in display.CRICKET_TARGET_DISP:
             d_15_ten, d_15_unit = display.CRICKET_TARGET_DISP[15]
-            display.set_disp_char(d_15_ten, "-")
-            display.set_disp_char(d_15_unit, code_str[0] if len(code_str) > 0 else " ")
+            display.set_disp_char(d_15_ten, code_str[0] if len(code_str) > 0 else " ")
+            display.set_disp_char(d_15_unit, code_str[1] if len(code_str) > 1 else " ")
 
-        # Kein separates Bullseye-LED-Icon auf dem Board ansteuern
+        # Bei Bullseye das Bullseye-LED-Icon auf dem Board einschalten
         if hasattr(display, "set_bullseye_icon"):
-            display.set_bullseye_icon(False)
+            display.set_bullseye_icon(tgt == "B")
 
         display.set_turn(current_round + 1)
         display.set_dart_arrows(3 - darts_thrown)
