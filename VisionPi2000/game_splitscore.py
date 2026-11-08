@@ -1,6 +1,6 @@
 # Datei: game_splitscore.py
 # Version: 1.1.8
-# VisionPi2000 - Split Score - Cyber-Circuit-Design & "trIFF" + do/tr/bu auf Cricket-Anzeigen
+# VisionPi2000 - Split Score - Cyber-Circuit-Design & "Shoot" + do/tr/bu auf Cricket-Anzeigen
 
 import pygame
 import math
@@ -292,19 +292,19 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(sw, sh)
     display.clear_all()
 
-    # 7-Segment-Font des Mappers zur Laufzeit um die benötigten Buchstaben für "trIFF" & "do"/"tr"/"bu" erweitern
+    # 7-Segment-Font des Mappers zur Laufzeit um die benötigten Buchstaben für "Shoot" & "do"/"tr"/"bu" erweitern
     if hasattr(display, "FONT") and isinstance(display.FONT, dict):
         display.FONT.update({
+            "S": ["A", "C", "D", "F", "G"],  # S
+            "H": ["C", "E", "F", "G"],       # kleines h
+            "O": ["C", "D", "E", "G"],       # kleines o
             "T": ["D", "E", "F", "G"],       # kleines t
             "R": ["E", "G"],                 # kleines r
-            "I": ["B", "C"],                 # I
-            "F": ["A", "E", "F", "G"],       # F
             "D": ["B", "C", "D", "E", "G"],  # kleines d
-            "O": ["C", "D", "E", "G"],       # kleines o
             "B": ["C", "D", "E", "F", "G"],  # kleines b
             "U": ["C", "D", "E"],            # kleines u
-            "S": ["A", "C", "D", "F", "G"],  # S
-            "H": ["B", "C", "E", "F", "G"],  # H
+            "I": ["B", "C"],                 # I
+            "F": ["A", "E", "F", "G"],       # F
             "E": ["A", "D", "E", "F", "G"],  # E
             "L": ["D", "E", "F"],            # L
         })
@@ -351,14 +351,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         # Temp-Score zeigt wieder die geworfenen Runden-Punkte der aktuellen Aufnahme
         display.set_temp_score(round_points)
 
-        # Cricket-Anzeigen 20 bis 16 schreiben vertikal "trIFF" (20=t, 19=r, 18=I, 17=F, 16=F)
-        triff_chars = ["T", "R", "I", "F", "F"]
-        cricket_keys_triff = [20, 19, 18, 17, 16]
-        for idx, t_num in enumerate(cricket_keys_triff):
+        # Cricket-Anzeigen 20 bis 16 schreiben vertikal "Shoot" (20=S, 19=h, 18=o, 17=o, 16=t)
+        shoot_chars = ["S", "H", "O", "O", "T"]
+        cricket_keys_shoot = [20, 19, 18, 17, 16]
+        for idx, t_num in enumerate(cricket_keys_shoot):
             if t_num in display.CRICKET_TARGET_DISP:
                 d_t_ten, d_t_unit = display.CRICKET_TARGET_DISP[t_num]
                 display.set_disp_char(d_t_ten, " ")
-                display.set_disp_char(d_t_unit, triff_chars[idx])
+                display.set_disp_char(d_t_unit, shoot_chars[idx])
 
         # Cricket-Anzeige 15 zeigt das zweistellige Ziel bzw. Kürzel (15..20, do, tr, bu)
         tgt = targets[current_round] if current_round < len(targets) else 0
