@@ -1,6 +1,6 @@
 # Datei: game_splitscore.py
-# Version: 1.1.7
-# VisionPi2000 - Split Score - Cyber-Circuit-Design & "TRIFF" + Kürzel auf Cricket-Anzeigen
+# Version: 1.1.8
+# VisionPi2000 - Split Score - Cyber-Circuit-Design & "trIFF" + do/tr/bu auf Cricket-Anzeigen
 
 import pygame
 import math
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.12"
+VERSION = "1.1.8"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 
@@ -30,7 +30,7 @@ _frame_cache = {}
 
 
 def draw_cyber_frame(surface, x, y, w, h, cut=22):
-    """Zeichnet den gecachten VisionPi2000 Cyber-Tech-Rahmen im selben Stil wie X01."""
+    """Zeichnet den gecachten VisionPi2000 Cyber-Tech-Rahmen wie im Service-Menü."""
     key = ("cyber_frame_v2", w, h, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 16:
@@ -83,7 +83,7 @@ def draw_cyber_frame(surface, x, y, w, h, cut=22):
 
 
 def draw_cyber_player_card(surface, x, y, w, h, p_col, is_act, cut=12):
-    """Zeichnet eine gecachte Spieler-Karte im Cyber-Circuit-Stil mit Berry-Farben."""
+    """Zeichnet eine gecachte Spieler-Karte im Cyber-Circuit-Stil mit Berry-Farben ohne Rand-Clipping."""
     key = ("cyber_card_v2", w, h, p_col, is_act, cut)
     if key not in _frame_cache:
         if len(_frame_cache) > 32:
@@ -223,7 +223,7 @@ def trigger_victory(ser, display=None):
 
 
 def get_target_name(tgt):
-    """Gibt den ausgeschriebenen Namen für das Split-Score-Ziel zurück."""
+    """Gibt den ausgeschriebenen Namen für das Split-Score-Ziel auf dem Bildschirm zurück."""
     if tgt == "D": return "Double"
     if tgt == "T": return "Triple"
     if tgt == "B": return "Bullseye"
@@ -231,8 +231,8 @@ def get_target_name(tgt):
 
 
 def get_target_cricket_code(tgt):
-    """Gibt den zweistelligen String für die Anzeige auf dem Cricket-Feld 15 zurück."""
-    if tgt == "D": return "DB"
+    """Gibt das zweistellige Kürzel oder die Zahl für die Anzeige auf Cricket-Feld 15 zurück."""
+    if tgt == "D": return "DO"
     if tgt == "T": return "TR"
     if tgt == "B": return "BU"
     try:
@@ -292,6 +292,23 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(sw, sh)
     display.clear_all()
 
+    # 7-Segment-Font des Mappers zur Laufzeit um die benötigten Buchstaben für "trIFF" & "do"/"tr"/"bu" erweitern
+    if hasattr(display, "FONT") and isinstance(display.FONT, dict):
+        display.FONT.update({
+            "T": ["D", "E", "F", "G"],       # kleines t
+            "R": ["E", "G"],                 # kleines r
+            "I": ["B", "C"],                 # I
+            "F": ["A", "E", "F", "G"],       # F
+            "D": ["B", "C", "D", "E", "G"],  # kleines d
+            "O": ["C", "D", "E", "G"],       # kleines o
+            "B": ["C", "D", "E", "F", "G"],  # kleines b
+            "U": ["C", "D", "E"],            # kleines u
+            "S": ["A", "C", "D", "F", "G"],  # S
+            "H": ["B", "C", "E", "F", "G"],  # H
+            "E": ["A", "D", "E", "F", "G"],  # E
+            "L": ["D", "E", "F"],            # L
+        })
+
     bg_img = _get_bg(sw, sh)
     avatar_path = {"Bullseye-Berry (Stufe 1)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Stufe 2)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Stufe 3)": "Bullseye-Berry_Ninja.png"}.get(mode, "")
     avatar_frames = _get_avatar_frames(avatar_path, sh)
@@ -331,26 +348,29 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         display.set_active_player(active_player - 1)
         for i in range(8): display.set_score(i, scores[i] if i < total_players else None)
         
-        # Temp-Score zeigt exakt die aktuellen Runden-Punkte der Aufnahme
+        # Temp-Score zeigt wieder die geworfenen Runden-Punkte der aktuellen Aufnahme
         display.set_temp_score(round_points)
 
-        # Cricket-Anzeigen (20 bis 16 buchstabieren "TRIFF", 15 zeigt das Ziel/Kürzel)
+        # Cricket-Anzeigen 20 bis 16 schreiben vertikal "trIFF" (20=t, 19=r, 18=I, 17=F, 16=F)
         triff_chars = ["T", "R", "I", "F", "F"]
         cricket_keys_triff = [20, 19, 18, 17, 16]
         for idx, t_num in enumerate(cricket_keys_triff):
             if t_num in display.CRICKET_TARGET_DISP:
                 d_t_ten, d_t_unit = display.CRICKET_TARGET_DISP[t_num]
-                ch = triff_chars[idx] if idx < len(triff_chars) else " "
                 display.set_disp_char(d_t_ten, " ")
-                display.set_disp_char(d_t_unit, ch)
+                display.set_disp_char(d_t_unit, triff_chars[idx])
 
-        # Cricket-Anzeige 15 zeigt das zweistellige Ziel oder Kürzel (DB, TR, BU oder Zahl)
+        # Cricket-Anzeige 15 zeigt das zweistellige Ziel bzw. Kürzel (15..20, do, tr, bu)
         tgt = targets[current_round] if current_round < len(targets) else 0
         code_str = get_target_cricket_code(tgt)
         if 15 in display.CRICKET_TARGET_DISP:
             d_15_ten, d_15_unit = display.CRICKET_TARGET_DISP[15]
             display.set_disp_char(d_15_ten, code_str[0] if len(code_str) > 0 else " ")
             display.set_disp_char(d_15_unit, code_str[1] if len(code_str) > 1 else " ")
+
+        # Bei Bullseye zusätzlich das Bullseye-LED-Icon auf dem Board einschalten
+        if hasattr(display, "set_bullseye_icon"):
+            display.set_bullseye_icon(tgt == "B")
 
         display.set_turn(current_round + 1)
         display.set_dart_arrows(3 - darts_thrown)
@@ -362,7 +382,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     champ_display_until, bot_timer, combo_press_start = 0, 0, 0
 
     while running:
-        raw_data = ser.readline().decode('utf-8','ignore').strip() if ser and ser.in_waiting > 0 else None
+        raw_data = None
+        if ser and ser.in_waiting > 0:
+            try:
+                while ser.in_waiting > 0:
+                    line = ser.readline().decode('utf-8', 'ignore').strip()
+                    if line:
+                        raw_data = line
+                        break
+            except Exception:
+                raw_data = None
+
         is_berrys_turn = (is_berry_game and active_player == total_players)
         
         for event in pygame.event.get():
@@ -372,6 +402,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif event.key == pygame.K_SPACE: raw_data = "BTN:START"
                 elif event.key == pygame.K_i: raw_data = "IR:DETECT"
+                elif event.key == pygame.K_r: raw_data = "BTN:RED"
+                elif event.key == pygame.K_b: raw_data = "BTN:BLUE"
+                elif event.key == pygame.K_g: raw_data = "BTN:GREY"
                 elif event.key == pygame.K_ESCAPE: running = False
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
@@ -390,13 +423,21 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: 
             combo_press_start = 0
 
-        # Direkte Unterstützung von Tastatur und Seriell im WIN-Zustand
-        if current_state == "WIN":
-            if raw_data == "BTN:PLAYER" or keys[pygame.K_p]:
+        if current_state == "ABORT_MENU":
+            if raw_data == "BTN:START":
+                current_state = "GAME"
+                raw_data = None
+            elif raw_data == "BTN:PLAYER":
                 if sound_switch: sound_switch.play()
                 display.clear_all()
                 return "menu"
-            elif raw_data == "BTN:START" or keys[pygame.K_SPACE]:
+
+        elif current_state == "WIN":
+            if raw_data == "BTN:PLAYER":
+                if sound_switch: sound_switch.play()
+                display.clear_all()
+                return "menu"
+            elif raw_data == "BTN:START":
                 if sound_switch: sound_switch.play()
                 scores = [40] * total_players
                 darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
@@ -408,20 +449,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 sync_hw_display()
                 raw_data = None
 
-        if current_state == "ABORT_MENU":
-            if raw_data == "BTN:START":
-                current_state = "GAME"
-                raw_data = None
-            elif raw_data == "BTN:PLAYER":
-                if sound_switch: sound_switch.play()
-                display.clear_all()
-                return "menu"
-
         elif current_state == "GAME":
             if raw_data == "BTN:PLAYER":
                 switch_delay_timer = pygame.time.get_ticks(); raw_data = None
             elif raw_data == "IR:DETECT":
-                if darts_thrown >= 3 and not is_berrys_turn: switch_delay_timer = pygame.time.get_ticks() + 2000
+                if darts_thrown >= 3 and not is_berrys_turn: switch_delay_timer = pygame.time.get_ticks() + 1000
                 raw_data = None
             
             if is_berrys_turn and darts_thrown >= 3 and switch_delay_timer == 0:
@@ -439,6 +471,10 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     trigger_victory(ser, display)
                     display.clear_all()
                     sync_hw_display()
+                    if ser:
+                        try: ser.reset_input_buffer()
+                        except Exception: pass
+                    pygame.event.clear()
                 else:
                     if sound_switch: sound_switch.play()
                     if ser:
@@ -451,18 +487,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif pygame.time.get_ticks() > bot_timer:
                     raw_data = f"HIT:{get_bot_hit(targets[current_round], mode)}"; bot_timer = 0 
 
-        if raw_data:
-            if current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+        if raw_data and current_state == "GAME":
+            if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
                 if darts_thrown == 0:
                     round_points = 0
 
-                points = 0
-                is_double = False
-                is_master = False
-                
                 if hit_segment == "MISS":
                     if sound_miss: sound_miss.play()
                 elif hit_segment != "-":
@@ -493,20 +525,28 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         scores[p_idx] //= 2
                         if sound_bust: sound_bust.play()
 
-                    # Sofortiges Auslösen des Spielendes nach dem 3. Pfeil im finalen Ziel ("B")
+                    # Sofortiges Spielende nach dem 3. Pfeil des letzten Spielers im letzten Ziel ("B")
                     is_last_player = (active_player == total_players)
                     is_last_target = (current_round >= len(targets) - 1)
                     
                     if is_last_player and is_last_target:
                         current_state = "WIN"
+                        sync_hw_display()
+                        pygame.display.flip()
                         trigger_victory(ser, display)
                         display.clear_all()
                         sync_hw_display()
-                    elif ser:
-                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                        except Exception: pass
-                
-                sync_hw_display()
+                        if ser:
+                            try: ser.reset_input_buffer()
+                            except Exception: pass
+                        pygame.event.clear()
+                    else:
+                        if ser:
+                            try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
+                            except Exception: pass
+                        sync_hw_display()
+                else:
+                    sync_hw_display()
 
         if screensaver.check():
             screensaver.update_and_draw(screen, title_font); pygame.display.flip(); clock.tick(30); continue
@@ -525,7 +565,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             target_val = targets[current_round] if current_round < len(targets) else "Ende"
             target_str = get_target_name(target_val)
 
-            head_txt = f"SPIEL: {game_name}   •   Ziel: {target_str}   •   RUNDE {current_round + 1}"
+            head_txt = f"SPIEL: {game_name}   •   ZIEL: {target_str.upper()}   •   RUNDE {current_round + 1}"
             head_surf = title_font.render(head_txt, True, HIGHLIGHT)
             screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, hud_y + int(sh * 0.018)))
 
@@ -539,7 +579,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             name_surf = big_font.render(f"▶  {active_label}  ◀", True, act_col)
             screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh * 0.105)))
             
-            temp_score_surf = title_font.render(f"Ziel-Modus: {target_str}", True, NEON_CYAN)
+            temp_score_surf = title_font.render(f"Ziel-Modus: {target_str}   •   Runden-Punkte: {round_points}", True, NEON_CYAN)
             screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh * 0.165)))
             
             score_surf = giant_font.render(str(scores[active_player-1]), True, WHITE)
@@ -631,9 +671,18 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 txt_head = win_font.render("GEWONNEN!", True, NEON_GREEN)
                 screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, pop_y + int(pop_h * 0.08)))
                 
-                winner_name = mode if is_berrys_turn else f"Spieler {active_player}"
+                max_sc = max(scores)
+                winners = [i + 1 for i, s in enumerate(scores) if s == max_sc]
+                if len(winners) == 1:
+                    w_idx = winners[0]
+                    winner_name = mode if (is_berry_game and w_idx == total_players) else f"Spieler {w_idx}"
+                    w_col = PLAYER_COLORS[0] if (is_berry_game and w_idx == total_players) else PLAYER_COLORS[(w_idx - 1) % len(PLAYER_COLORS)]
+                    win_txt = f"{winner_name} gewinnt ({max_sc} Pkt.)!"
+                else:
+                    w_col = HIGHLIGHT
+                    win_txt = f"Unentschieden ({max_sc} Pkt.)!"
                     
-                txt_winner = big_font.render(f"{winner_name} beendet!", True, act_col)
+                txt_winner = big_font.render(win_txt, True, w_col)
                 screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, pop_y + int(pop_h * 0.42)))
                 pygame.draw.line(screen, NEON_GREEN, (pop_x + 50, pop_y + int(pop_h * 0.56)), (pop_x + pop_w - 50, pop_y + int(pop_h * 0.56)), 2)
                 
