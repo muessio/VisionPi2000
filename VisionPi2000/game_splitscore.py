@@ -1,6 +1,6 @@
 # Datei: game_splitscore.py
-# Version: 1.1.6
-# VisionPi2000 - Split Score - Cyber-Circuit-Design & Berry-Rahmenfarben
+# Version: 1.1.7
+# VisionPi2000 - Split Score - Cyber-Circuit-Design & "TRIFF" + Kürzel auf Cricket-Anzeigen
 
 import pygame
 import math
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.6"
+VERSION = "1.1.12"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 
@@ -230,6 +230,18 @@ def get_target_name(tgt):
     return str(tgt)
 
 
+def get_target_cricket_code(tgt):
+    """Gibt den zweistelligen String für die Anzeige auf dem Cricket-Feld 15 zurück."""
+    if tgt == "D": return "DB"
+    if tgt == "T": return "TR"
+    if tgt == "B": return "BU"
+    try:
+        val = int(tgt)
+        return f"{val:2d}"
+    except Exception:
+        return "  "
+
+
 def get_bot_hit(target, mode):
     diff = 1 if "Stufe 1" in mode else (2 if "Stufe 2" in mode else 3)
     if target == "D": return f"d{random.randint(1,20)}" if random.random() < (0.2*diff) else "20"
@@ -318,11 +330,32 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         display.clear_buffer()
         display.set_active_player(active_player - 1)
         for i in range(8): display.set_score(i, scores[i] if i < total_players else None)
+        
+        # Temp-Score zeigt exakt die aktuellen Runden-Punkte der Aufnahme
+        display.set_temp_score(round_points)
+
+        # Cricket-Anzeigen (20 bis 16 buchstabieren "TRIFF", 15 zeigt das Ziel/Kürzel)
+        triff_chars = ["T", "R", "I", "F", "F"]
+        cricket_keys_triff = [20, 19, 18, 17, 16]
+        for idx, t_num in enumerate(cricket_keys_triff):
+            if t_num in display.CRICKET_TARGET_DISP:
+                d_t_ten, d_t_unit = display.CRICKET_TARGET_DISP[t_num]
+                ch = triff_chars[idx] if idx < len(triff_chars) else " "
+                display.set_disp_char(d_t_ten, " ")
+                display.set_disp_char(d_t_unit, ch)
+
+        # Cricket-Anzeige 15 zeigt das zweistellige Ziel oder Kürzel (DB, TR, BU oder Zahl)
         tgt = targets[current_round] if current_round < len(targets) else 0
-        if isinstance(tgt, int): display.set_temp_score(tgt)
-        else: display.set_temp_score(0)
+        code_str = get_target_cricket_code(tgt)
+        if 15 in display.CRICKET_TARGET_DISP:
+            d_15_ten, d_15_unit = display.CRICKET_TARGET_DISP[15]
+            display.set_disp_char(d_15_ten, code_str[0] if len(code_str) > 0 else " ")
+            display.set_disp_char(d_15_unit, code_str[1] if len(code_str) > 1 else " ")
+
+        display.set_turn(current_round + 1)
         display.set_dart_arrows(3 - darts_thrown)
         display.update()
+
     sync_hw_display()
 
     running, clock, current_state = True, pygame.time.Clock(), "GAME"
@@ -506,7 +539,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             name_surf = big_font.render(f"▶  {active_label}  ◀", True, act_col)
             screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, int(sh * 0.105)))
             
-            temp_score_surf = title_font.render(f"Runden-Punkte:  {round_points}", True, NEON_CYAN)
+            temp_score_surf = title_font.render(f"Ziel-Modus: {target_str}", True, NEON_CYAN)
             screen.blit(temp_score_surf, ((sw - temp_score_surf.get_width()) // 2, int(sh * 0.165)))
             
             score_surf = giant_font.render(str(scores[active_player-1]), True, WHITE)
