@@ -264,24 +264,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: 
             combo_press_start = 0
 
-        # Direkte Unterstützung von Tastatur und Seriell im WIN-Zustand
-        if current_state == "WIN":
-            if raw_data == "BTN:PLAYER" or keys[pygame.K_p]:
-                if sound_switch: sound_switch.play()
-                display.clear_all()
-                return "menu"
-            elif raw_data == "BTN:START" or keys[pygame.K_SPACE]:
-                if sound_switch: sound_switch.play()
-                scores = [40] * total_players
-                darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
-                current_state = "GAME"
-                if ser:
-                    try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
-                    except Exception: pass
-                display.clear_all()
-                sync_hw_display()
-                raw_data = None
-
         if current_state == "ABORT_MENU":
             if raw_data == "BTN:START":
                 current_state = "GAME"
@@ -325,10 +307,19 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 elif pygame.time.get_ticks() > bot_timer:
                     raw_data = f"HIT:{get_bot_hit(targets[current_round], mode)}"; bot_timer = 0 
 
-        if raw_data and current_state == "GAME":
-            if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+        if raw_data:
+            if current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
+                
+                if darts_thrown == 0:
+                    round_start_score = player_scores[p_idx]
+                    round_start_in_checked = player_in_checked[p_idx]
+                    round_points = 0
+
+                points = 0
+                is_double = False
+                is_master = False
                 
                 if hit_segment == "MISS":
                     if sound_miss: sound_miss.play()
@@ -360,7 +351,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         scores[p_idx] //= 2
                         if sound_bust: sound_bust.play()
 
-                    # Sofortige Prüfung nach dem 3. Pfeil des letzten Spielers im finalen Ziel ("B")
+                    # Sofortiges Auslösen des Spielendes nach dem 3. Pfeil im finalen Ziel ("B")
                     is_last_player = (active_player == total_players)
                     is_last_target = (current_round >= len(targets) - 1)
                     
@@ -374,6 +365,23 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         except Exception: pass
                 
                 sync_hw_display()
+
+            elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
+                if raw_data == "BTN:PLAYER":
+                    if sound_switch: sound_switch.play()
+                    display.clear_all()
+                    return "menu"
+                elif raw_data == "BTN:START":
+                    if sound_switch: sound_switch.play()
+                    scores = [40] * total_players
+                    darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
+                    current_state = "GAME"
+                    if ser:
+                        try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
+                        except Exception: pass
+                    display.clear_all()
+                    sync_hw_display()
+                    raw_data = None
 
         if screensaver.check():
             screensaver.update_and_draw(screen, title_font); pygame.display.flip(); clock.tick(30); continue
