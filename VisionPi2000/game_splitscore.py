@@ -1,5 +1,5 @@
 # Datei: game_splitscore.py
-# Version: 1.1.10
+# Version: 1.1.11
 # VisionPi2000 - Split Score - Cyber-Circuit-Design & sauberes "tr" auf Feld 15
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.10"
+VERSION = "1.1.11"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 
@@ -292,22 +292,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     screensaver = ScreenSaver(sw, sh)
     display.clear_all()
 
-    # 7-Segment-Font des Mappers zur Laufzeit um benötigte Buchstaben erweitern
-    if hasattr(display, "FONT") and isinstance(display.FONT, dict):
-        display.FONT.update({
-            "S": ["A", "C", "D", "F", "G"],  # S
-            "H": ["C", "E", "F", "G"],       # kleines h
-            "O": ["C", "D", "E", "G"],       # kleines o
-            "T": ["D", "E", "F", "G"],       # kleines t
-            "D": ["B", "C", "D", "E", "G"],  # kleines d
-            "R": ["E", "G"],                 # kleines r
-            "B": ["C", "D", "E", "F", "G"],  # kleines b
-            "U": ["C", "D", "E"],            # kleines u
-            "I": ["B", "C"],                 # I
-            "F": ["A", "E", "F", "G"],       # F
-            "E": ["A", "D", "E", "F", "G"],  # E
-            "L": ["D", "E", "F"],            # L
-        })
 
     bg_img = _get_bg(sw, sh)
     avatar_path = {"Bullseye-Berry (Stufe 1)": "Bullseye-Berry_Original.png", "Bullseye-Berry (Stufe 2)": "Bullseye-Berry_Cyber.png", "Bullseye-Berry (Stufe 3)": "Bullseye-Berry_Ninja.png"}.get(mode, "")
