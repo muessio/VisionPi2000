@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.3.1
+# Version: 1.3.2
 # VisionPi2000 - Fruit Splasher (Original-Spiel mit bündigem Cyber-Circuit Header & Karten-Design)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.3.1"
+VERSION = "1.3.2"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -812,13 +812,19 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                                 sound_single.play()
 
                 darts_thrown += 1
-                if darts_thrown == 3 and ser:
-                    try:
-                        ser.write(b"LAMP:PLAYER:2\n")
-                        ser.flush()
-                    except Exception:
-                        pass
-                sync_hw_display()
+                if is_hunt_mode and darts_thrown >= 3 and round_num >= max_rounds and active_player == total_players:
+                    winner_idx = max(range(total_players), key=lambda i: scores[i])
+                    current_state = "WIN"
+                    trigger_victory(ser, display)
+                    sync_hw_display()
+                else:
+                    if darts_thrown == 3 and ser:
+                        try:
+                            ser.write(b"LAMP:PLAYER:2\n")
+                            ser.flush()
+                        except Exception:
+                            pass
+                    sync_hw_display()
 
         elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
             if raw_data == "BTN:PLAYER":
