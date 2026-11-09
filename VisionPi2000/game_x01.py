@@ -231,7 +231,7 @@ def parse_hit(hit_str):
     return int(hit_str)
 
 def check_double(hit_str): return hit_str.startswith("d") or hit_str == "db"
-def check_master(hit_str): return hit_str.startswith("d") or hit_str.startswith("t") or hit_str in ["b", "db"]
+def check_master(hit_str): return hit_str.startswith("d") or hit_str.startswith("t") or hit_str == "db"
 
 
 def get_checkout_route(score, darts_left, has_double_out, has_master_out):
@@ -265,7 +265,6 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
         finish_throws.append((50, "  ", "  ", "BULL", True))
         for t in fav_triples:
             finish_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
-        finish_throws.append((25, "  ", "25", "25", False))
     else:
         for s in range(20, 0, -1):
             finish_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
@@ -286,7 +285,8 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
     setup_throws = []
     if score > 60:
         for t in fav_triples:
-            setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+            if t * 3 > 20:
+                setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
         setup_throws.append((50, "  ", "  ", "BULL", True))
         setup_throws.append((25, "  ", "25", "25", False))
         for s in range(20, 0, -1):
@@ -298,7 +298,8 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
             setup_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
         setup_throws.append((25, "  ", "25", "25", False))
         for t in fav_triples:
-            setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+            if t * 3 > 20:
+                setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
         setup_throws.append((50, "  ", "  ", "BULL", True))
         for d in fav_doubles:
             setup_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
@@ -746,7 +747,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             
             p_idx_hud = active_player - 1
             if has_double_in and not player_in_checked[p_idx_hud] and current_state == "GAME":
-                in_hint = title_font.render("⚡ DOUBLE IN ERFORDERLICH! ⚡", True, HIGHLIGHT)
+                in_hint = title_font.render("DOUBLE IN ERFORDERLICH!", True, HIGHLIGHT)
                 in_w = in_hint.get_width() + 36
                 in_h = in_hint.get_height() + 10
                 in_x = (sw - in_w) // 2
@@ -758,7 +759,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 hud_route = get_checkout_route(player_scores[p_idx_hud], 3 - darts_thrown, has_double_out, has_master_out)
                 if hud_route:
                     route_str = "   ▶   ".join(item[2] for item in hud_route)
-                    co_hint = title_font.render(f"🎯 FINISH:   {route_str}", True, NEON_GREEN)
+                    co_hint = title_font.render(f"FINISH:   {route_str}", True, NEON_GREEN)
                     co_w = co_hint.get_width() + 36
                     co_h = co_hint.get_height() + 10
                     co_x = (sw - co_w) // 2

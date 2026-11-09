@@ -253,7 +253,8 @@ def get_checkout_route(points_needed, darts_left):
     setup_throws = []
     if points_needed > 60:
         for t in fav_triples:
-            setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+            if t * 3 > 20:
+                setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
         setup_throws.append((50, "  ", "  ", "BULL", True))
         setup_throws.append((25, "  ", "25", "25", False))
         for s in range(20, 0, -1):
@@ -265,7 +266,8 @@ def get_checkout_route(points_needed, darts_left):
             setup_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
         setup_throws.append((25, "  ", "25", "25", False))
         for t in fav_triples:
-            setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+            if t * 3 > 20:
+                setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
         setup_throws.append((50, "  ", "  ", "BULL", True))
         for d in fav_doubles:
             setup_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
@@ -619,7 +621,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 hud_route = get_checkout_route(pts_rem_hud, 3 - darts_thrown)
                 if hud_route:
                     route_str = "   ▶   ".join(item[2] for item in hud_route)
-                    co_hint = title_font.render(f"🎯 FINISH ({pts_rem_hud} Rest):   {route_str}", True, NEON_GREEN)
+                    co_hint = title_font.render(f"FINISH ({pts_rem_hud} Rest):   {route_str}", True, NEON_GREEN)
                     co_w = co_hint.get_width() + 36
                     co_h = co_hint.get_height() + 10
                     co_x = (sw - co_w) // 2
