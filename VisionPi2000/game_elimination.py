@@ -1,6 +1,6 @@
 # Datei: game_elimination.py
-# Version: 1.1.5
-# VisionPi2000 - Elimination - Cyber-Circuit-Design, Berry-Rahmenfarben & Fast-Load Cache
+# Version: 1.1.6
+# VisionPi2000 - Elimination - Cyber-Circuit-Design, Berry-Rahmenfarben, Fast-Load Cache & 301-Checkout-Hilfe
 
 import pygame
 import math
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 GAMES = ["Elimination"]
 OPTIONS = ["Standard", "3 Leben"]
 
@@ -220,9 +220,89 @@ def trigger_victory(ser, display=None):
                 ser.flush()
         except Exception:
             pass
-            
-def get_bot_hit(mode):
+
+
+def get_checkout_route(points_needed, darts_left):
+    """
+    Berechnet für Elimination (Aufwärtslogik von 0 auf 301) den kürzesten Weg für die
+    noch fehlenden Punkte (points_needed = 301 - aktueller_score) mit den verbleibenden Pfeilen (1..3).
+    """
+    if points_needed <= 0 or darts_left <= 0 or points_needed > 180:
+        return []
+
+    fav_doubles = [20, 16, 8, 10, 4, 18, 12, 14, 6, 2, 19, 15, 17, 13, 11, 9, 7, 5, 3, 1]
+    fav_triples = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+
+    finish_throws = []
+    for s in range(20, 0, -1):
+        finish_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
+    finish_throws.append((25, "  ", "25", "25", False))
+    finish_throws.append((50, "  ", "  ", "BULL", True))
+    for d in fav_doubles:
+        finish_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
+    for t in fav_triples:
+        finish_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+
+    for pts, mod_s, num_s, lbl, is_db in finish_throws:
+        if pts == points_needed:
+            return [(mod_s, num_s, lbl, is_db)]
+
+    if darts_left < 2:
+        return []
+
+    setup_throws = []
+    if points_needed > 60:
+        for t in fav_triples:
+            setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+        setup_throws.append((50, "  ", "  ", "BULL", True))
+        setup_throws.append((25, "  ", "25", "25", False))
+        for s in range(20, 0, -1):
+            setup_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
+        for d in fav_doubles:
+            setup_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
+    else:
+        for s in range(20, 0, -1):
+            setup_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
+        setup_throws.append((25, "  ", "25", "25", False))
+        for t in fav_triples:
+            setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+        setup_throws.append((50, "  ", "  ", "BULL", True))
+        for d in fav_doubles:
+            setup_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
+
+    for f_pts, f_mod, f_num, f_lbl, f_db in finish_throws:
+        rem = points_needed - f_pts
+        if rem > 0:
+            for s1_pts, s1_mod, s1_num, s1_lbl, s1_db in setup_throws:
+                if s1_pts == rem:
+                    return [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+
+    if darts_left < 3:
+        return []
+
+    for f_pts, f_mod, f_num, f_lbl, f_db in finish_throws:
+        rem_after_f = points_needed - f_pts
+        if rem_after_f >= 2:
+            for s1_pts, s1_mod, s1_num, s1_lbl, s1_db in setup_throws:
+                rem2 = rem_after_f - s1_pts
+                if rem2 > 0:
+                    for s2_pts, s2_mod, s2_num, s2_lbl, s2_db in setup_throws:
+                        if s2_pts == rem2:
+                            return [
+                                (s1_mod, s1_num, s1_lbl, s1_db),
+                                (s2_mod, s2_num, s2_lbl, s2_db),
+                                (f_mod, f_num, f_lbl, f_db)
+                            ]
+
+    return []
+
+
+def get_bot_hit(mode, current_score=0):
     diff = 1 if "Stufe 1" in mode else (2 if "Stufe 2" in mode else 3)
+    rem = 301 - current_score
+    if 0 < rem <= 20:
+        if random.random() < {1: 0.30, 2: 0.60, 3: 0.90}[diff]:
+            return str(rem)
     if diff == 1: return str(random.randint(1, 20))
     elif diff == 2: return random.choice(["20", "19", "t20", "5", "1"])
     else: return random.choice(["t20", "t20", "20", "t19"])
@@ -281,6 +361,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     sound_triple = _get_sound("sounds/hit_triple.wav")
     sound_switch = _get_sound("sounds/switch_player.wav")
     sound_miss = _get_sound("sounds/miss.wav")
+    sound_bust = _get_sound("sounds/bust.wav")
 
     title_font = _get_font(int(sh * 0.030))
     big_font = _get_font(int(sh * 0.044))
@@ -295,9 +376,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     HIGHLIGHT, WHITE, RED_COL = (255, 205, 45), (255, 255, 255), (255, 56, 76)
     NEON_GREEN, NEON_CYAN = (0, 255, 157), (0, 216, 255)
 
+    TARGET_SCORE = 301
     scores = [0] * total_players
     lives = [3] * total_players if "Leben" in option else [1] * total_players
     darts_thrown, active_player, round_points, switch_delay_timer = 0, 1, 0, 0
+    round_start_score = 0
 
     if ser:
         try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -309,7 +392,40 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         for i in range(8): display.set_score(i, scores[i] if i < total_players and lives[i] > 0 else None)
         display.set_temp_score(round_points)
         display.set_dart_arrows(3 - darts_thrown)
+
+        p_idx = active_player - 1
+        points_needed = TARGET_SCORE - scores[p_idx]
+        rem_darts = 3 - darts_thrown
+        route = []
+        if rem_darts > 0 and 0 < points_needed <= 180:
+            route = get_checkout_route(points_needed, rem_darts)
+
+        dart_disp_pairs = [(20, 19), (18, 17), (16, 15)]
+        needs_bull_icon = False
+
+        for idx, (seg_mod, seg_num) in enumerate(dart_disp_pairs):
+            if idx < len(route):
+                mod_str, num_str, _, is_db = route[idx]
+                if is_db:
+                    needs_bull_icon = True
+            else:
+                mod_str, num_str = "  ", "  "
+
+            if hasattr(display, "CRICKET_TARGET_DISP"):
+                if seg_mod in display.CRICKET_TARGET_DISP:
+                    d_m_ten, d_m_unit = display.CRICKET_TARGET_DISP[seg_mod]
+                    display.set_disp_char(d_m_ten, mod_str[0] if len(mod_str) > 0 else " ")
+                    display.set_disp_char(d_m_unit, mod_str[1] if len(mod_str) > 1 else " ")
+                if seg_num in display.CRICKET_TARGET_DISP:
+                    d_n_ten, d_n_unit = display.CRICKET_TARGET_DISP[seg_num]
+                    display.set_disp_char(d_n_ten, num_str[0] if len(num_str) > 0 else " ")
+                    display.set_disp_char(d_n_unit, num_str[1] if len(num_str) > 1 else " ")
+
+        if hasattr(display, "set_bullseye_icon"):
+            display.set_bullseye_icon(needs_bull_icon)
+
         display.update()
+
     sync_hw_display()
 
     running, clock, current_state = True, pygame.time.Clock(), "GAME"
@@ -326,6 +442,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if event.key == pygame.K_p: raw_data = "BTN:PLAYER"
                 elif event.key == pygame.K_SPACE: raw_data = "BTN:START"
                 elif event.key == pygame.K_i: raw_data = "IR:DETECT"
+                elif event.key == pygame.K_r: raw_data = "BTN:RED"
+                elif event.key == pygame.K_b: raw_data = "BTN:BLUE"
+                elif event.key == pygame.K_g: raw_data = "BTN:GREY"
                 elif event.key == pygame.K_ESCAPE: running = False
 
         if raw_data and screensaver.reset_timer(): raw_data = None; continue
@@ -368,6 +487,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
                 active_player = (active_player % total_players) + 1
                 while lives[active_player - 1] <= 0: active_player = (active_player % total_players) + 1
+                round_start_score = scores[active_player - 1]
                 if sound_switch: sound_switch.play()
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.flush()
@@ -377,42 +497,68 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if is_berrys_turn and switch_delay_timer == 0 and darts_thrown < 3:
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800) 
                 elif pygame.time.get_ticks() > bot_timer:
-                    raw_data = f"HIT:{get_bot_hit(mode)}"; bot_timer = 0 
+                    raw_data = f"HIT:{get_bot_hit(mode, scores[active_player - 1])}"; bot_timer = 0 
 
         if raw_data:
             if current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
+                if darts_thrown == 0:
+                    round_start_score = scores[p_idx]
+                    round_points = 0
+
                 points = 0
+                mult = 1
                 if hit_segment == "MISS":
                     if sound_miss: sound_miss.play()
                 elif hit_segment != "-":
                     seg = int(hit_segment.replace("t","").replace("d","").replace("b","25")) if hit_segment != "db" else 25
                     mult = 3 if "t" in hit_segment else (2 if "d" in hit_segment else 1)
                     points = seg * mult
-                    
-                    if hit_segment in ["t18", "t19", "t20", "b", "db"]:
-                        champ_display_until = pygame.time.get_ticks() + 2000
-                        if sound_champ: sound_champ.play()
-                    elif mult == 3 and sound_triple: sound_triple.play()
-                    elif mult == 2 and sound_double: sound_double.play()
-                    elif sound_single: sound_single.play()
 
-                scores[p_idx] += points
-                round_points += points
-                darts_thrown += 1
-                
-                if darts_thrown == 3 and ser:
-                    try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
-                    except Exception: pass
-                sync_hw_display()
-                
-                if scores[p_idx] >= 300: 
-                    current_state = "WIN"
-                    trigger_victory(ser, display)
-                    display.clear_all()
+                new_score = scores[p_idx] + points
+
+                if new_score > TARGET_SCORE:
+                    if sound_bust: sound_bust.play()
+                    scores[p_idx] = round_start_score
+                    round_points = 0
+                    darts_thrown = 3
+                    if ser:
+                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
+                        except Exception: pass
                     sync_hw_display()
+                else:
+                    if hit_segment not in ["MISS", "-"]:
+                        if hit_segment in ["t18", "t19", "t20", "b", "db"]:
+                            champ_display_until = pygame.time.get_ticks() + 2000
+                            if sound_champ: sound_champ.play()
+                        elif mult == 3 and sound_triple: sound_triple.play()
+                        elif mult == 2 and sound_double: sound_double.play()
+                        elif sound_single: sound_single.play()
+
+                    scores[p_idx] = new_score
+                    round_points += points
+                    darts_thrown += 1
+
+                    if points > 0 and new_score > 0:
+                        for other_idx in range(total_players):
+                            if other_idx != p_idx and lives[other_idx] > 0 and scores[other_idx] == new_score:
+                                scores[other_idx] = 0
+                                if "Leben" in option:
+                                    lives[other_idx] = max(0, lives[other_idx] - 1)
+                                if sound_bust: sound_bust.play()
+
+                    if darts_thrown == 3 and ser and new_score < TARGET_SCORE:
+                        try: ser.write(b"LAMP:PLAYER:2\n"); ser.flush()
+                        except Exception: pass
+                    sync_hw_display()
+                    
+                    if scores[p_idx] == TARGET_SCORE: 
+                        current_state = "WIN"
+                        trigger_victory(ser, display)
+                        display.clear_all()
+                        sync_hw_display()
 
             elif current_state == "WIN" and (raw_data in ["BTN:PLAYER", "BTN:START"]):
                 if raw_data == "BTN:PLAYER":
@@ -424,6 +570,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     scores = [0] * total_players
                     lives = [3] * total_players if "Leben" in option else [1] * total_players
                     darts_thrown, active_player, round_points, switch_delay_timer = 0, 1, 0, 0
+                    round_start_score = 0
                     current_state = "GAME"
                     if ser:
                         try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -465,6 +612,21 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             
             score_surf = giant_font.render(str(scores[active_player-1]), True, WHITE)
             screen.blit(score_surf, ((sw - score_surf.get_width()) // 2, int(sh * 0.205)))
+
+            p_idx_hud = active_player - 1
+            pts_rem_hud = TARGET_SCORE - scores[p_idx_hud]
+            if current_state == "GAME" and (3 - darts_thrown) > 0 and 0 < pts_rem_hud <= 180:
+                hud_route = get_checkout_route(pts_rem_hud, 3 - darts_thrown)
+                if hud_route:
+                    route_str = "   ▶   ".join(item[2] for item in hud_route)
+                    co_hint = title_font.render(f"🎯 FINISH ({pts_rem_hud} Rest):   {route_str}", True, NEON_GREEN)
+                    co_w = co_hint.get_width() + 36
+                    co_h = co_hint.get_height() + 10
+                    co_x = (sw - co_w) // 2
+                    co_y = int(sh * 0.455)
+                    pygame.draw.rect(screen, (10, 38, 32), (co_x, co_y, co_w, co_h), border_radius=8)
+                    pygame.draw.rect(screen, NEON_GREEN, (co_x, co_y, co_w, co_h), 2, border_radius=8)
+                    screen.blit(co_hint, (co_x + 18, co_y + 5))
 
             if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
                 block_hint = title_font.render("Bitte Pfeile ziehen  ▶  IR-Sensor oder Spielerwechsel drücken!", True, RED_COL)

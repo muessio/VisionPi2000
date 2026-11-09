@@ -1,6 +1,6 @@
 # Datei: game_x01.py
-# Version: 1.1.8
-# VisionPi2000 - X01 (301, 501, 701) - Cyber-Circuit-Design, Berry-Rahmenfarben & Fast-Load Cache
+# Version: 1.1.9
+# VisionPi2000 - X01 (301, 501, 701) - Cyber-Circuit-Design, Berry-Rahmenfarben, Double-In Sound & Checkout-Hilfe
 
 import pygame
 import math
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.7"
+VERSION = "1.1.9"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -233,6 +233,103 @@ def parse_hit(hit_str):
 def check_double(hit_str): return hit_str.startswith("d") or hit_str == "db"
 def check_master(hit_str): return hit_str.startswith("d") or hit_str.startswith("t") or hit_str in ["b", "db"]
 
+
+def get_checkout_route(score, darts_left, has_double_out, has_master_out):
+    """
+    Berechnet den optimalen Checkout-Weg für den aktuellen Restwert, die verbleibenden Pfeile (1..3)
+    und den gewählten Modus (Double Out, Master Out, Open/Single Out).
+    Rückgabe: Liste von Tupeln (mod_str, num_str, label_str, is_db)
+      - mod_str: "tr", "do" oder "  " (für die Modus-Anzeige 20, 18, 16)
+      - num_str: "20".." 1", "25" oder "  " (für die Zahlen-Anzeige 19, 17, 15)
+      - label_str: Text für das On-Screen-HUD (z.B. "T20", "D20", "BULL", "25", "20")
+      - is_db: True, wenn volles Bullseye (50) geworfen werden soll -> Bullseye-Icon leuchtet!
+    """
+    if score <= 0 or darts_left <= 0 or score > 180:
+        return []
+    if has_double_out and score > 170:
+        return []
+    if (has_double_out or has_master_out) and score == 1:
+        return []
+
+    finish_throws = []
+    fav_doubles = [20, 16, 8, 10, 4, 18, 12, 14, 6, 2, 19, 15, 17, 13, 11, 9, 7, 5, 3, 1]
+    fav_triples = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+
+    if has_double_out:
+        for d in fav_doubles:
+            finish_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
+        finish_throws.append((50, "  ", "  ", "BULL", True))
+    elif has_master_out:
+        for d in fav_doubles:
+            finish_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
+        finish_throws.append((50, "  ", "  ", "BULL", True))
+        for t in fav_triples:
+            finish_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+        finish_throws.append((25, "  ", "25", "25", False))
+    else:
+        for s in range(20, 0, -1):
+            finish_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
+        finish_throws.append((25, "  ", "25", "25", False))
+        finish_throws.append((50, "  ", "  ", "BULL", True))
+        for d in fav_doubles:
+            finish_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
+        for t in fav_triples:
+            finish_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+
+    for pts, mod_s, num_s, lbl, is_db in finish_throws:
+        if pts == score:
+            return [(mod_s, num_s, lbl, is_db)]
+
+    if darts_left < 2:
+        return []
+
+    setup_throws = []
+    if score > 60:
+        for t in fav_triples:
+            setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+        setup_throws.append((50, "  ", "  ", "BULL", True))
+        setup_throws.append((25, "  ", "25", "25", False))
+        for s in range(20, 0, -1):
+            setup_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
+        for d in fav_doubles:
+            setup_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
+    else:
+        for s in range(20, 0, -1):
+            setup_throws.append((s, "  ", f"{s:2d}", f"{s}", False))
+        setup_throws.append((25, "  ", "25", "25", False))
+        for t in fav_triples:
+            setup_throws.append((t * 3, "tr", f"{t:2d}", f"T{t}", False))
+        setup_throws.append((50, "  ", "  ", "BULL", True))
+        for d in fav_doubles:
+            setup_throws.append((d * 2, "do", f"{d:2d}", f"D{d}", False))
+
+    for f_pts, f_mod, f_num, f_lbl, f_db in finish_throws:
+        rem = score - f_pts
+        if rem > 0:
+            for s1_pts, s1_mod, s1_num, s1_lbl, s1_db in setup_throws:
+                if s1_pts == rem:
+                    return [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+
+    if darts_left < 3:
+        return []
+
+    for f_pts, f_mod, f_num, f_lbl, f_db in finish_throws:
+        rem_after_f = score - f_pts
+        if rem_after_f >= 2:
+            for s1_pts, s1_mod, s1_num, s1_lbl, s1_db in setup_throws:
+                rem2 = rem_after_f - s1_pts
+                if rem2 > 0:
+                    for s2_pts, s2_mod, s2_num, s2_lbl, s2_db in setup_throws:
+                        if s2_pts == rem2:
+                            return [
+                                (s1_mod, s1_num, s1_lbl, s1_db),
+                                (s2_mod, s2_num, s2_lbl, s2_db),
+                                (f_mod, f_num, f_lbl, f_db)
+                            ]
+
+    return []
+
+
 def get_bot_hit(score, mode, option):
     diff = 1 
     if "Stufe 2" in mode: diff = 2
@@ -388,7 +485,40 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         display.set_dart_arrows(3 - darts_thrown)
         display.set_temp_score(round_points)
         display.set_turn(round_num)
+
+        p_idx = active_player - 1
+        cur_score = player_scores[p_idx]
+        rem_darts = 3 - darts_thrown
+        route = []
+        if player_in_checked[p_idx] and rem_darts > 0 and cur_score > 0:
+            route = get_checkout_route(cur_score, rem_darts, has_double_out, has_master_out)
+
+        dart_disp_pairs = [(20, 19), (18, 17), (16, 15)]
+        needs_bull_icon = False
+
+        for idx, (seg_mod, seg_num) in enumerate(dart_disp_pairs):
+            if idx < len(route):
+                mod_str, num_str, _, is_db = route[idx]
+                if is_db:
+                    needs_bull_icon = True
+            else:
+                mod_str, num_str = "  ", "  "
+
+            if hasattr(display, "CRICKET_TARGET_DISP"):
+                if seg_mod in display.CRICKET_TARGET_DISP:
+                    d_m_ten, d_m_unit = display.CRICKET_TARGET_DISP[seg_mod]
+                    display.set_disp_char(d_m_ten, mod_str[0] if len(mod_str) > 0 else " ")
+                    display.set_disp_char(d_m_unit, mod_str[1] if len(mod_str) > 1 else " ")
+                if seg_num in display.CRICKET_TARGET_DISP:
+                    d_n_ten, d_n_unit = display.CRICKET_TARGET_DISP[seg_num]
+                    display.set_disp_char(d_n_ten, num_str[0] if len(num_str) > 0 else " ")
+                    display.set_disp_char(d_n_unit, num_str[1] if len(num_str) > 1 else " ")
+
+        if hasattr(display, "set_bullseye_icon"):
+            display.set_bullseye_icon(needs_bull_icon)
+
         display.update()
+
     sync_hw_display()
 
     running, clock, current_state = True, pygame.time.Clock(), "GAME"
@@ -427,7 +557,6 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else: 
             combo_press_start = 0
 
-        # Direkte Unterstützung von Tastatur und Seriell im WIN-Zustand
         if current_state == "WIN":
             if raw_data == "BTN:PLAYER" or keys[pygame.K_p]:
                 if sound_switch: sound_switch.play()
@@ -511,9 +640,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     is_master = check_master(hit_segment)
 
                 bust = False
+                just_checked_in = False
                 if not player_in_checked[p_idx] and hit_segment != "MISS":
                     if hit_segment == "WIN_CHEAT" or is_double: 
                         set_team_in_checked(p_idx, True)
+                        just_checked_in = True
                     else: 
                         points = 0  
 
@@ -548,7 +679,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     darts_thrown += 1
                     
                     if points > 0 or (player_in_checked[p_idx] and not round_start_in_checked):
-                        if hit_segment in ["t18", "t19", "t20", "b", "db"]:
+                        if just_checked_in:
+                            if hit_segment in ["b", "db"]:
+                                champ_display_until = pygame.time.get_ticks() + 2000
+                            if sound_champ: sound_champ.play()
+                        elif hit_segment in ["t18", "t19", "t20", "b", "db"]:
                             champ_display_until = pygame.time.get_ticks() + 2000
                             if sound_champ: sound_champ.play()
                         elif "t" in hit_segment and sound_triple: sound_triple.play()
@@ -609,7 +744,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             score_surf = giant_font.render(str(player_scores[active_player-1]), True, WHITE)
             screen.blit(score_surf, ((sw - score_surf.get_width()) // 2, int(sh * 0.205)))
             
-            if has_double_in and not player_in_checked[active_player-1] and current_state == "GAME":
+            p_idx_hud = active_player - 1
+            if has_double_in and not player_in_checked[p_idx_hud] and current_state == "GAME":
                 in_hint = title_font.render("⚡ DOUBLE IN ERFORDERLICH! ⚡", True, HIGHLIGHT)
                 in_w = in_hint.get_width() + 36
                 in_h = in_hint.get_height() + 10
@@ -618,6 +754,18 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 pygame.draw.rect(screen, (45, 36, 12), (in_x, in_y, in_w, in_h), border_radius=8)
                 pygame.draw.rect(screen, HIGHLIGHT, (in_x, in_y, in_w, in_h), 2, border_radius=8)
                 screen.blit(in_hint, (in_x + 18, in_y + 5))
+            elif player_in_checked[p_idx_hud] and current_state == "GAME" and (3 - darts_thrown) > 0:
+                hud_route = get_checkout_route(player_scores[p_idx_hud], 3 - darts_thrown, has_double_out, has_master_out)
+                if hud_route:
+                    route_str = "   ▶   ".join(item[2] for item in hud_route)
+                    co_hint = title_font.render(f"🎯 FINISH:   {route_str}", True, NEON_GREEN)
+                    co_w = co_hint.get_width() + 36
+                    co_h = co_hint.get_height() + 10
+                    co_x = (sw - co_w) // 2
+                    co_y = int(sh * 0.455)
+                    pygame.draw.rect(screen, (10, 38, 32), (co_x, co_y, co_w, co_h), border_radius=8)
+                    pygame.draw.rect(screen, NEON_GREEN, (co_x, co_y, co_w, co_h), 2, border_radius=8)
+                    screen.blit(co_hint, (co_x + 18, co_y + 5))
 
             if darts_thrown >= 3 and not is_berrys_turn and current_state == "GAME":
                 block_hint = title_font.render("Bitte Pfeile ziehen  ▶  IR-Sensor oder Spielerwechsel drücken!", True, RED_COL)

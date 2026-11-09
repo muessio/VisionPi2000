@@ -1,5 +1,5 @@
 # Datei: display_mapper_Vision_Dart.py
-# Version: 1.1.0
+# Version: 1.1.1
 
 import time
 
@@ -22,7 +22,24 @@ class LoewenDisplay:
             "8": ["A", "B", "C", "D", "E", "F", "G"],
             "9": ["A", "B", "C", "D", "F", "G"],
             " ": [],
-            "-": ["G"]
+            "-": ["G"],
+            "S": ["A", "C", "D", "F", "G"],  # S
+            "H": ["C", "E", "F", "G"],       # kleines h
+            "O": ["C", "D", "E", "G"],       # kleines o
+            "T": ["D", "E", "F", "G"],       # kleines t
+            "D": ["B", "C", "D", "E", "G"],  # kleines d
+            "R": ["E", "G"],                 # kleines r
+            "B": ["C", "D", "E", "F", "G"],  # kleines b
+            "U": ["C", "D", "E"],            # kleines u
+            "I": ["B", "C"],                 # I
+            "F": ["A", "E", "F", "G"],       # F
+            "E": ["A", "D", "E", "F", "G"],  # E
+            "L": ["D", "E", "F"],            # L
+            "A": ["A", "B", "C", "E", "F", "G"],
+            "C": ["A", "D", "E", "F"],
+            "P": ["A", "B", "E", "F", "G"],
+            "N": ["C", "E", "G"],
+            "Y": ["B", "C", "D", "F", "G"]
         }
 
         # Exaktes physikalisches Spalten-Mapping der Löwen-Platine (A..H = DIG7..DIG0):
