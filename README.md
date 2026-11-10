@@ -76,7 +76,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 | **Arcade-LED-Birnchen (für Start & Spielerwechsel)** | 2 Stk. über [dartdoktor.de](https://www.dartdoktor.de) beziehbare LED-Leuchtmittel zur Direkt-Ansteuerung über Optokoppler | ca. 4,00 € |
 | **Speedlink TWOXO Stereo PC Lautsprecher** | Klein, 3,5mm Klinke, 10W, schwarz | ca. 8,00 € |
 | **QWORK Hutschiene (3 Stk.)** | Montageschiene DIN, 35 mm breit, 7,5 mm hoch, 300 mm lang | *Variabel* |
-| **DST-1R4P-N 4-Kanal Optokoppler-Platine** | Isolationsmodul / PLC Signalwandlerplatine zur sicheren Signaltrennung & Taster-LED-Ansteuerung | ca. 13,99 € |
+| **DST-1R4P-N 4-Kanal Optokoppler-Platine** | Isolationsmodul / PLC Signalwandlerplatine zur sicheren Signaltrennung & Taster-LED-Ansteuerung (Variante 5V/24V)| ca. 13,99 € |
 | **Binmiza Hutschiene Adapter Set** | 20 Stk. (10 Sätze) PCB DIN C45 Halter mit Schrauben | ca. 7,99 € |
 
 ---
