@@ -1,13 +1,13 @@
 # Datei: game_about.py
-# Version: 1.2.0
-# Über das Projekt im VisionPi2000 Cyber-Circuit-Design
+# Version: 1.3.0
+# Über das Projekt & Lizenzvereinbarung im VisionPi2000 Cyber-Circuit-Design
 
 import pygame
 import os
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 GAMES = ["Über das Projekt"]
-OPTIONS = ["Projektziel & Infos"]
+OPTIONS = ["Projektziel & Infos", "Lizenzvereinbarung"]
 
 _frame_cache = {}
 
@@ -90,7 +90,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     title_font = pygame.font.SysFont("arial", int(sh * 0.032), bold=True)
     sub_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
     heading_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)
-    text_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
+    text_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
     hint_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
     qr_label_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
     
@@ -139,6 +139,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         except Exception:
             pass
 
+    is_license_view = (option == "Lizenzvereinbarung")
+
     running = True
     while running:
         raw_data = ser.readline().decode('utf-8', 'ignore').strip() if ser and ser.in_waiting > 0 else None
@@ -169,45 +171,67 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
         draw_cyber_frame(screen, box_x, box_y, box_w, box_h, cut=22)
 
-        head_surf = role_font.render("PROJEKT-INFORMATIONEN  •  VISIONPI2000 / OPENRETRODART", True, HIGHLIGHT)
+        if is_license_view:
+            head_surf = role_font.render("LIZENZVEREINBARUNG  •  VISIONPI2000", True, HIGHLIGHT)
+        else:
+            head_surf = role_font.render("PROJEKT-INFORMATIONEN  •  VISIONPI2000 / OPENRETRODART", True, HIGHLIGHT)
         screen.blit(head_surf, ((sw - head_surf.get_width()) // 2, box_y + int(box_h * 0.028)))
 
         line_y = box_y + int(box_h * 0.10)
         pygame.draw.line(screen, NEON_GREEN, (box_x + 35, line_y), (box_x + box_w - 35, line_y), 2)
         pygame.draw.circle(screen, HIGHLIGHT, (sw // 2, line_y), 5)
 
-        lines = [
-            ("VisionPi2000 / OpenRetroDart", NEON_GREEN, title_font),
-            ("Custom Dartsports Engine • Developed by Oliver Müssig", NEON_CYAN, sub_font),
-            ("", WHITE, text_font),
-            ("Ein alternatives Open-Source-System als hochmoderne", WHITE, text_font),
-            ("Retrofit-Lösung für klassische Dartautomaten der 90er/", WHITE, text_font),
-            ("2000er-Jahre (z.B. Turnierdart 2000 / Vision Dart Gehäuse).", WHITE, text_font),
-            ("", WHITE, text_font),
-            ("Projektziel & Zielsetzung:", HIGHLIGHT, heading_font),
-            ("• Rettung alter, robuster Gehäuse vor dem Elektroschrott.", WHITE, text_font),
-            ("• Weiternutzung von Matrix, Kaskaden-Anzeigen und Lampen.", WHITE, text_font),
-            ("• Vollständige Bedienung über die originalen 5 Gehäusetasten.", WHITE, text_font),
-            ("• Modernes Innenleben durch Raspberry Pi 4B & Arduino Mega.", WHITE, text_font),
-            ("", WHITE, text_font),
-            ("Highlights & Display-Mapper:", HIGHLIGHT, heading_font),
-            ("• Präziser Display-Mapper (display_mapper_Vision_Dart.py)", WHITE, text_font),
-            ("  exakt für das originale THT-Layout (keine SMD-Bestückung).", WHITE, text_font),
-            ("• Ausfallsicheres Read-Only-System zum Schutz der", WHITE, text_font),
-            ("  Speicherkarten vor Dateisystem-Korruption.", WHITE, text_font),
-            ("• Integriertes Service-Menü und OTA-Online-Updates.", WHITE, text_font)
-        ]
+        if is_license_view:
+            lines = [
+                ("Quellcode-Lizenzbestimmungen / Source-Available License", NEON_GREEN, title_font),
+                ("Urheberrecht © 2026 Oliver Müssig", NEON_CYAN, sub_font),
+                ("", WHITE, text_font),
+                ("1. Gewährung der Einsicht: Der Quellcode wird öffentlich bereitgestellt.", WHITE, text_font),
+                ("2. Nutzungsumfang: Berechtigt zur privaten, nicht-kommerziellen Nutzung.", WHITE, text_font),
+                ("3. Einschränkungen: Keine Modifikation, Vervielfältigung oder kommerzielle Verwertung.", WHITE, text_font),
+                ("4. Haftungsausschluss: Ohne ausdrückliche oder stillschweigende Garantie.", WHITE, text_font),
+                ("", WHITE, text_font),
+                ("----------------------------------------------------------------", GRAY, text_font),
+                ("", WHITE, text_font),
+                ("Source-Available License Terms for VisionPi2000", NEON_GREEN, heading_font),
+                ("1. Grant of Access: Source code is provided publicly for information.", WHITE, text_font),
+                ("2. Scope of Use: Authorized for private, non-commercial use and viewing.", WHITE, text_font),
+                ("3. Restrictions: Modifying, copying, redistribution or commercial use prohibited.", WHITE, text_font),
+                ("4. Disclaimer: PROVIDED WITHOUT WARRANTY OF ANY KIND.", WHITE, text_font)
+            ]
+        else:
+            lines = [
+                ("VisionPi2000 / OpenRetroDart", NEON_GREEN, title_font),
+                ("Custom Dartsports Engine • Developed by Oliver Müssig", NEON_CYAN, sub_font),
+                ("", WHITE, text_font),
+                ("Ein alternatives Source-Available-System als hochmoderne", WHITE, text_font),
+                ("Retrofit-Lösung für klassische Dartautomaten der 90er-/", WHITE, text_font),
+                ("2000er-Jahre (z.B. Turnierdart 2000 / Vision Dart Gehäuse).", WHITE, text_font),
+                ("", WHITE, text_font),
+                ("Projektziel & Zielsetzung:", HIGHLIGHT, heading_font),
+                ("• Rettung alter, robuster Gehäuse vor dem Elektroschrott.", WHITE, text_font),
+                ("• Weiternutzung von Matrix, Kaskaden-Anzeigen und Lampen.", WHITE, text_font),
+                ("• Vollständige Bedienung über die originalen 5 Gehäusetasten.", WHITE, text_font),
+                ("• Modernes Innenleben durch Raspberry Pi 4B & Arduino Mega.", WHITE, text_font),
+                ("", WHITE, text_font),
+                ("Highlights & Display-Mapper:", HIGHLIGHT, heading_font),
+                ("• Präziser Display-Mapper (display_mapper_Vision_Dart.py)", WHITE, text_font),
+                ("  exakt für das originale THT-Layout (keine SMD-Bestückung).", WHITE, text_font),
+                ("• Ausfallsicheres Read-Only-System zum Schutz der", WHITE, text_font),
+                ("  Speicherkarten vor Dateisystem-Korruption.", WHITE, text_font),
+                ("• Integriertes Service-Menü und OTA-Online-Updates.", WHITE, text_font)
+            ]
 
         total_text_height = 0
         for text, color, font_obj in lines:
             if text == "":
                 total_text_height += int(sh * 0.010)
             elif font_obj == title_font:
-                total_text_height += int(sh * 0.036)
+                total_text_height += int(sh * 0.034)
             elif font_obj == heading_font:
-                total_text_height += int(sh * 0.032)
+                total_text_height += int(sh * 0.030)
             else:
-                total_text_height += int(sh * 0.025)
+                total_text_height += int(sh * 0.022)
 
         content_top = line_y + int(sh * 0.015)
         content_bottom = box_y + box_h - int(sh * 0.075)
@@ -223,13 +247,13 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             screen.blit(surf, (box_x + int(box_w * 0.04), curr_y))
             
             if font_obj == title_font:
-                curr_y += int(sh * 0.036)
+                curr_y += int(sh * 0.034)
             elif font_obj == heading_font:
-                curr_y += int(sh * 0.032)
+                curr_y += int(sh * 0.030)
             else:
-                curr_y += int(sh * 0.025)
+                curr_y += int(sh * 0.022)
 
-        if qr_img:
+        if not is_license_view and qr_img:
             qr_w = qr_img.get_width()
             qr_h = qr_img.get_height()
             label_h = qr_label_font.get_height() + 8
