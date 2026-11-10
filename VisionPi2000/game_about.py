@@ -1,11 +1,11 @@
 # Datei: game_about.py
-# Version: 1.3.0
+# Version: 1.3.1
 # Über das Projekt & Lizenzvereinbarung im VisionPi2000 Cyber-Circuit-Design
 
 import pygame
 import os
 
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 GAMES = ["Über das Projekt"]
 OPTIONS = ["Projektziel & Infos", "Lizenzvereinbarung"]
 
@@ -90,7 +90,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     title_font = pygame.font.SysFont("arial", int(sh * 0.032), bold=True)
     sub_font = pygame.font.SysFont("arial", int(sh * 0.020), bold=True)
     heading_font = pygame.font.SysFont("arial", int(sh * 0.024), bold=True)
-    text_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
+    text_font = pygame.font.SysFont("arial", int(sh * 0.019), bold=True)
     hint_font = pygame.font.SysFont("arial", int(sh * 0.023), bold=True)
     qr_label_font = pygame.font.SysFont("arial", int(sh * 0.018), bold=True)
     
@@ -223,36 +223,24 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 ("• Integriertes Service-Menü und OTA-Online-Updates.", WHITE, text_font)
             ]
 
-        total_text_height = 0
-        for text, color, font_obj in lines:
-            if text == "":
-                total_text_height += int(sh * 0.010)
-            elif font_obj == title_font:
-                total_text_height += int(sh * 0.034)
-            elif font_obj == heading_font:
-                total_text_height += int(sh * 0.030)
-            else:
-                total_text_height += int(sh * 0.022)
-
-        content_top = line_y + int(sh * 0.015)
-        content_bottom = box_y + box_h - int(sh * 0.075)
-        usable_height = content_bottom - content_top
-        curr_y = content_top + max(0, (usable_height - total_text_height) // 2)
+        # Startet direkt oben unter dem Trenner und nutzt den Raum optimal aus
+        content_top = line_y + int(sh * 0.025)
+        curr_y = content_top
 
         for text, color, font_obj in lines:
             if text == "":
-                curr_y += int(sh * 0.010)
+                curr_y += int(sh * 0.012)
                 continue
             
             surf = font_obj.render(text, True, color)
             screen.blit(surf, (box_x + int(box_w * 0.04), curr_y))
             
             if font_obj == title_font:
-                curr_y += int(sh * 0.034)
+                curr_y += int(sh * 0.038)
             elif font_obj == heading_font:
-                curr_y += int(sh * 0.030)
+                curr_y += int(sh * 0.032)
             else:
-                curr_y += int(sh * 0.022)
+                curr_y += int(sh * 0.025)
 
         if not is_license_view and qr_img:
             qr_w = qr_img.get_width()
@@ -263,7 +251,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             qr_box_h = qr_h + label_h + card_pad * 2
             
             qr_box_x = box_x + box_w - qr_box_w - int(box_w * 0.045)
-            qr_box_y = content_top + (usable_height - qr_box_h) // 2
+            qr_box_y = content_top + int(sh * 0.02)
 
             pygame.draw.rect(screen, (12, 30, 46), (qr_box_x, qr_box_y, qr_box_w, qr_box_h), border_radius=12)
             pygame.draw.rect(screen, NEON_CYAN, (qr_box_x, qr_box_y, qr_box_w, qr_box_h), width=2, border_radius=12)
