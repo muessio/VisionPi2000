@@ -202,7 +202,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         else:
             lines = [
                 ("VisionPi2000 / OpenRetroDart", NEON_GREEN, title_font),
-                ("Custom Dartsports Engine • Developed by Oliver Müssig", NEON_CYAN, sub_font),
+                ("Custom-Dartsports-Engine • Developed by Oliver Müssig", NEON_CYAN, sub_font),
                 ("", WHITE, text_font),
                 ("Ein alternatives Source-Available-System als hochmoderne", WHITE, text_font),
                 ("Retrofit-Lösung für klassische Dartautomaten der 90er-/", WHITE, text_font),
