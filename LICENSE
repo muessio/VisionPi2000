@@ -1,17 +1,13 @@
-Copyright (c) 2026 Oliver Müssig. All rights reserved.
-​MITTEILUNG / NOTICE
-​[DE] Dieses Werk ist urheberrechtlich geschützt. Jegliche kommerzielle Nutzung sowie die unautorisierte Modifikation oder Weiterverarbeitung sind ohne ausdrückliche schriftliche Zustimmung des Autors untersagt.
-[EN] This work is protected by copyright. Any commercial use, unauthorized modification, or derivation is strictly prohibited without the explicit written consent of the author.
-​LICENSE AGREEMENT / LIZENZVEREINBARUNG
-​[DE]
-Hiermit wird unter folgenden Bedingungen unentgeltlich die Erlaubnis erteilt, eine Kopie dieser Software und der zugehörigen Dokumentationsdateien (die „Software“) ausschließlich zu privaten, nicht-kommerziellen Zwecken zu nutzen, vorausgesetzt, dass die folgenden Bedingungen eingehalten werden:
-​1. Keine kommerzielle Nutzung: Jegliche kommerzielle Nutzung, der gewerbliche Weiterverkauf, die Monetarisierung oder der Einsatz in kommerziellen Systemen und Dienstleistungen ist strengstens untersagt.
-​2. Keine unautorisierten Modifikationen: Das Verändern, Anpassen, Umschreiben oder Erstellen von abgeleiteten Werken (Derivaten) der Software ist ohne vorherige ausdrückliche schriftliche Genehmigung des Urheberrechtsinhabers (Oliver Müssig) nicht gestattet.
-​3. Weitergabe: Das unmodifizierte Kopieren und Weitergeben des Originalcodes zu rein privaten Zwecken ist gestattet, sofern dieser Copyright-Hinweis und diese Lizenzbestimmungen in allen Kopien oder wesentlichen Teilen der Software enthalten sind.
-​DIE SOFTWARE WIRD OHNE MÄNGELGEWÄHR UND OHNE JEGLICHE AUSDRÜCKLICHE ODER STILLSCHWEIGENDE GEWÄHRLEISTUNG BEREITGESELLT.
-​[EN]
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to use the Software solely for private, non-commercial purposes, subject to the following conditions:
-​1. No Commercial Use: Any commercial use, business-related resale, monetization, or deployment in commercial systems and services is strictly prohibited.
-​2. No Unauthorized Modifications: Modifying, adapting, refactoring, or creating derivative works of the Software is not permitted without the prior explicit written consent of the copyright holder (Oliver Müssig).
-​3. Redistribution: Unmodified copying and redistribution of the original code for strictly private purposes is permitted, provided that the above copyright notice and this permission notice are included in all copies or substantial portions of the Software.
-​THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+Quellcode-Lizenzbestimmungen für VisionPi2000.
+Urheberrecht 2026 Oliver Müssig.
+1. Gewährung der Einsicht: Der Quellcode dieser Software wird zu Informationszwecken öffentlich bereitgestellt.
+2. Nutzungsumfang: Du bist berechtigt, die Software für private, nicht-kommerzielle Zwecke anzusehen und zu nutzen.
+3. Einschränkungen: Es ist untersagt, den Quellcode zu modifizieren, zu vervielfältigen, weiterzuverbreiten oder kommerziell zu verwerten.
+4. Haftungsausschluss: DIE SOFTWARE WIRD OHNE JEDE AUSDRÜCKLICHE ODER STILLSCHWEIGENDE GARANTIE BEREITGESTELLT. Die Autoren haften nicht für Schäden aus der Nutzung.
+
+Source-Available License Terms for VisionPi2000.
+Copyright 2026 Oliver Müssig.
+1. Grant of Access: The source code of this software is made publicly available for informational purposes.
+2. Scope of Use: You are authorized to view and use the software for private, non-commercial purposes.
+3. Restrictions: It is prohibited to modify, reproduce, redistribute, or commercially exploit the source code.
+4. Disclaimer of Warranty: THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. The authors shall not be liable for any damages arising from the use of the software.
