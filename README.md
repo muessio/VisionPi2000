@@ -8,7 +8,7 @@
 
 > **Wichtiger rechtlicher Hinweis (Disclaimer):**  
 > *Dieses Projekt ist eine unabhängige, private Hobby-Entwicklung und steht in keinerlei Verbindung, Partnerschaft oder Sponsoring zu den Herstellern der Original-Hardware (wie Löwen-Entertainment o. Ä.). Alle genannten Marken-, Produkt- und Firmennamen sind Eigentum ihrer jeweiligen Inhaber und dienen hier ausschließlich der technischen Identifikation und Kompatibilitätsbeschreibung (Ersatzteil-, Reparatur- und Retrofit-Kontext). Das System greift nicht in geschützte Herstellungsverfahren ein, sondern stellt eine freie, alternative Firmware bereit, um defekte Original-Steuereinheiten privater Altgeräte durch moderne Eigenbau-Komponenten (z. B. Raspberry Pi / Arduino) zu ersetzen.*
-
+**Die Nutzung, Modifikation und Weiterverbreitung dieses Projekts ist ausschließlich für private, nicht-kommerzielle Zwecke gestattet. Jegliche kommerzielle Nutzung oder Verwertung ist ausdrücklich untersagt, es sei denn, es liegt eine ausdrückliche schriftliche Genehmigung des Autors vor.**
 ---
 
 ## 🎯 Über das Projekt & Zielsetzung
