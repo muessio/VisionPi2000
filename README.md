@@ -127,7 +127,7 @@ curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.s
 
 ## ☕ Unterstützung & Spenden (Support the Project)
 
-**VisionPi2000** ist ein reines, in der Freizeit entwickeltes Open-Source-Hobbyprojekt. Es ist zu 100 % kostenlos und wird niemals hinter einer Paywall versteckt. 
+**VisionPi2000** ist ein freies, in der Freizeit entwickeltes Source-Available-Hobbyprojekt und wird niemals hinter einer Paywall versteckt. Die Nutzung ist für Privatpersonen im Rahmen der Lizenzbestimmungen frei.
 
 Die Entwicklung, das Testen auf echter Hardware, die Programmierung des Bot-Gegners und das Bereitstellen der Live-Stream-Architektur kosten jedoch sehr viel Zeit und gelegentlich auch Geld (für Ersatzteile oder defekte Testplatinen).
 
