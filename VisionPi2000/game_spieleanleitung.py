@@ -1,5 +1,5 @@
 # Datei: game_spieleanleitung.py
-# Version: 1.2.3
+# Version: 1.2.6
 # Spieleanleitung im VisionPi2000 Cyber-Circuit-Design (Detaillierte Profi-Edition, 4:3 & 16:9)
 
 import pygame
@@ -7,7 +7,7 @@ import os
 import random
 import json
 
-VERSION = "1.2.3"
+VERSION = "1.2.6"
 GAMES = ["Spieleanleitung"]
 OPTIONS = [
     "301 / 501 / 701 (X01)", 
@@ -379,19 +379,25 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         pygame.draw.line(screen, (40, 75, 95), (box_x + 35, box_y + int(box_h * 0.205)), (box_x + box_w - 35, box_y + int(box_h * 0.205)), 2)
 
         # Regeltextzeilen dynamisch innerhalb der Cyber-Box verteilen
+        # Jeder Aufzählungspunkt wechselt zwischen NEON_CYAN und WHITE, Fortsetzungszeilen behalten die Farbe
         lines = EXPLANATIONS.get(option, ["Keine Beschreibung verfügbar."])
         y_text = box_y + int(box_h * 0.235)
         avail_text_h = int(box_h * 0.65)
         line_step = min(int(box_h * 0.068), avail_text_h // max(1, len(lines)))
+
+        current_bullet_col = WHITE
+        is_cyan_turn = True
 
         for idx, line in enumerate(lines):
             stripped = line.strip()
             if idx == 0 and (stripped.startswith("ZIEL:") or stripped.startswith("STEUERUNG")):
                 col = GOLD
             elif stripped.startswith("•"):
-                col = NEON_CYAN
+                col = NEON_CYAN if is_cyan_turn else WHITE
+                is_cyan_turn = not is_cyan_turn
+                current_bullet_col = col
             else:
-                col = WHITE
+                col = current_bullet_col
             line_surf = text_font.render(line, True, col)
             screen.blit(line_surf, (box_x + int(box_w * 0.045), y_text))
             y_text += line_step
@@ -410,4 +416,3 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             ser.flush()
         except Exception:
             pass
- 
