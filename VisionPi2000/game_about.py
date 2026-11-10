@@ -186,17 +186,18 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 ("Quellcode-Lizenzbestimmungen / Source-Available License", NEON_GREEN, title_font),
                 ("Urheberrecht © 2026 Oliver Müssig", NEON_CYAN, sub_font),
                 ("", WHITE, text_font),
-                ("1. Gewährung der Einsicht: Der Quellcode wird öffentlich bereitgestellt.", WHITE, text_font),
-                ("2. Nutzungsumfang: Berechtigt zur privaten, nicht-kommerziellen Nutzung.", WHITE, text_font),
-                ("3. Einschränkungen: Keine Modifikation, Vervielfältigung oder kommerzielle Verwertung.", WHITE, text_font),
-                ("4. Haftungsausschluss: Ohne ausdrückliche oder stillschweigende Garantie.", WHITE, text_font),
+                ("Lizenzbestimmungen für VisionPi2000", NEON_GREEN, heading_font),
+                ("1. Nutzungsrecht: Freie Nutzung für private, nicht-kommerzielle Zwecke.", WHITE, text_font),
+                ("2. Einschränkungen: Jede unbefugte kommerzielle Vermarktung oder Modifikation ist untersagt.", WHITE, text_font),
+                ("3. Ausnahmen: Kommerzielle Nutzung nur nach ausdrücklicher, schriftlicher Vereinbarung.", WHITE, text_font),
+                ("4. Haftungsausschluss: Die Software wird ohne jegliche Gewährleistung bereitgestellt.", WHITE, text_font),
                 ("", WHITE, text_font),
                 ("----------------------------------------------------------------", GRAY, text_font),
                 ("", WHITE, text_font),
                 ("Source-Available License Terms for VisionPi2000", NEON_GREEN, heading_font),
-                ("1. Grant of Access: Source code is provided publicly for information.", WHITE, text_font),
-                ("2. Scope of Use: Authorized for private, non-commercial use and viewing.", WHITE, text_font),
-                ("3. Restrictions: Modifying, copying, redistribution or commercial use prohibited.", WHITE, text_font),
+                ("1. Scope of Use: Authorized for private, non-commercial use.", WHITE, text_font),
+                ("2. Restrictions: Unauthorized commercial exploitation or modification is prohibited.", WHITE, text_font),
+                ("3. Exceptions: Commercial deployment requires explicit written agreement.", WHITE, text_font),
                 ("4. Disclaimer: PROVIDED WITHOUT WARRANTY OF ANY KIND.", WHITE, text_font)
             ]
         else:
@@ -279,3 +280,4 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         clock.tick(30)
 
     return "menu"
+    
