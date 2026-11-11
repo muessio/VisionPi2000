@@ -1,13 +1,47 @@
-Quellcode-Lizenzbestimmungen für VisionPi2000.
-Urheberrecht 2026 Oliver Müssig.
-1. Gewährung der Einsicht: Der Quellcode dieser Software wird zu Informationszwecken öffentlich bereitgestellt.
-2. Nutzungsumfang: Du bist berechtigt, die Software für private, nicht-kommerzielle Zwecke anzusehen und zu nutzen.
-3. Einschränkungen: Es ist untersagt, den Quellcode zu modifizieren, zu vervielfältigen, weiterzuverbreiten oder kommerziell zu verwerten.
-4. Haftungsausschluss: DIE SOFTWARE WIRD OHNE JEDE AUSDRÜCKLICHE ODER STILLSCHWEIGENDE GARANTIE BEREITGESTELLT. Die Autoren haften nicht für Schäden aus der Nutzung.
+==========================================
+QUELLCODE- & MEDIEN-LIZENZBESTIMMUNGEN
+FÜR VISIONPI2000
+Urheberrecht © 2026 Oliver Müssig.
+Alle Rechte vorbehalten.
+==========================================
 
-Source-Available License Terms for VisionPi2000.
-Copyright 2026 Oliver Müssig.
-1. Grant of Access: The source code of this software is made publicly available for informational purposes.
-2. Scope of Use: You are authorized to view and use the software for private, non-commercial purposes.
-3. Restrictions: It is prohibited to modify, reproduce, redistribute, or commercially exploit the source code.
-4. Disclaimer of Warranty: THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. The authors shall not be liable for any damages arising from the use of the software.
+1. GEWÄHRUNG DER EINSICHT
+Der Quellcode sowie die zugehörigen Mediendateien dieser Software werden zu Informationszwecken öffentlich bereitgestellt.
+
+2. NUTZUNGSUMFANG
+Du bist berechtigt, die Software mitsamt ihren unveränderten Originalgrafiken für private, nicht-kommerzielle Zwecke anzusehen und zu nutzen. Kommerzielle Nutzungen bedürfen einer ausdrücklichen, schriftlichen Vereinbarung.
+
+3. EINSCHRÄNKUNGEN
+Es ist untersagt, den Quellcode oder die enthaltenen Grafiken zu modifizieren, separat zu vervielfältigen, weiterzuverbreiten oder kommerziell zu verwerten.
+
+4. MARKEN- & GRAFIKSCHUTZ (ASSETS)
+Das gesamte Grafikdesign (Cyber-Circuit-UI), das offizielle „VisionPi2000“-Logo (Cyber-Dartscheibe mit Schriftzug) sowie sämtliche „Bullseye-Berry“-Charaktere und -Animationen sind urheberrechtlich geschütztes Eigentum von Oliver Müssig. Eine Entnahme, Bearbeitung oder Verwendung außerhalb der unveränderten Originalsoftware ist strengstens untersagt.
+
+5. HAFTUNGSAUSSCHLUSS
+DIE SOFTWARE WIRD OHNE JEDE AUSDRÜCKLICHE ODER STILLSCHWEIGENDE GARANTIE BEREITGESTELLT. Der Urheber haftet nicht für Schäden aus der Nutzung.
+
+
+------------------------------------------
+
+
+==========================================
+SOURCE-AVAILABLE & MEDIA LICENSE TERMS
+FOR VISIONPI2000
+Copyright © 2026 Oliver Müssig.
+All rights reserved.
+==========================================
+
+1. GRANT OF ACCESS
+The source code and associated media assets of this software are made publicly available for informational purposes.
+
+2. SCOPE OF USE
+You are authorized to view and use the software, including its unmodified original graphics, for private, non-commercial purposes. Any commercial deployment requires an explicit written agreement.
+
+3. RESTRICTIONS
+It is prohibited to modify, separately reproduce, redistribute, or commercially exploit the source code or included graphics.
+
+4. TRADEMARK & ASSET PROTECTION
+All visual designs (Cyber-Circuit UI), the official "VisionPi2000" logo (cyber dartboard with lettering), and all "Bullseye-Berry" characters and animations are the copyrighted intellectual property of Oliver Müssig. Extracting, modifying, or using these assets outside the unmodified original software is strictly prohibited.
+
+5. DISCLAIMER OF WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED. The author shall not be liable for any damages arising from the use of the software.
