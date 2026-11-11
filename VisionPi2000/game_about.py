@@ -1,11 +1,11 @@
 # Datei: game_about.py
-# Version: 1.3.3
+# Version: 1.3.4
 # Über das Projekt & Lizenzvereinbarung im VisionPi2000 Cyber-Circuit-Design
 
 import pygame
 import os
 
-VERSION = "1.3.3"
+VERSION = "1.3.4"
 GAMES = ["Über das Projekt"]
 OPTIONS = ["Projektziel & Infos", "Lizenzvereinbarung"]
 
@@ -187,19 +187,19 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 ("Urheberrecht © 2026 Oliver Müssig • Alle Rechte vorbehalten", NEON_CYAN, sub_font),
                 ("", WHITE, text_font),
                 ("Lizenzbestimmungen für VisionPi2000 (Code & Grafikdesign)", HIGHLIGHT, heading_font),
-                ("• 1. Nutzungsumfang: Freie Nutzung (inkl. Originalgrafiken) für private, nicht-kommerzielle Zwecke.", NEON_CYAN, text_font),
+                ("• 1. Nutzungsumfang: Freie Nutzung (inkl. Originalgrafiken) für private, nicht-kommerzielle Zwecke.", WHITE, text_font),
                 ("• 2. Einschränkungen: Keine Modifikation, Vervielfältigung, Weitergabe oder kommerzielle Verwertung.", WHITE, text_font),
-                ("• 3. Grafik- & Markenschutz: Das VisionPi2000-Logo (Cyber-Dartscheibe), das UI-Design sowie alle", NEON_CYAN, text_font),
-                ("  'Bullseye-Berry'-Maskottchen sind geschützt und dürfen nicht separat genutzt oder verändert werden.", NEON_CYAN, text_font),
+                ("• 3. Grafik- & Markenschutz: Das VisionPi2000-Logo (Cyber-Dartscheibe), das UI-Design sowie alle", WHITE, text_font),
+                ("  'Bullseye-Berry'-Maskottchen sind geschützt und dürfen nicht separat genutzt oder verändert werden.", WHITE, text_font),
                 ("• 4. Haftungsausschluss: Bereitstellung ohne jede Garantie; keine Haftung für Schäden aus der Nutzung.", WHITE, text_font),
                 ("", WHITE, text_font),
                 ("----------------------------------------------------------------", GRAY, text_font),
                 ("", WHITE, text_font),
                 ("Source-Available License Terms for VisionPi2000 (Code & Media Assets)", HIGHLIGHT, heading_font),
-                ("• 1. Scope of Use: Authorized for private, non-commercial use (including unmodified graphics).", NEON_CYAN, text_font),
+                ("• 1. Scope of Use: Authorized for private, non-commercial use (including unmodified graphics).", WHITE, text_font),
                 ("• 2. Restrictions: Modifying, reproducing, redistributing, or commercial use is prohibited.", WHITE, text_font),
-                ("• 3. Asset & Brand Protection: The VisionPi2000 logo (cyber dartboard), UI design, and all", NEON_CYAN, text_font),
-                ("  'Bullseye-Berry' mascots are protected and may not be extracted, altered, or used separately.", NEON_CYAN, text_font),
+                ("• 3. Asset & Brand Protection: The VisionPi2000 logo (cyber dartboard), UI design, and all", WHITE, text_font),
+                ("  'Bullseye-Berry' mascots are protected and may not be extracted, altered, or used separately.", WHITE, text_font),
                 ("• 4. Disclaimer: PROVIDED 'AS IS' WITHOUT WARRANTY OF ANY KIND; no liability for any damages.", WHITE, text_font)
             ]
         else:
@@ -212,17 +212,17 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 ("2000er-Jahre (z.B. Turnierdart 2000 / Vision Dart Gehäuse).", WHITE, text_font),
                 ("", WHITE, text_font),
                 ("Projektziel & Zielsetzung:", HIGHLIGHT, heading_font),
-                ("• Rettung alter, robuster Gehäuse vor dem Elektroschrott.", NEON_CYAN, text_font),
+                ("• Rettung alter, robuster Gehäuse vor dem Elektroschrott.", WHITE, text_font),
                 ("• Weiternutzung von Matrix, Kaskaden-Anzeigen und Lampen.", WHITE, text_font),
-                ("• Vollständige Bedienung über die originalen 5 Gehäusetasten.", NEON_CYAN, text_font),
+                ("• Vollständige Bedienung über die originalen 5 Gehäusetasten.", WHITE, text_font),
                 ("• Modernes Innenleben durch Raspberry Pi 4B & Arduino Mega.", WHITE, text_font),
                 ("", WHITE, text_font),
                 ("Highlights & Display-Mapper:", HIGHLIGHT, heading_font),
-                ("• Präziser Display-Mapper (display_mapper_Vision_Dart.py)", NEON_CYAN, text_font),
-                ("  exakt für das originale THT-Layout (keine SMD-Bestückung).", NEON_CYAN, text_font),
+                ("• Präziser Display-Mapper (display_mapper_Vision_Dart.py)", WHITE, text_font),
+                ("  exakt für das originale THT-Layout (keine SMD-Bestückung).", WHITE, text_font),
                 ("• Ausfallsicheres Read-Only-System zum Schutz der", WHITE, text_font),
                 ("  Speicherkarten vor Dateisystem-Korruption.", WHITE, text_font),
-                ("• Integriertes Service-Menü und OTA-Online-Updates.", NEON_CYAN, text_font)
+                ("• Integriertes Service-Menü und OTA-Online-Updates.", WHITE, text_font)
             ]
 
         content_top = line_y + int(sh * 0.020)
