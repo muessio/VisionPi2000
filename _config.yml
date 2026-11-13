@@ -1,4 +1,6 @@
 theme: jekyll-theme-cayman
 title: "VisionPi2000"
 description: "Custom Dartsports Engine • Developed by Oliver Müssig"
-google_site_verification: "6gNg1cy3ykp5KwGzh__2RZXI6sFt7wQ5mHVwfd-9ZD0"
+include:
+  - google1beb96c259f748e8.html
+  
