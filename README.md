@@ -2,13 +2,14 @@
 
 ![Bullseye-Berries](VisionPi2000/Start_16_9.jpg)
 
-
 **Custom Dartsports Engine • Developed by Oliver Müssig**  
 **Ein alternatives, plattformunabhängiges Source-Available-Software- und Hardwaresystem als Retrofitlösung für klassische elektronische Dartautomaten der 90er- und 2000er-Jahre (z. B. Turnierdart 2000 / Vision Dart Gehäuse).**
 
 > **Wichtiger rechtlicher Hinweis (Disclaimer):**  
 > *Dieses Projekt ist eine unabhängige, private Hobby-Entwicklung und steht in keinerlei Verbindung, Partnerschaft oder Sponsoring zu den Herstellern der Original-Hardware (wie Löwen-Entertainment o. Ä.). Alle genannten Marken-, Produkt- und Firmennamen sind Eigentum ihrer jeweiligen Inhaber und dienen hier ausschließlich der technischen Identifikation und Kompatibilitätsbeschreibung (Ersatzteil-, Reparatur- und Retrofit-Kontext). Das System greift nicht in geschützte Herstellungsverfahren ein, sondern stellt eine freie, alternative Firmware bereit, um defekte Original-Steuereinheiten privater Altgeräte durch moderne Eigenbau-Komponenten (z. B. Raspberry Pi / Arduino) zu ersetzen.*
+
 **Die Nutzung, Modifikation und Weiterverbreitung dieses Projekts ist ausschließlich für private, nicht-kommerzielle Zwecke gestattet. Jegliche kommerzielle Nutzung oder Verwertung ist ausdrücklich untersagt, es sei denn, es liegt eine ausdrückliche schriftliche Genehmigung des Autors vor.**
+
 ---
 
 ## 🎯 Über das Projekt & Zielsetzung
@@ -16,6 +17,7 @@
 Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turnierdart 2000** oder das **Vision Dart**) sind mechanisch oft unverwüstlich, leiden heute jedoch häufig unter defekten, veralteten oder nicht mehr beschaffbaren Original-Hauptplatinen (CPU-Boards). 
 
 **VisionPi2000** bietet eine nachhaltige Open-Source-Retrofitlösung, um solche Automaten vor dem Elektroschrott zu bewahren. Das Konzept erlaubt es, die **voll funktionsfähige Original-Peripherie** weiterzuverwenden – namentlich:
+
 * Das originale Gehäuse und die 4×16 Treffer-Matrix,
 * Die originalen kaskadierten MAX7219-basierten LED-/Segmentanzeigen, Cricket-Markierungen, das Bullseye-Icon und die Spieler-Statuslampen,
 * Die originale **5-Tasten-Bedienung** (Rot, Blau, Grau, Start, Spielerwechsel) für die komplette Navigation und Steuerung im Gehäuse – inklusive **autonomer Leuchtmelder-Ansteuerung** (Aus, Dauerlicht, 2-Hz-Blinken) für die Tasten *Start* und *Spielerwechsel*.
@@ -57,6 +59,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 ## 🧰 Benötigte Hardware & Stückliste
 
 ### Kernkomponenten & Peripherie
+
 * **Host-System:** Raspberry Pi 4B (**1 GB RAM Variante** – dank gezielter RAM-Optimierung der gesamten Engine vollkommen ausreichend; alternativ 2 GB Variante) inklusive passendem Gehäuse und Micro-SD-Karte (8 GB) – ca. **55,00 € – 70,00 €** (*Hinweis: Der Raspberry Pi 3B ist aufgrund instabiler USB-Verbindungen zum Arduino ausgeschlossen*).
 * **Interface-Brücke:** Arduino Mega 2560 Klon (z. B. Keyestudio Mega 2560 Plus) – ca. **15,00 € – 20,00 €** zur Ansteuerung der Matrix, der gemultiplexten LED-/Segmentanzeigen (MAX7219-Kaskaden), der Tasten-Leuchtmelder sowie der Sensor-Komponenten.
 * **Original-Platinenabschnitte (Reuse):** Heraustrennte Original-Platinenteile (Matrixstecker, Spannungsversorgung, Displayspannungsversorgung und Tasterstecker) zur sauberen und passgenauen Weiternutzung der Originalkabelbäume.
@@ -64,6 +67,7 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 * **Anzeigen-Peripherie:** Originale LED-Kaskaden und Segmentdisplays des Automaten (in **bedrahteter THT-Ausführung**).
 
 ### Ergänzende Hardware
+
 | Komponente | Beschreibung / Details | Ungefährer Preis |
 | :--- | :--- | :--- |
 | **GeeekPi Terminal Block Breakout Board** | HAT mit Reset-Button & LED-Anzeige für Arduino MEGA 2560 R3 | ca. 31,99 € |
@@ -82,12 +86,12 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 ---
 
 ### 💰 Gesamtkosten-Kalkulation (Ungefährer Richtwert)
+
 Durch die konsequente Optimierung der Software auf den **Raspberry Pi 4B mit 1 GB RAM**, den Verzicht auf separate Transistortreiberstufen sowie die clevere Weiternutzung von herausgetrennten Original-Platinenabschnitten reduzieren sich die Gesamtkosten des Umbaus deutlich:
 
 * **Raspberry Pi 4B (1 GB RAM) inkl. Gehäuse & 8GB SD-Karte:** ca. 60,00 €
 * **Arduino Mega 2560 Klon:** ca. 18,00 €
 * **Zusatzhardware & Module (Breakout-Boards, ATX-Platine, Optokoppler-Platine, Sensoren, Arcade-LED-Birnchen über dartdoktor.de, Lautsprecher, Hutschienen-Halter etc.):** ca. 139,79 €
-
 * **Ungefährer Gesamtpreis (Summe der Komponenten):** **ca. 217,79 €** *(exklusive variabel bepreister Hutschienen)*
 
 ---
@@ -107,18 +111,23 @@ Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen
 > Bei der Einrichtung des Raspberry Pi OS Lite muss der Hauptbenutzer zwingend den Namen **`visionpi2000`** tragen, da alle Systempfade (`/home/visionpi2000/VisionPi2000/`), Autostart-Skripte und Berechtigungen fest darauf ausgelegt sind!
 
 ### 1. Vorbereitung der Hardware
+
 Flashe den bereitgestellten Arduino-Sketch (`Arduino-MEGA-2560_Schnittstellen_VisionPi2000.ino`) über die Arduino IDE auf den Arduino Mega 2560.
 
 ### 2. Vollständige Installation (Einrichtung)
+
 Das Master-Skript `Software_u_Setup.sh` erledigt die komplette Einrichtung vollautomatisch: Es setzt das USB-Stromlimit hoch, deaktiviert den USB- & WLAN-Energiesparmodus, schaltet unnötige Hintergrunddienste für den 1-GB-RAM-Betrieb ab, installiert die minimale X11/Openbox-Kiosk-Umgebung, lädt den aktuellen **`stable`**-Branch von GitHub, bettet `paho-mqtt` sowie `qrcode` direkt ein, generiert die Sounddateien, verlinkt die `settings.json` auf die Boot-Partition und aktiviert abschließend den schützenden **OverlayFS-Schreibschutz**.
 
 Führe dazu auf einem frisch installierten Raspberry Pi OS Lite (eingeloggt als Benutzer `visionpi2000`) diesen Befehl aus:
+
 ```bash
 curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Software_u_Setup.sh | bash
 ```
 
 ### 3. System-Aktualisierung (Update)
+
 Um einen bereits installierten Automaten auf den neuesten Stand des `stable`-Zweigs zu bringen, nutze entweder die Update-Funktion direkt im **Service-Menü** des Automaten oder führe per SSH folgenden Befehl aus:
+
 ```bash
 curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.sh | bash
 ```
