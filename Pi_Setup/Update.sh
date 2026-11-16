@@ -84,7 +84,11 @@ else
     OVERLAY_ACTIVE=0
 fi
 
-# 8. Prüfen und ggf. WPS-Dummy-Profil bei Bestandsautomaten nachrüsten
+# 8. WLAN global einschalten, falls es durch den Status 'unavailable' blockiert wurde
+echo "Aktiviere WLAN-Funkschnittstelle..."
+sudo nmcli radio wifi on
+
+# 9. Prüfen und ggf. WPS-Dummy-Profil bei Bestandsautomaten nachrüsten
 EXISTING_WIFI=$(sudo chroot "${SYS_ROOT:-/}" nmcli -t -f TYPE,NAME connection show 2>/dev/null | grep "^wireless" | head -n 1)
 if [ -z "$EXISTING_WIFI" ]; then
     echo "[INFO] Bestandsautomat hat kein WLAN-Profil. Trage WPS-Dummy-Profil ein..."
@@ -98,23 +102,23 @@ else
     echo "[INFO] WLAN-Profil bereits vorhanden: $(echo "$EXISTING_WIFI" | cut -d: -f2)"
 fi
 
-# 9. Spieldateien auf dem Zielsystem aktualisieren
+# 10. Spieldateien auf dem Zielsystem aktualisieren
 echo "Aktualisiere Spieldateien in $TARGET_DIR..."
 sudo mkdir -p "$TARGET_DIR"
 sudo rm -rf "$TARGET_DIR"/*
 sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$TARGET_DIR"/
 
-# 10. Symlink zur settings.json auf der Boot-Partition wiederherstellen
+# 11. Symlink zur settings.json auf der Boot-Partition wiederherstellen
 sudo rm -f "$TARGET_DIR/settings.json"
 sudo ln -s "$BOOT_DIR/settings.json" "$TARGET_DIR/settings.json"
 
-# 11. Dateiberechtigungen auf dem Zielsystem glattziehen
+# 12. Dateiberechtigungen auf dem Zielsystem glattziehen
 sudo chown -R visionpi2000:visionpi2000 "$TARGET_DIR"
 
-# 12. System-Optimierungen permanent nachrüsten (Journal, WLAN-Powersave, Dienste)
+# 13. System-Optimierungen permanent nachrüsten (Journal, WLAN-Powersave, Dienste)
 echo "Wende RAM-, Journal- und WLAN-Optimierungen dauerhaft auf das System an..."
 
-# 12.1 Systemd-Journal im RAM auf max. 16 MB deckeln
+# 13.1 Systemd-Journal im RAM auf max. 16 MB deckeln
 sudo mkdir -p "${SYS_ROOT}/etc/systemd/journald.conf.d"
 cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/systemd/journald.conf.d/size-limit.conf" > /dev/null
 [Journal]
@@ -123,14 +127,14 @@ RuntimeMaxUse=16M
 RuntimeMaxFileSize=4M
 EOF
 
-# 12.2 WLAN-Powersave dauerhaft abschalten
+# 13.2 WLAN-Powersave dauerhaft abschalten
 sudo mkdir -p "${SYS_ROOT}/etc/NetworkManager/conf.d"
 cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/NetworkManager/conf.d/default-wifi-powersave-off.conf" > /dev/null
 [connection]
 wifi.powersave = 2
 EOF
 
-# 12.3 Unnötige Hintergrunddienste permanent deaktivieren
+# 13.3 Unnötige Hintergrunddienste permanent deaktivieren
 UNUSED_SERVICES=(
     "bluetooth.service"
     "hciuart.service"
@@ -157,11 +161,11 @@ else
     done
 fi
 
-# 13. Aufräumen und Schreibpuffer auf SD-Karte leeren
+# 14. Aufräumen und Schreibpuffer auf SD-Karte leeren
 rm -rf /tmp/VisionPiRepoUpdate
 sync
 
-# 14. Falls OverlayFS aktiv war, Partition wieder verriegeln (Read-Only)
+# 15. Falls OverlayFS aktiv war, Partition wieder verriegeln (Read-Only)
 if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
     echo "Verriegle /media/root-ro wieder (Read-Only)..."
     sudo mount -o remount,ro /media/root-ro
