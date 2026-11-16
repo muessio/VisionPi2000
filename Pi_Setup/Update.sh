@@ -84,11 +84,11 @@ else
     OVERLAY_ACTIVE=0
 fi
 
-# 8. WLAN global einschalten, falls es durch den Status 'unavailable' blockiert wurde
+# 8. WLAN programmatisch einschalten, falls es blockiert war
 echo "Aktiviere WLAN-Funkschnittstelle..."
 sudo nmcli radio wifi on
 
-# 9. Prüfen und ggf. WPS-Dummy-Profil bei Bestandsautomaten nachrüsten
+# 9. Prüfen und ggf. WPS-Dummy-Profil bei Bestandsautomaten vollautomatisch nachrüsten
 EXISTING_WIFI=$(sudo chroot "${SYS_ROOT:-/}" nmcli -t -f TYPE,NAME connection show 2>/dev/null | grep "^wireless" | head -n 1)
 if [ -z "$EXISTING_WIFI" ]; then
     echo "[INFO] Bestandsautomat hat kein WLAN-Profil. Trage WPS-Dummy-Profil ein..."
