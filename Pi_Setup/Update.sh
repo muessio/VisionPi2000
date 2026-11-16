@@ -5,22 +5,23 @@
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
-# 1. Vorherige Dateileichen im tmp-Ordner (RAM) bereinigen
+# 1. WICHTIG: Vorherige Dateileichen im tmp-Ordner (RAM) löschen!
 rm -rf /tmp/VisionPiRepoUpdate
 rm -rf /tmp/paho_temp
 rm -rf /tmp/qrcode_temp
 
-# 2. Neueste Spieldateien von GitHub (stable) in den RAM herunterladen
+# 2. Neueste Dateien von GitHub in den RAM herunterladen
 echo "Lade neueste Dateien von GitHub (Zweig: stable) in den RAM herunter..."
 git clone --branch stable --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
 
+# SICHERHEITS-CHECK: Wurde wirklich etwas heruntergeladen?
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
     echo "FEHLER: Download fehlgeschlagen! Das Update wird abgebrochen."
     rm -rf /tmp/VisionPiRepoUpdate
     exit 1
 fi
 
-# 3. paho-mqtt direkt als reines Python-Modul einbetten
+# 3. paho-mqtt direkt als reines Python-Modul in den Spielordner einbetten (Trixie-sicher ohne apt/pip!)
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/paho" ]; then
     echo "Bette paho-mqtt Bibliothek direkt in das Spielverzeichnis ein..."
     mkdir -p /tmp/paho_temp
@@ -34,7 +35,7 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/paho" ]; then
     rm -rf /tmp/paho_temp
 fi
 
-# 4. qrcode direkt als reines Python-Modul einbetten
+# 4. qrcode direkt als reines Python-Modul in den Spielordner einbetten (Trixie-sicher ohne apt/pip!)
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/qrcode" ]; then
     echo "Bette qrcode Bibliothek direkt in das Spielverzeichnis ein..."
     mkdir -p /tmp/qrcode_temp
@@ -48,7 +49,7 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/qrcode" ]; then
     rm -rf /tmp/qrcode_temp
 fi
 
-# 5. Sounds im RAM vorab generieren
+# 5. Sounds direkt im schnellen RAM vorab generieren
 echo "Generiere Sounds im RAM..."
 cd /tmp/VisionPiRepoUpdate/VisionPi2000
 mkdir -p sounds
@@ -56,7 +57,7 @@ if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
 fi
 
-# 6. Boot-Verzeichnis für settings.json ermitteln
+# 6. Boot-Verzeichnis für settings.json und cmdline.txt ermitteln
 BOOT_DIR="/boot/firmware"
 if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
 
@@ -65,7 +66,7 @@ if [ ! -f "$BOOT_DIR/settings.json" ]; then
     sudo chmod 666 "$BOOT_DIR/settings.json"
 fi
 
-# 7. Prüfen, ob das System im OverlayFS-Modus läuft, und kurzzeitig entsperren
+# 7. PRÜFUNG: Ist das System im OverlayFS-Modus (/media/root-ro existiert) oder offen?
 if mountpoint -q /media/root-ro; then
     echo "OverlayFS erkannt! Öffne /media/root-ro kurzzeitig zum Schreiben..."
     sudo mount -o remount,rw /media/root-ro
@@ -84,49 +85,85 @@ else
     OVERLAY_ACTIVE=0
 fi
 
-# 8. WLAN-Wurzelproblem lösen: Ländercode DE erzwingen und rfkill aufheben
-echo "Entsperre WLAN-Schnittstelle (rfkill & Ländercode DE)..."
-if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
-    sudo chroot /media/root-ro rfkill unblock wifi 2>/dev/null
-    sudo chroot /media/root-ro iw reg set DE 2>/dev/null
-else
-    sudo rfkill unblock wifi
-    sudo iw reg set DE
-fi
-sudo nmcli networking on
-sudo nmcli radio wifi on
-
-# 9. Prüfen und ggf. WPS-Dummy-Profil bei Bestandsautomaten vollautomatisch nachrüsten
-EXISTING_WIFI=$(sudo chroot "${SYS_ROOT:-/}" nmcli -t -f TYPE,NAME connection show 2>/dev/null | grep "^wireless" | head -n 1)
-if [ -z "$EXISTING_WIFI" ]; then
-    echo "[INFO] Bestandsautomat hat kein WLAN-Profil. Trage WPS-Dummy-Profil ein..."
-    if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
-        sudo chroot /media/root-ro nmcli connection add type wifi ifname wlan0 con-name "VisionPi-Setup" ssid "VisionPi-Setup" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "DummyPassword12345678" autoconnect no 2>/dev/null
-    else
-        sudo nmcli connection add type wifi ifname wlan0 con-name "VisionPi-Setup" ssid "VisionPi-Setup" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "DummyPassword12345678" autoconnect no 2>/dev/null
-    fi
-    echo "[INFO] WPS-Dummy-Profil erfolgreich nachgerüstet."
-else
-    echo "[INFO] WLAN-Profil bereits vorhanden: $(echo "$EXISTING_WIFI" | cut -d: -f2)"
-fi
-
-# 10. Spieldateien auf dem Zielsystem aktualisieren
-echo "Aktualisiere Spieldateien in $TARGET_DIR..."
+# 8. Spieldateien (inkl. eingebettetem paho-mqtt & qrcode) aktualisieren
+echo "Aktualisiere Spieldateien (inkl. eingebettetem paho-mqtt & qrcode) in $TARGET_DIR..."
 sudo mkdir -p "$TARGET_DIR"
 sudo rm -rf "$TARGET_DIR"/*
 sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$TARGET_DIR"/
 
-# 11. Symlink zur settings.json auf der Boot-Partition wiederherstellen
+# 9. Symlink zur settings.json auf der Boot-Partition wiederherstellen
 sudo rm -f "$TARGET_DIR/settings.json"
 sudo ln -s "$BOOT_DIR/settings.json" "$TARGET_DIR/settings.json"
 
-# 12. Dateiberechtigungen auf dem Zielsystem glattziehen
+# 10. Dateiberechtigungen auf dem Zielsystem glattziehen
 sudo chown -R visionpi2000:visionpi2000 "$TARGET_DIR"
 
-# 13. System-Optimierungen permanent nachrüsten (Journal, WLAN-Powersave, Dienste)
+# =====================================================================
+# 11. SYSTEM- & WLAN-OPTIMIERUNGEN FÜR BESTANDSAUTOMATEN PERMANENT NACHRÜSTEN
+# =====================================================================
 echo "Wende RAM-, Journal- und WLAN-Optimierungen dauerhaft auf das System an..."
 
-# 13.1 Systemd-Journal im RAM auf max. 16 MB deckeln
+# 11.1 WLAN-Ländercode (DE) fest in cmdline.txt auf der Boot-Partition verankern
+CMDLINE_FILE="$BOOT_DIR/cmdline.txt"
+if [ -f "$CMDLINE_FILE" ]; then
+    if ! grep -q "cfg80211.ieee80211_regdom=" "$CMDLINE_FILE"; then
+        echo "Setze WLAN-Ländercode (DE) fest in $CMDLINE_FILE..."
+        sudo sed -i 's/$/ cfg80211.ieee80211_regdom=DE/' "$CMDLINE_FILE"
+    fi
+fi
+
+# 11.2 Persistente systemd-rfkill Sperren auf der echten SD-Karte auf 0 (entsperrt) setzen
+if [ -d "${SYS_ROOT}/var/lib/systemd/rfkill" ]; then
+    for rf in "${SYS_ROOT}"/var/lib/systemd/rfkill/*; do
+        [ -f "$rf" ] && echo 0 | sudo tee "$rf" > /dev/null
+    done
+fi
+
+# 11.3 NetworkManager State-Datei direkt auf der echten SD-Karte auf WirelessEnabled=true setzen
+sudo mkdir -p "${SYS_ROOT}/var/lib/NetworkManager"
+cat << 'EOF' | sudo tee "${SYS_ROOT}/var/lib/NetworkManager/NetworkManager.state" > /dev/null
+[main]
+NetworkingEnabled=true
+WirelessEnabled=true
+WWANEnabled=true
+EOF
+
+# 11.4 WPS-Dummy-Profil direkt als echte Datei auf die SD-Karte schreiben, falls noch kein WLAN existiert
+NM_CONN_DIR="${SYS_ROOT}/etc/NetworkManager/system-connections"
+sudo mkdir -p "$NM_CONN_DIR"
+if [ -z "$(sudo ls -A "$NM_CONN_DIR"/*.nmconnection 2>/dev/null)" ]; then
+    echo "[INFO] Bestandsautomat hat kein WLAN-Profil. Schreibe permanentes WPS-Dummy-Profil..."
+    cat << 'EOF' | sudo tee "$NM_CONN_DIR/VisionPi-Setup.nmconnection" > /dev/null
+[connection]
+id=VisionPi-Setup
+uuid=8f8b4e2a-1b3c-4d5e-9f0a-123456789abc
+type=wifi
+interface-name=wlan0
+autoconnect=false
+
+[wifi]
+mode=infrastructure
+ssid=VisionPi-Setup
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=DummyPassword12345678
+
+[ipv4]
+method=auto
+
+[ipv6]
+addr-gen-mode=default
+method=auto
+EOF
+    sudo chmod 600 "$NM_CONN_DIR/VisionPi-Setup.nmconnection"
+    sudo chown root:root "$NM_CONN_DIR/VisionPi-Setup.nmconnection"
+    echo "[INFO] WPS-Dummy-Profil erfolgreich auf SD-Karte hinterlegt."
+else
+    echo "[INFO] WLAN-Profil bereits auf SD-Karte vorhanden."
+fi
+
+# 11.5 Systemd-Journal im RAM auf max. 16 MB deckeln (verhindert Volllaufen des 1GB RAM!)
 sudo mkdir -p "${SYS_ROOT}/etc/systemd/journald.conf.d"
 cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/systemd/journald.conf.d/size-limit.conf" > /dev/null
 [Journal]
@@ -135,14 +172,14 @@ RuntimeMaxUse=16M
 RuntimeMaxFileSize=4M
 EOF
 
-# 13.2 WLAN-Powersave dauerhaft abschalten
+# 11.6 WLAN-Powersave dauerhaft abschalten (stabile Online-Matches & Webstream)
 sudo mkdir -p "${SYS_ROOT}/etc/NetworkManager/conf.d"
 cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/NetworkManager/conf.d/default-wifi-powersave-off.conf" > /dev/null
 [connection]
 wifi.powersave = 2
 EOF
 
-# 13.3 Unnötige Hintergrunddienste permanent deaktivieren
+# 11.7 Unnötige Hintergrunddienste permanent auf der SD-Karte deaktivieren
 UNUSED_SERVICES=(
     "bluetooth.service"
     "hciuart.service"
@@ -169,12 +206,12 @@ else
     done
 fi
 
-# 14. Aufräumen und Schreibpuffer auf SD-Karte leeren
+# 12. RAM aufräumen und Schreibpuffer zwingend auf die SD-Karte leeren
 rm -rf /tmp/VisionPiRepoUpdate
 sync
 
-# 15. Falls OverlayFS aktiv war, Partition wieder verriegeln (Read-Only)
-if [ "$OVERylay_ACTIVE" -eq 1 ] || [ "$OVERLAY_ACTIVE" -eq 1 ]; then
+# 13. Falls OverlayFS aktiv war, die echte SD-Karte sofort wieder verriegeln
+if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
     echo "Verriegle /media/root-ro wieder (Read-Only)..."
     sudo mount -o remount,ro /media/root-ro
 fi
