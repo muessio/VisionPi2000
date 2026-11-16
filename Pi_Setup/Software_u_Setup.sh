@@ -206,7 +206,7 @@ autologin-user=visionpi2000
 user-session=openbox
 EOF'
 
-# 17. Autostart-Skript für Openbox erstellen
+# 17. Autostart-Skript für Openbox erstellen (inkl. WLAN-Auto-Restore aus settings.json)
 mkdir -p /home/visionpi2000/.config/openbox
 cat << 'EOF' > /home/visionpi2000/.config/openbox/autostart
 # Mauszeiger nach 0,1 Sekunden Inaktivität komplett ausblenden
@@ -216,6 +216,26 @@ unclutter -idle 0.1 -root &
 xset s off
 xset -dpms
 xset s noblank
+
+# Gespeichertes WLAN aus settings.json beim Booten automatisch wiederherstellen
+python3 -c '
+import json, subprocess, os
+for p in ["/boot/firmware/settings.json", "/boot/settings.json"]:
+    if os.path.exists(p):
+        try:
+            d = json.load(open(p))
+            ssid = d.get("wifi_ssid") or d.get("ssid") or d.get("wlan_ssid")
+            psk = d.get("wifi_psk") or d.get("psk") or d.get("wifi_password") or d.get("password") or d.get("wlan_psk")
+            if ssid and psk:
+                subprocess.run(["sudo", "nmcli", " radio", "wifi", "on"], stderr=subprocess.DEVNULL)
+                r = subprocess.run(["sudo", "nmcli", "connection", "modify", "VisionPi-Setup", "802-11-wireless.ssid", str(ssid), "802-11-wireless-security.key-mgmt", "wpa-psk", "802-11-wireless-security.psk", str(psk), "connection.autoconnect", "yes"], stderr=subprocess.DEVNULL)
+                if r.returncode != 0:
+                    subprocess.run(["sudo", "nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0", "con-name", "VisionPi-Setup", "ssid", str(ssid), "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", str(psk), "autoconnect", "yes"], stderr=subprocess.DEVNULL)
+                subprocess.run(["sudo", "nmcli", "connection", "up", "VisionPi-Setup"], stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+        break
+' &
 
 # In den Spielordner wechseln und starten
 cd /home/visionpi2000/VisionPi2000
