@@ -5,33 +5,16 @@
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
-# 1. Paketlisten aktualisieren
+# 1. Paketlisten aktualisieren (KEIN volles apt upgrade, um WLAN nicht zu zerstören!)
 sudo apt update
 
-# 2. Sudo-Passwortabfrage für den Benutzer visionpi2000 deaktivieren
+# 2. Sudo-Passwortabfrage für den Benutzer visionpi2000 direkt am Anfang deaktivieren,
+# damit alle nachfolgenden sudo-Befehle im Skript ohne Blockade durchlaufen!
 echo "Konfiguriere passwortlose Sudo-Rechte für visionpi2000..."
 echo "visionpi2000 ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/visionpi2000
 sudo chmod 0440 /etc/sudoers.d/visionpi2000
 
-# 3. WLAN global einschalten und aus der 'unavailable'-Sperre holen
-echo "Aktiviere WLAN-Funkschnittstelle..."
-sudo nmcli radio wifi on
-sleep 2
-
-# 4. WPS-Dummy-Profil anlegen, falls noch kein WLAN konfiguriert ist
-EXISTING_WIFI=$(nmcli -t -f TYPE,NAME connection show | grep "^wireless" | head -n 1)
-if [ -z "$EXISTING_WIFI" ]; then
-    echo "[INFO] Kein WLAN-Profil im System gefunden. Lege Dummy-Profil für WPS-Kopplung an..."
-    sudo nmcli connection add type wifi ifname wlan0 con-name "VisionPi-Setup" ssid "VisionPi-Setup" \
-        wifi-sec.key-mgmt wpa-psk \
-        wifi-sec.psk "DummyPassword12345678" \
-        autoconnect no
-    echo "[INFO] Dummy-Profil erfolgreich erstellt."
-else
-    echo "[INFO] WLAN-Profil bereits vorhanden: $(echo "$EXISTING_WIFI" | cut -d: -f2)"
-fi
-
-# 5. USB-Stromlimit, Energiesparmodus & GPU-RAM in der Boot-Config anpassen
+# 3. USB-Stromlimit auf Maximum setzen, USB-Energiesparmodus deaktivieren & WLAN-Ländercode im Kernel verankern
 CONFIG_FILE="/boot/firmware/config.txt"
 if [ ! -f "$CONFIG_FILE" ] && [ -f "/boot/config.txt" ]; then
     CONFIG_FILE="/boot/config.txt"
@@ -54,13 +37,69 @@ if [ -f "$CMDLINE_FILE" ]; then
         echo "Deaktiviere USB-Energiesparmodus in $CMDLINE_FILE..."
         sudo sed -i 's/$/ usbcore.autosuspend=-1/' "$CMDLINE_FILE"
     fi
+    if ! grep -q "cfg80211.ieee80211_regdom=" "$CMDLINE_FILE"; then
+        echo "Setze WLAN-Ländercode (DE) fest in $CMDLINE_FILE..."
+        sudo sed -i 's/$/ cfg80211.ieee80211_regdom=DE/' "$CMDLINE_FILE"
+    fi
 fi
 
-# 6. Grafische Minimal-Oberfläche, MQTT und Systemabhängigkeiten installieren
+# 4. WLAN dauerhaft auf Dateisystem-Ebene entsperren (rfkill & NetworkManager State)
+echo "Entsperre WLAN-Hardware dauerhaft für OverlayFS..."
+sudo raspi-config nonint do_wifi_country DE 2>/dev/null
+sudo rfkill unblock wifi 2>/dev/null
+if [ -d "/var/lib/systemd/rfkill" ]; then
+    for rf in /var/lib/systemd/rfkill/*; do
+        [ -f "$rf" ] && echo 0 | sudo tee "$rf" > /dev/null
+    done
+fi
+
+sudo mkdir -p /var/lib/NetworkManager
+cat << 'EOF' | sudo tee /var/lib/NetworkManager/NetworkManager.state > /dev/null
+[main]
+NetworkingEnabled=true
+WirelessEnabled=true
+WWANEnabled=true
+EOF
+
+# 5. WPS-Dummy-Profil direkt als Datei anlegen, falls noch kein WLAN konfiguriert ist
+sudo mkdir -p /etc/NetworkManager/system-connections
+if [ -z "$(sudo ls -A /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)" ]; then
+    echo "[INFO] Kein WLAN-Profil gefunden. Schreibe permanentes Dummy-Profil für WPS..."
+    cat << 'EOF' | sudo tee /etc/NetworkManager/system-connections/VisionPi-Setup.nmconnection > /dev/null
+[connection]
+id=VisionPi-Setup
+uuid=8f8b4e2a-1b3c-4d5e-9f0a-123456789abc
+type=wifi
+interface-name=wlan0
+autoconnect=false
+
+[wifi]
+mode=infrastructure
+ssid=VisionPi-Setup
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=DummyPassword12345678
+
+[ipv4]
+method=auto
+
+[ipv6]
+addr-gen-mode=default
+method=auto
+EOF
+    sudo chmod 600 /etc/NetworkManager/system-connections/VisionPi-Setup.nmconnection
+    sudo chown root:root /etc/NetworkManager/system-connections/VisionPi-Setup.nmconnection
+fi
+
+sudo systemctl restart NetworkManager 2>/dev/null
+sudo nmcli radio wifi on 2>/dev/null
+
+# 6. Grafische Minimal-Oberfläche, MQTT und Abhängigkeiten installieren
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
 sudo apt install git python3 python3-pygame python3-serial python3-paho-mqtt python3-qrcode pulseaudio alsa-utils unclutter curl -y
 
-# 7. Unnötige Hintergrunddienste für 1-GB-RAM-Stabilität deaktivieren
+# 7. Unnötige Systemdienste für 1GB RAM Stabilität deaktivieren
 echo "Deaktiviere nicht benötigte Hintergrunddienste (RAM-Optimierung)..."
 UNUSED_SERVICES=(
     "bluetooth.service"
@@ -81,14 +120,14 @@ for svc in "${UNUSED_SERVICES[@]}"; do
     sudo systemctl disable "$svc" 2>/dev/null
 done
 
-# 8. WLAN-Energiesparmodus deaktivieren
+# 8. WLAN-Energiesparmodus deaktivieren (verhindert Verbindungsabbrüche im Online-Spiel)
 sudo mkdir -p /etc/NetworkManager/conf.d
 cat << 'EOF' | sudo tee /etc/NetworkManager/conf.d/default-wifi-powersave-off.conf > /dev/null
 [connection]
 wifi.powersave = 2
 EOF
 
-# 9. Systemd-Journal im RAM auf max. 16 MB begrenzen
+# 9. Systemd-Journal im RAM auf max. 16 MB begrenzen (verhindert OverlayFS-RAM-Crash!)
 sudo mkdir -p /etc/systemd/journald.conf.d
 cat << 'EOF' | sudo tee /etc/systemd/journald.conf.d/size-limit.conf > /dev/null
 [Journal]
@@ -101,7 +140,7 @@ EOF
 sudo systemctl set-default graphical.target
 sudo systemctl enable lightdm
 
-# 11. Öffentliches GitHub-Repository klonen (Zweig: stable)
+# 11. Öffentliches GitHub-Repository klonen (Zweig: stable) und Dateien ablegen
 echo "Lade Dateien von GitHub herunter (Zweig: stable)..."
 mkdir -p /home/visionpi2000/VisionPi2000
 rm -rf /tmp/VisionPiRepo
@@ -115,7 +154,7 @@ if [ ! -d "/tmp/VisionPiRepo/VisionPi2000" ]; then
     exit 1
 fi
 
-# 12. paho-mqtt direkt in das Spielverzeichnis einbetten
+# 12. paho-mqtt direkt in das Spielverzeichnis einbetten (100% Trixie- & OverlayFS-sicher)
 if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/paho" ]; then
     echo "Bette paho-mqtt Bibliothek direkt in das Spielverzeichnis ein..."
     mkdir -p /tmp/paho_temp
@@ -142,7 +181,7 @@ fi
 cp -r /tmp/VisionPiRepo/VisionPi2000/* /home/visionpi2000/VisionPi2000/
 rm -rf /tmp/VisionPiRepo
 
-# 14. settings.json auf der Boot-Partition ablegen und verlinken
+# 14. WICHTIG: settings.json dauerhaft auf die ungeschützte Boot-Partition legen & verlinken!
 BOOT_DIR="/boot/firmware"
 if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
 
@@ -152,10 +191,11 @@ if [ ! -f "$BOOT_DIR/settings.json" ]; then
 fi
 sudo chmod 666 "$BOOT_DIR/settings.json"
 
+# Symlink im Spielordner (ext4) auf die Boot-Partition (FAT32) erstellen
 rm -f /home/visionpi2000/VisionPi2000/settings.json
 ln -s "$BOOT_DIR/settings.json" /home/visionpi2000/VisionPi2000/settings.json
 
-# 15. Berechtigungen für den Benutzer 'visionpi2000' setzen
+# 15. Berechtigungen für den Benutzer 'visionpi2000' setzen (Audio & Arduino/USB)
 sudo usermod -a -G audio,dialout visionpi2000
 
 # 16. LightDM Autologin konfigurieren
@@ -182,7 +222,7 @@ cd /home/visionpi2000/VisionPi2000
 python3 visionpi.py &
 EOF
 
-# 18. Sounds im Vorfeld generieren
+# 18. Sounds generieren
 echo "Generiere Sounds..."
 cd /home/visionpi2000/VisionPi2000
 mkdir -p sounds
@@ -190,14 +230,14 @@ if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
 fi
 
-# 19. Dateiberechtigungen für den Benutzer absichern
+# 19. Dateiberechtigungen für den Benutzer sicherstellen
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/VisionPi2000
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/.config
 
-# 20. Sound-Lautstärke auf 100% einstellen
+# 20. Sound einmalig auf 100% einstellen
 amixer sset Master 100% 2>/dev/null
 
-# 21. System-Schreibschutz (OverlayFS) aktivieren (schreibt das WLAN-Dummy-Profil dauerhaft mit ein)
+# 21. OverlayFS (Schreibschutz für Systempartition) aktivieren, Boot-Partition offen lassen
 echo "Aktiviere System-Schreibschutz (OverlayFS)..."
 sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro 2>/dev/null
