@@ -14,7 +14,7 @@ echo "Konfiguriere passwortlose Sudo-Rechte für visionpi2000..."
 echo "visionpi2000 ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/visionpi2000
 sudo chmod 0440 /etc/sudoers.d/visionpi2000
 
-# 1.5. USB-Stromlimit auf Maximum setzen, USB-Energiesparmodus deaktivieren & GPU-RAM optimieren
+# 1.5. USB-Stromlimit auf Maximum setzen, USB-Energiesparmodus deaktivieren & WLAN-Ländercode im Kernel verankern
 CONFIG_FILE="/boot/firmware/config.txt"
 if [ ! -f "$CONFIG_FILE" ] && [ -f "/boot/config.txt" ]; then
     CONFIG_FILE="/boot/config.txt"
@@ -37,7 +37,63 @@ if [ -f "$CMDLINE_FILE" ]; then
         echo "Deaktiviere USB-Energiesparmodus in $CMDLINE_FILE..."
         sudo sed -i 's/$/ usbcore.autosuspend=-1/' "$CMDLINE_FILE"
     fi
+    if ! grep -q "cfg80211.ieee80211_regdom=" "$CMDLINE_FILE"; then
+        echo "Setze WLAN-Ländercode (DE) fest in $CMDLINE_FILE..."
+        sudo sed -i 's/$/ cfg80211.ieee80211_regdom=DE/' "$CMDLINE_FILE"
+    fi
 fi
+
+# 1.6 WLAN dauerhaft auf Dateisystem-Ebene entsperren (rfkill & NetworkManager State)
+echo "Entsperre WLAN-Hardware dauerhaft für OverlayFS..."
+sudo raspi-config nonint do_wifi_country DE 2>/dev/null
+sudo rfkill unblock wifi 2>/dev/null
+if [ -d "/var/lib/systemd/rfkill" ]; then
+    for rf in /var/lib/systemd/rfkill/*; do
+        [ -f "$rf" ] && echo 0 | sudo tee "$rf" > /dev/null
+    done
+fi
+
+sudo mkdir -p /var/lib/NetworkManager
+cat << 'EOF' | sudo tee /var/lib/NetworkManager/NetworkManager.state > /dev/null
+[main]
+NetworkingEnabled=true
+WirelessEnabled=true
+WWANEnabled=true
+EOF
+
+# 1.7 WPS-Dummy-Profil direkt als Datei anlegen, falls noch kein WLAN konfiguriert ist
+sudo mkdir -p /etc/NetworkManager/system-connections
+if [ -z "$(sudo ls -A /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)" ]; then
+    echo "[INFO] Kein WLAN-Profil gefunden. Schreibe permanentes Dummy-Profil für WPS..."
+    cat << 'EOF' | sudo tee /etc/NetworkManager/system-connections/VisionPi-Setup.nmconnection > /dev/null
+[connection]
+id=VisionPi-Setup
+uuid=8f8b4e2a-1b3c-4d5e-9f0a-123456789abc
+type=wifi
+interface-name=wlan0
+autoconnect=false
+
+[wifi]
+mode=infrastructure
+ssid=VisionPi-Setup
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=DummyPassword12345678
+
+[ipv4]
+method=auto
+
+[ipv6]
+addr-gen-mode=default
+method=auto
+EOF
+    sudo chmod 600 /etc/NetworkManager/system-connections/VisionPi-Setup.nmconnection
+    sudo chown root:root /etc/NetworkManager/system-connections/VisionPi-Setup.nmconnection
+fi
+
+sudo systemctl restart NetworkManager 2>/dev/null
+sudo nmcli radio wifi on 2>/dev/null
 
 # 2. Grafische Minimal-Oberfläche, MQTT und Abhängigkeiten installieren
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
@@ -150,7 +206,7 @@ autologin-user=visionpi2000
 user-session=openbox
 EOF'
 
-# 6. Autostart-Skript für Openbox erstellen
+# 6. Autostart-Skript für Openbox erstellen (inkl. WLAN-Auto-Restore aus settings.json)
 mkdir -p /home/visionpi2000/.config/openbox
 cat << 'EOF' > /home/visionpi2000/.config/openbox/autostart
 # Mauszeiger nach 0,1 Sekunden Inaktivität komplett ausblenden
@@ -160,6 +216,26 @@ unclutter -idle 0.1 -root &
 xset s off
 xset -dpms
 xset s noblank
+
+# Gespeichertes WLAN aus settings.json beim Booten automatisch wiederherstellen
+python3 -c '
+import json, subprocess, os
+for p in ["/boot/firmware/settings.json", "/boot/settings.json"]:
+    if os.path.exists(p):
+        try:
+            d = json.load(open(p))
+            ssid = d.get("wifi_ssid") or d.get("ssid") or d.get("wlan_ssid")
+            psk = d.get("wifi_psk") or d.get("psk") or d.get("wifi_password") or d.get("password") or d.get("wlan_psk")
+            if ssid and psk:
+                subprocess.run(["sudo", "nmcli", "radio", "wifi", "on"], stderr=subprocess.DEVNULL)
+                r = subprocess.run(["sudo", "nmcli", "connection", "modify", "VisionPi-Setup", "802-11-wireless.ssid", str(ssid), "802-11-wireless-security.key-mgmt", "wpa-psk", "802-11-wireless-security.psk", str(psk), "connection.autoconnect", "yes"], stderr=subprocess.DEVNULL)
+                if r.returncode != 0:
+                    subprocess.run(["sudo", "nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0", "con-name", "VisionPi-Setup", "ssid", str(ssid), "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", str(psk), "autoconnect", "yes"], stderr=subprocess.DEVNULL)
+                subprocess.run(["sudo", "nmcli", "connection", "up", "VisionPi-Setup"], stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+        break
+' &
 
 # In den Spielordner wechseln und starten
 cd /home/visionpi2000/VisionPi2000
