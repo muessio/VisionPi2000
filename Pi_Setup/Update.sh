@@ -84,8 +84,10 @@ else
     OVERLAY_ACTIVE=0
 fi
 
-# 8. WLAN programmatisch einschalten, falls es blockiert war
-echo "Aktiviere WLAN-Funkschnittstelle..."
+# 8. WLAN-Ländercode setzen und Funkblockaden vor dem Start aufheben
+echo "Entsperre WLAN-Schnittstelle (rfkill / regdom)..."
+sudo iw reg set DE
+sudo rfkill unblock wifi
 sudo nmcli radio wifi on
 
 # 9. Prüfen und ggf. WPS-Dummy-Profil bei Bestandsautomaten vollautomatisch nachrüsten
