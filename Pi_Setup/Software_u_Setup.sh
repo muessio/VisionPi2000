@@ -13,7 +13,12 @@ echo "Konfiguriere passwortlose Sudo-Rechte für visionpi2000..."
 echo "visionpi2000 ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/visionpi2000
 sudo chmod 0440 /etc/sudoers.d/visionpi2000
 
-# 3. WPS-Dummy-Profil anlegen, falls noch kein WLAN konfiguriert ist
+# 3. WLAN global einschalten und aus der 'unavailable'-Sperre holen
+echo "Aktiviere WLAN-Funkschnittstelle..."
+sudo nmcli radio wifi on
+sleep 2
+
+# 4. WPS-Dummy-Profil anlegen, falls noch kein WLAN konfiguriert ist
 EXISTING_WIFI=$(nmcli -t -f TYPE,NAME connection show | grep "^wireless" | head -n 1)
 if [ -z "$EXISTING_WIFI" ]; then
     echo "[INFO] Kein WLAN-Profil im System gefunden. Lege Dummy-Profil für WPS-Kopplung an..."
@@ -26,7 +31,7 @@ else
     echo "[INFO] WLAN-Profil bereits vorhanden: $(echo "$EXISTING_WIFI" | cut -d: -f2)"
 fi
 
-# 4. USB-Stromlimit, Energiesparmodus & GPU-RAM in der Boot-Config anpassen
+# 5. USB-Stromlimit, Energiesparmodus & GPU-RAM in der Boot-Config anpassen
 CONFIG_FILE="/boot/firmware/config.txt"
 if [ ! -f "$CONFIG_FILE" ] && [ -f "/boot/config.txt" ]; then
     CONFIG_FILE="/boot/config.txt"
@@ -51,11 +56,11 @@ if [ -f "$CMDLINE_FILE" ]; then
     fi
 fi
 
-# 5. Grafische Minimal-Oberfläche, MQTT und Systemabhängigkeiten installieren
+# 6. Grafische Minimal-Oberfläche, MQTT und Systemabhängigkeiten installieren
 sudo apt install --no-install-recommends xserver-xorg x11-xserver-utils xinit openbox lightdm -y
 sudo apt install git python3 python3-pygame python3-serial python3-paho-mqtt python3-qrcode pulseaudio alsa-utils unclutter curl -y
 
-# 6. Unnötige Hintergrunddienste für 1-GB-RAM-Stabilität deaktivieren
+# 7. Unnötige Hintergrunddienste für 1-GB-RAM-Stabilität deaktivieren
 echo "Deaktiviere nicht benötigte Hintergrunddienste (RAM-Optimierung)..."
 UNUSED_SERVICES=(
     "bluetooth.service"
@@ -76,14 +81,14 @@ for svc in "${UNUSED_SERVICES[@]}"; do
     sudo systemctl disable "$svc" 2>/dev/null
 done
 
-# 7. WLAN-Energiesparmodus deaktivieren
+# 8. WLAN-Energiesparmodus deaktivieren
 sudo mkdir -p /etc/NetworkManager/conf.d
 cat << 'EOF' | sudo tee /etc/NetworkManager/conf.d/default-wifi-powersave-off.conf > /dev/null
 [connection]
 wifi.powersave = 2
 EOF
 
-# 8. Systemd-Journal im RAM auf max. 16 MB begrenzen
+# 9. Systemd-Journal im RAM auf max. 16 MB begrenzen
 sudo mkdir -p /etc/systemd/journald.conf.d
 cat << 'EOF' | sudo tee /etc/systemd/journald.conf.d/size-limit.conf > /dev/null
 [Journal]
@@ -92,11 +97,11 @@ RuntimeMaxUse=16M
 RuntimeMaxFileSize=4M
 EOF
 
-# 9. Grafischen Startmodus und LightDM Dienst erzwingen
+# 10. Grafischen Startmodus und LightDM Dienst erzwingen
 sudo systemctl set-default graphical.target
 sudo systemctl enable lightdm
 
-# 10. Öffentliches GitHub-Repository klonen (Zweig: stable)
+# 11. Öffentliches GitHub-Repository klonen (Zweig: stable)
 echo "Lade Dateien von GitHub herunter (Zweig: stable)..."
 mkdir -p /home/visionpi2000/VisionPi2000
 rm -rf /tmp/VisionPiRepo
@@ -110,7 +115,7 @@ if [ ! -d "/tmp/VisionPiRepo/VisionPi2000" ]; then
     exit 1
 fi
 
-# 11. paho-mqtt direkt in das Spielverzeichnis einbetten
+# 12. paho-mqtt direkt in das Spielverzeichnis einbetten
 if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/paho" ]; then
     echo "Bette paho-mqtt Bibliothek direkt in das Spielverzeichnis ein..."
     mkdir -p /tmp/paho_temp
@@ -122,7 +127,7 @@ if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/paho" ]; then
     rm -rf /tmp/paho_temp
 fi
 
-# 12. qrcode direkt in das Spielverzeichnis einbetten
+# 13. qrcode direkt in das Spielverzeichnis einbetten
 if [ ! -d "/tmp/VisionPiRepo/VisionPi2000/qrcode" ]; then
     echo "Bette qrcode Bibliothek direkt in das Spielverzeichnis ein..."
     mkdir -p /tmp/qrcode_temp
@@ -137,7 +142,7 @@ fi
 cp -r /tmp/VisionPiRepo/VisionPi2000/* /home/visionpi2000/VisionPi2000/
 rm -rf /tmp/VisionPiRepo
 
-# 13. settings.json auf der Boot-Partition ablegen und verlinken
+# 14. settings.json auf der Boot-Partition ablegen und verlinken
 BOOT_DIR="/boot/firmware"
 if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
 
@@ -150,10 +155,10 @@ sudo chmod 666 "$BOOT_DIR/settings.json"
 rm -f /home/visionpi2000/VisionPi2000/settings.json
 ln -s "$BOOT_DIR/settings.json" /home/visionpi2000/VisionPi2000/settings.json
 
-# 14. Berechtigungen für den Benutzer 'visionpi2000' setzen
+# 15. Berechtigungen für den Benutzer 'visionpi2000' setzen
 sudo usermod -a -G audio,dialout visionpi2000
 
-# 15. LightDM Autologin konfigurieren
+# 16. LightDM Autologin konfigurieren
 sudo mkdir -p /etc/lightdm/lightdm.conf.d
 sudo bash -c 'cat << '\''EOF'\'' > /etc/lightdm/lightdm.conf.d/99-autologin.conf
 [Seat:*]
@@ -161,7 +166,7 @@ autologin-user=visionpi2000
 user-session=openbox
 EOF'
 
-# 16. Autostart-Skript für Openbox erstellen
+# 17. Autostart-Skript für Openbox erstellen
 mkdir -p /home/visionpi2000/.config/openbox
 cat << 'EOF' > /home/visionpi2000/.config/openbox/autostart
 # Mauszeiger nach 0,1 Sekunden Inaktivität komplett ausblenden
@@ -177,7 +182,7 @@ cd /home/visionpi2000/VisionPi2000
 python3 visionpi.py &
 EOF
 
-# 17. Sounds im Vorfeld generieren
+# 18. Sounds im Vorfeld generieren
 echo "Generiere Sounds..."
 cd /home/visionpi2000/VisionPi2000
 mkdir -p sounds
@@ -185,14 +190,14 @@ if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
 fi
 
-# 18. Dateiberechtigungen für den Benutzer absichern
+# 19. Dateiberechtigungen für den Benutzer absichern
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/VisionPi2000
 sudo chown -R visionpi2000:visionpi2000 /home/visionpi2000/.config
 
-# 19. Sound-Lautstärke auf 100% einstellen
+# 20. Sound-Lautstärke auf 100% einstellen
 amixer sset Master 100% 2>/dev/null
 
-# 20. System-Schreibschutz (OverlayFS) aktivieren
+# 21. System-Schreibschutz (OverlayFS) aktivieren (schreibt das WLAN-Dummy-Profil dauerhaft mit ein)
 echo "Aktiviere System-Schreibschutz (OverlayFS)..."
 sudo raspi-config nonint enable_overlayfs
 sudo raspi-config nonint disable_bootro 2>/dev/null
