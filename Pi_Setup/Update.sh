@@ -84,10 +84,16 @@ else
     OVERLAY_ACTIVE=0
 fi
 
-# 8. WLAN-Ländercode setzen und Funkblockaden vor dem Start aufheben
-echo "Entsperre WLAN-Schnittstelle (rfkill / regdom)..."
-sudo iw reg set DE
-sudo rfkill unblock wifi
+# 8. WLAN-Wurzelproblem lösen: Ländercode DE erzwingen und rfkill aufheben
+echo "Entsperre WLAN-Schnittstelle (rfkill & Ländercode DE)..."
+if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
+    sudo chroot /media/root-ro rfkill unblock wifi 2>/dev/null
+    sudo chroot /media/root-ro iw reg set DE 2>/dev/null
+else
+    sudo rfkill unblock wifi
+    sudo iw reg set DE
+fi
+sudo nmcli networking on
 sudo nmcli radio wifi on
 
 # 9. Prüfen und ggf. WPS-Dummy-Profil bei Bestandsautomaten vollautomatisch nachrüsten
@@ -168,7 +174,7 @@ rm -rf /tmp/VisionPiRepoUpdate
 sync
 
 # 15. Falls OverlayFS aktiv war, Partition wieder verriegeln (Read-Only)
-if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
+if [ "$OVERylay_ACTIVE" -eq 1 ] || [ "$OVERLAY_ACTIVE" -eq 1 ]; then
     echo "Verriegle /media/root-ro wieder (Read-Only)..."
     sudo mount -o remount,ro /media/root-ro
 fi
