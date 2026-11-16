@@ -5,22 +5,22 @@
 # Hauptnutzer: visionpi2000
 # =====================================================================
 
-# WICHTIG: Vorherige Dateileichen im tmp-Ordner (RAM) löschen!
+# 1. Vorherige Dateileichen im tmp-Ordner (RAM) bereinigen
 rm -rf /tmp/VisionPiRepoUpdate
 rm -rf /tmp/paho_temp
 rm -rf /tmp/qrcode_temp
 
+# 2. Neueste Spieldateien von GitHub (stable) in den RAM herunterladen
 echo "Lade neueste Dateien von GitHub (Zweig: stable) in den RAM herunter..."
 git clone --branch stable --depth 1 https://github.com/muessio/VisionPi2000.git /tmp/VisionPiRepoUpdate
 
-# SICHERHEITS-CHECK: Wurde wirklich etwas heruntergeladen?
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000" ]; then
     echo "FEHLER: Download fehlgeschlagen! Das Update wird abgebrochen."
     rm -rf /tmp/VisionPiRepoUpdate
     exit 1
 fi
 
-# 1. paho-mqtt direkt als reines Python-Modul in den Spielordner einbetten (Trixie-sicher ohne apt/pip!)
+# 3. paho-mqtt direkt als reines Python-Modul einbetten
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/paho" ]; then
     echo "Bette paho-mqtt Bibliothek direkt in das Spielverzeichnis ein..."
     mkdir -p /tmp/paho_temp
@@ -34,7 +34,7 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/paho" ]; then
     rm -rf /tmp/paho_temp
 fi
 
-# 1.2 qrcode direkt als reines Python-Modul in den Spielordner einbetten (Trixie-sicher ohne apt/pip!)
+# 4. qrcode direkt als reines Python-Modul einbetten
 if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/qrcode" ]; then
     echo "Bette qrcode Bibliothek direkt in das Spielverzeichnis ein..."
     mkdir -p /tmp/qrcode_temp
@@ -48,7 +48,7 @@ if [ ! -d "/tmp/VisionPiRepoUpdate/VisionPi2000/qrcode" ]; then
     rm -rf /tmp/qrcode_temp
 fi
 
-# 2. Sounds direkt im schnellen RAM vorab generieren
+# 5. Sounds im RAM vorab generieren
 echo "Generiere Sounds im RAM..."
 cd /tmp/VisionPiRepoUpdate/VisionPi2000
 mkdir -p sounds
@@ -56,7 +56,7 @@ if [ -f "generate_sounds.py" ]; then
     python3 generate_sounds.py
 fi
 
-# 3. Boot-Verzeichnis für settings.json ermitteln
+# 6. Boot-Verzeichnis für settings.json ermitteln
 BOOT_DIR="/boot/firmware"
 if [ ! -d "$BOOT_DIR" ]; then BOOT_DIR="/boot"; fi
 
@@ -65,7 +65,7 @@ if [ ! -f "$BOOT_DIR/settings.json" ]; then
     sudo chmod 666 "$BOOT_DIR/settings.json"
 fi
 
-# 4. PRÜFUNG: Ist das System im OverlayFS-Modus (/media/root-ro existiert) oder offen?
+# 7. Prüfen, ob das System im OverlayFS-Modus läuft, und kurzzeitig entsperren
 if mountpoint -q /media/root-ro; then
     echo "OverlayFS erkannt! Öffne /media/root-ro kurzzeitig zum Schreiben..."
     sudo mount -o remount,rw /media/root-ro
@@ -84,24 +84,37 @@ else
     OVERLAY_ACTIVE=0
 fi
 
-echo "Aktualisiere Spieldateien (inkl. eingebettetem paho-mqtt & qrcode) in $TARGET_DIR..."
+# 8. Prüfen und ggf. WPS-Dummy-Profil bei Bestandsautomaten nachrüsten
+EXISTING_WIFI=$(sudo chroot "${SYS_ROOT:-/}" nmcli -t -f TYPE,NAME connection show 2>/dev/null | grep "^wireless" | head -n 1)
+if [ -z "$EXISTING_WIFI" ]; then
+    echo "[INFO] Bestandsautomat hat kein WLAN-Profil. Trage WPS-Dummy-Profil ein..."
+    if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
+        sudo chroot /media/root-ro nmcli connection add type wifi ifname wlan0 con-name "VisionPi-Setup" ssid "VisionPi-Setup" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "DummyPassword12345678" autoconnect no 2>/dev/null
+    else
+        sudo nmcli connection add type wifi ifname wlan0 con-name "VisionPi-Setup" ssid "VisionPi-Setup" wifi-sec.key-mgmt wpa-psk wifi-sec.psk "DummyPassword12345678" autoconnect no 2>/dev/null
+    fi
+    echo "[INFO] WPS-Dummy-Profil erfolgreich nachgerüstet."
+else
+    echo "[INFO] WLAN-Profil bereits vorhanden: $(echo "$EXISTING_WIFI" | cut -d: -f2)"
+fi
+
+# 9. Spieldateien auf dem Zielsystem aktualisieren
+echo "Aktualisiere Spieldateien in $TARGET_DIR..."
 sudo mkdir -p "$TARGET_DIR"
 sudo rm -rf "$TARGET_DIR"/*
 sudo cp -r /tmp/VisionPiRepoUpdate/VisionPi2000/* "$TARGET_DIR"/
 
-# Symlink zur settings.json auf der Boot-Partition wiederherstellen
+# 10. Symlink zur settings.json auf der Boot-Partition wiederherstellen
 sudo rm -f "$TARGET_DIR/settings.json"
 sudo ln -s "$BOOT_DIR/settings.json" "$TARGET_DIR/settings.json"
 
-# Dateiberechtigungen auf dem Zielsystem glattziehen
+# 11. Dateiberechtigungen auf dem Zielsystem glattziehen
 sudo chown -R visionpi2000:visionpi2000 "$TARGET_DIR"
 
-# =====================================================================
-# 5. SYSTEM-OPTIMIERUNGEN FÜR BESTANDSAUTOMATEN PERMANENT NACHRÜSTEN
-# =====================================================================
+# 12. System-Optimierungen permanent nachrüsten (Journal, WLAN-Powersave, Dienste)
 echo "Wende RAM-, Journal- und WLAN-Optimierungen dauerhaft auf das System an..."
 
-# 5.1 Systemd-Journal im RAM auf max. 16 MB deckeln (verhindert Volllaufen des 1GB RAM!)
+# 12.1 Systemd-Journal im RAM auf max. 16 MB deckeln
 sudo mkdir -p "${SYS_ROOT}/etc/systemd/journald.conf.d"
 cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/systemd/journald.conf.d/size-limit.conf" > /dev/null
 [Journal]
@@ -110,14 +123,14 @@ RuntimeMaxUse=16M
 RuntimeMaxFileSize=4M
 EOF
 
-# 5.2 WLAN-Powersave dauerhaft abschalten (stabile Online-Matches & Webstream)
+# 12.2 WLAN-Powersave dauerhaft abschalten
 sudo mkdir -p "${SYS_ROOT}/etc/NetworkManager/conf.d"
 cat << 'EOF' | sudo tee "${SYS_ROOT}/etc/NetworkManager/conf.d/default-wifi-powersave-off.conf" > /dev/null
 [connection]
 wifi.powersave = 2
 EOF
 
-# 5.3 Unnötige Hintergrunddienste permanent auf der SD-Karte deaktivieren
+# 12.3 Unnötige Hintergrunddienste permanent deaktivieren
 UNUSED_SERVICES=(
     "bluetooth.service"
     "hciuart.service"
@@ -144,13 +157,11 @@ else
     done
 fi
 
-# RAM aufräumen
+# 13. Aufräumen und Schreibpuffer auf SD-Karte leeren
 rm -rf /tmp/VisionPiRepoUpdate
-
-# Schreibpuffer zwingend auf die SD-Karte leeren
 sync
 
-# Falls OverlayFS aktiv war, die echte SD-Karte sofort wieder verriegeln
+# 14. Falls OverlayFS aktiv war, Partition wieder verriegeln (Read-Only)
 if [ "$OVERLAY_ACTIVE" -eq 1 ]; then
     echo "Verriegle /media/root-ro wieder (Read-Only)..."
     sudo mount -o remount,ro /media/root-ro
