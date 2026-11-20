@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version: 1.2
+// Version 1.3
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -55,7 +55,8 @@ unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300; // Sende-Intervall (300ms), solange IR aktiv ist
 
 unsigned long lastDisplayRefresh = 0;
-const unsigned long displayRefreshInterval = 2000; // Register-Refresh alle 2 Sekunden
+const unsigned long displayRefreshInterval = 1000; // Gestaffelter Register-Refresh: 1 Register pro Sekunde
+byte refreshStep = 0;
 
 inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
   digitalWrite(clkPin, LOW);
@@ -244,9 +245,16 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // Zyklisches Auffrischen der MAX7219-Steuerregister gegen Störungen/Glitches
+  // Gestaffeltes Auffrischen der MAX7219-Steuerregister (1 Register/Sekunde = ~1,4 ms)
   if (currentMillis - lastDisplayRefresh >= displayRefreshInterval) {
-    refreshDisplayRegisters();
+    switch (refreshStep) {
+      case 0: sendCommandToAll(0x0F, 0x00); break; // Display-Test Aus
+      case 1: sendCommandToAll(0x09, 0x00); break; // Kein BCD-Decode
+      case 2: sendCommandToAll(0x0B, 0x07); break; // Scan-Limit: alle 8 Digits
+      case 3: sendCommandToAll(0x0A, 0x0F); break; // Maximale Helligkeit
+      case 4: sendCommandToAll(0x0C, 0x01); break; // Normalbetrieb (kein Shutdown)
+    }
+    refreshStep = (refreshStep + 1) % 5;
     lastDisplayRefresh = currentMillis;
   }
 
