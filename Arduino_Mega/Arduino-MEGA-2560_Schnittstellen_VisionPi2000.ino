@@ -1,6 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
+// Version: 1.2
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -53,6 +54,9 @@ bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300; // Sende-Intervall (300ms), solange IR aktiv ist
 
+unsigned long lastDisplayRefresh = 0;
+const unsigned long displayRefreshInterval = 2000; // Register-Refresh alle 2 Sekunden
+
 inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
   digitalWrite(clkPin, LOW);
   digitalWrite(dPins[0], b0);
@@ -86,6 +90,14 @@ void sendCommandToAll(byte addr, byte data) {
   delayMicroseconds(5);
   digitalWrite(loadPin, HIGH);
   delayMicroseconds(5);
+}
+
+void refreshDisplayRegisters() {
+  sendCommandToAll(0x0F, 0x00); // Display-Test Aus
+  sendCommandToAll(0x09, 0x00); // Kein BCD-Decode
+  sendCommandToAll(0x0B, 0x07); // Scan-Limit: alle 8 Digits
+  sendCommandToAll(0x0A, 0x0F); // Maximale Helligkeit
+  sendCommandToAll(0x0C, 0x01); // Normalbetrieb (kein Shutdown)
 }
 
 void updateDigitForAllStrands(int digitIndex) {
@@ -129,7 +141,7 @@ void updateDigitForAllStrands(int digitIndex) {
 }
 
 void clearAllDisplays() {
-  sendCommandToAll(0x0F, 0x00); 
+  refreshDisplayRegisters();
   for (int i = 0; i < 8; i++) {
     for (int c = 0; c < 5; c++) {
       displayMem[c][0][i] = 0;
@@ -140,6 +152,7 @@ void clearAllDisplays() {
 }
 
 void fillAllDisplays() {
+  refreshDisplayRegisters();
   for (int i = 0; i < 8; i++) {
     for (int c = 0; c < 5; c++) {
       displayMem[c][0][i] = 0xFF;
@@ -223,18 +236,19 @@ void setup() {
   digitalWrite(loadPin, HIGH);
   delay(500);
 
-  sendCommandToAll(0x0F, 0x00); 
-  sendCommandToAll(0x09, 0x00); 
-  sendCommandToAll(0x0B, 0x07); 
-  sendCommandToAll(0x0A, 0x0F); 
-  sendCommandToAll(0x0C, 0x01); 
-
+  refreshDisplayRegisters();
   clearAllDisplays();
   Serial.println("SYSTEM:READY"); 
 }
 
 void loop() {
   unsigned long currentMillis = millis();
+
+  // Zyklisches Auffrischen der MAX7219-Steuerregister gegen Störungen/Glitches
+  if (currentMillis - lastDisplayRefresh >= displayRefreshInterval) {
+    refreshDisplayRegisters();
+    lastDisplayRefresh = currentMillis;
+  }
 
   bool blinkState2Hz = (currentMillis / 250) % 2;
 
