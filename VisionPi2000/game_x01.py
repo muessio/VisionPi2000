@@ -1,5 +1,5 @@
 # Datei: game_x01.py
-# Version: 1.1.9
+# Version: 1.1.10
 # VisionPi2000 - X01 (301, 501, 701) - Cyber-Circuit-Design, Berry-Rahmenfarben, Double-In Sound & Checkout-Hilfe
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.9"
+VERSION = "1.1.10"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -239,10 +239,10 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
     Berechnet den optimalen Checkout-Weg für den aktuellen Restwert, die verbleibenden Pfeile (1..3)
     und den gewählten Modus (Double Out, Master Out, Open/Single Out).
     Rückgabe: Liste von Tupeln (mod_str, num_str, label_str, is_db)
-      - mod_str: "tr", "do" oder "  " (für die Modus-Anzeige 20, 18, 16)
-      - num_str: "20".." 1", "25" oder "  " (für die Zahlen-Anzeige 19, 17, 15)
-      - label_str: Text für das On-Screen-HUD (z.B. "T20", "D20", "BULL", "25", "20")
-      - is_db: True, wenn volles Bullseye (50) geworfen werden soll -> Bullseye-Icon leuchtet!
+- mod_str: "tr", "do" oder "  " (für die Modus-Anzeige 20, 18, 16)
+- num_str: "20".." 1", "25" oder "  " (für die Zahlen-Anzeige 19, 17, 15)
+- label_str: Text für das On-Screen-HUD (z.B. "T20", "D20", "BULL", "25", "20")
+- is_db: True, wenn volles Bullseye (50) geworfen werden soll -> Bullseye-Icon leuchtet!
     """
     if score <= 0 or darts_left <= 0 or score > 180:
         return []
@@ -331,10 +331,14 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
     return []
 
 
-def get_bot_hit(score, mode, option):
+def get_bot_hit(score, mode, option, in_checked=True):
     diff = 1 
     if "Stufe 2" in mode: diff = 2
     elif "Stufe 3" in mode: diff = 3
+    if not in_checked:
+        target_double = random.choice([20, 16])
+        if random.random() < {1: 0.20, 2: 0.45, 3: 0.80}[diff]: return f"d{target_double}"
+        else: return str(target_double) if random.random() < 0.6 else "-"
     if option != "Open In/Out":
         if score <= 40 and score % 2 == 0:
             target_double = score // 2
@@ -617,7 +621,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             if is_berrys_turn and switch_delay_timer == 0 and darts_thrown < 3:
                 if bot_timer == 0: bot_timer = pygame.time.get_ticks() + random.randint(1200, 1800) 
                 elif pygame.time.get_ticks() > bot_timer:
-                    raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option)}"; bot_timer = 0 
+                    raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option, player_in_checked[active_player-1])}"; bot_timer = 0 
 
         if raw_data and current_state == "GAME":
             if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
