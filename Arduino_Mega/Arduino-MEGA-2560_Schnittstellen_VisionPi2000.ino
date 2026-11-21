@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.3
+// Version 1.4
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
