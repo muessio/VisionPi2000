@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.3
+// Version 1.4
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -55,7 +55,7 @@ unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300; // Sende-Intervall (300ms), solange IR aktiv ist
 
 unsigned long lastDisplayRefresh = 0;
-const unsigned long displayRefreshInterval = 1000; // Gestaffelter Register-Refresh: 1 Register pro Sekunde
+const unsigned long displayRefreshInterval = 200; // Gestaffelter Register-Refresh: 1 Register pro 200 ms
 byte refreshStep = 0;
 
 inline void clockBit(byte b0, byte b1, byte b2, byte b3, byte b4) {
