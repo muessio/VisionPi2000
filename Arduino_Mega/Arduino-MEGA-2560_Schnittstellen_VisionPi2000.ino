@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.4
+// Version 1.5 (Non-blocking Serial, 50us Matrix-Settling, Piezo-Spike-Filter)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -15,12 +15,12 @@ const int irSensorPin = 2;
 const int lightRelayPin = 3;  
 const int piezoPin    = A0; 
 
-// --- NEU: Pins für die Tasten-Leuchtmelder ---
+// --- Pins für die Tasten-Leuchtmelder ---
 const int lampStartPin  = 11; // Pin für die Lampe der Start-Taste
 const int lampPlayerPin = 12; // Pin für die Lampe der Spielerwechsel-Taste
 int modeLampStart  = 0;        // 0=Aus, 1=An, 2=Blinken
 int modeLampPlayer = 0;        // 0=Aus, 1=An, 2=Blinken
-// ---------------------------------------------
+// ----------------------------------------
 
 const int clkPin   = 4;    
 const int loadPin  = 5;    
@@ -40,16 +40,19 @@ const String dartBoard[4][16] = {
 };
 
 unsigned long lastHitTime = 0;        
-const int debounceDelay = 400;       // Matrix-Entprellung
+const int debounceDelay = 400;        // Matrix- & Piezo-Entprellung nach Wertung
 unsigned long piezoHitTime = 0;
+unsigned long piezoFirstSpikeTime = 0;
+int piezoSpikeCounter = 0;
 bool piezoTriggered = false;
 const int piezoThreshold = 15; 
-const int piezoMatrixWaitTime = 100; 
+const int piezoConfirmCount = 3;      // Mind. 3 Messungen >= 15 innerhalb von 15 ms
+const int piezoMatrixWaitTime = 120;  // Wartefenster auf Matrixtreffer (ms)
 
-const int btnDebounceDelay = 250;    // Tasten-Entprellung
-unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPressPlayer = 0;
-bool stateRed, stateBlue, stateGrey, stateStart, statePlayer = true;
-bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
+const int btnDebounceDelay = 250;     // Tasten-Entprellung
+unsigned long lastPressRed = 0, lastPressBlue = 0, lastPressGrey = 0, lastPressStart = 0, lastPressPlayer = 0;
+bool stateRed = true, stateBlue = true, stateGrey = true, stateStart = true, statePlayer = true;
+bool lastRed = true, lastBlue = true, lastGrey = true, lastStart = true, lastPlayer = true;
 
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300; // Sende-Intervall (300ms), solange IR aktiv ist
@@ -245,7 +248,7 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // Gestaffeltes Auffrischen der MAX7219-Steuerregister (1 Register/Sekunde = ~1,4 ms)
+  // Gestaffeltes Auffrischen der MAX7219-Steuerregister (1 Register alle 200 ms)
   if (currentMillis - lastDisplayRefresh >= displayRefreshInterval) {
     switch (refreshStep) {
       case 0: sendCommandToAll(0x0F, 0x00); break; // Display-Test Aus
@@ -268,6 +271,7 @@ void loop() {
   else if (modeLampPlayer == 1) digitalWrite(lampPlayerPin, HIGH);
   else if (modeLampPlayer == 2) digitalWrite(lampPlayerPin, blinkState2Hz);
 
+  // Max. 1 seriellen Befehl pro loop() abarbeiten, damit der Matrix-Scan nicht blockiert wird
   while (Serial.available() > 0) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
@@ -275,16 +279,19 @@ void loop() {
         cmdBuffer[cmdIndex] = '\0';
         processSerialCommand(String(cmdBuffer));
         cmdIndex = 0;
+        break;
       }
     } else if (cmdIndex < 62) {
       cmdBuffer[cmdIndex++] = c;
     }
   }
 
+  // 1. Matrix-Scan (hat immer Vorrang)
   if (currentMillis - lastHitTime > debounceDelay) {
-    for (int r = 0; r < 4; r++) {
+    bool hitFound = false;
+    for (int r = 0; r < 4 && !hitFound; r++) {
       digitalWrite(rowPins[r], LOW); 
-      delayMicroseconds(10);         
+      delayMicroseconds(50);         
       for (int c = 0; c < 16; c++) {
         if (digitalRead(colPins[c]) == LOW) { 
           String hitSegment = dartBoard[r][c];
@@ -292,6 +299,9 @@ void loop() {
             Serial.print("HIT:"); Serial.println(hitSegment);
             lastHitTime = currentMillis;  
             piezoTriggered = false;     
+            piezoSpikeCounter = 0;
+            hitFound = true;
+            break;
           }
         }
       }
@@ -299,14 +309,89 @@ void loop() {
     }
   }
 
-  // KORREKTUR: Direkt analogRead auf A0 ohne Wrapper
-  int piezoValue = analogRead(piezoPin); 
-  if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
-    if (!piezoTriggered) { 
-      piezoTriggered = true; 
-      piezoHitTime = currentMillis; 
+  // 2. Piezo-Auswertung mit Einschlag-Bestätigung (filtert Einzel-Spikes)
+  if (currentMillis - lastHitTime > debounceDelay) {
+    int piezoValue = analogRead(piezoPin);
+    if (!piezoTriggered) {
+      if (piezoValue >= piezoThreshold) {
+        if (piezoSpikeCounter == 0) {
+          piezoFirstSpikeTime = currentMillis;
+        }
+        piezoSpikeCounter++;
+        if (piezoSpikeCounter >= piezoConfirmCount) {
+          piezoTriggered = true;
+          piezoHitTime = piezoFirstSpikeTime;
+          piezoSpikeCounter = 0;
+        }
+      } else if (piezoSpikeCounter > 0 && (currentMillis - piezoFirstSpikeTime > 15)) {
+        piezoSpikeCounter = 0;
+      }
+    }
+  } else {
+    piezoTriggered = false;
+    piezoSpikeCounter = 0;
+  }
+
+  // 3. Fehlwurf erst melden, wenn das Wartefenster ohne Matrixtreffer abläuft
+  if (piezoTriggered && (currentMillis - piezoHitTime >= piezoMatrixWaitTime)) {
+    Serial.println("MISS:1");
+    piezoTriggered = false; 
+    piezoSpikeCounter = 0;
+    lastHitTime = currentMillis; 
+  }
+
+  stateRed = digitalRead(btnRed);
+  if (stateRed == LOW && lastRed == HIGH) { 
+    if (currentMillis - lastPressRed > btnDebounceDelay) { Serial.println("BTN:RED"); lastPressRed = currentMillis; }
+  }
+  lastRed = stateRed;
+
+  stateBlue = digitalRead(btnBlue);
+  if (stateBlue == LOW && lastBlue == HIGH) { 
+    if (currentMillis - lastPressBlue > btnDebounceDelay) { Serial.println("BTN:BLUE"); lastPressBlue = currentMillis; }
+  }
+  lastBlue = stateBlue;
+
+  stateGrey = digitalRead(btnGrey);
+  if (stateGrey == LOW && lastGrey == HIGH) { 
+    if (currentMillis - lastPressGrey > btnDebounceDelay) { Serial.println("BTN:GREY"); lastPressGrey = currentMillis; }
+  }
+  lastGrey = stateGrey;
+
+  stateStart = digitalRead(btnStart);
+  if (stateStart == LOW && lastStart == HIGH) { 
+    if (currentMillis - lastPressStart > btnDebounceDelay) { Serial.println("BTN:START"); lastPressStart = currentMillis; }
+  }
+  lastStart = stateStart;
+
+  statePlayer = digitalRead(btnPlayer);
+  if (statePlayer == LOW && lastPlayer == HIGH) { 
+    if (currentMillis - lastPressPlayer > btnDebounceDelay) { Serial.println("BTN:PLAYER"); lastPressPlayer = currentMillis; }
+  }
+  lastPlayer = statePlayer;
+
+  bool currentIrState = digitalRead(irSensorPin);
+  if (currentIrState == LOW) {
+    if (currentMillis - lastIrChangeTime >= irDebounceTime) {
+      Serial.println("IR:DETECT");
+      lastIrChangeTime = currentMillis;
     }
   }
+
+  static unsigned long comboTimer = 0;
+  static bool comboTriggered = false;
+  if ((digitalRead(btnRed) == LOW) && (digitalRead(btnBlue) == LOW) && (digitalRead(btnGrey) == LOW)) {
+    if (comboTimer == 0) { comboTimer = currentMillis; }
+    else if (currentMillis - comboTimer >= 2000 && !comboTriggered) {
+      Serial.println("BTN:COMBO");
+      comboTriggered = true;
+    }
+  } else {
+    comboTimer = 0;
+    comboTriggered = false;
+  }
+}
+}
   
   if (piezoTriggered && (currentMillis - piezoHitTime > piezoMatrixWaitTime)) {
     if (currentMillis - lastHitTime > piezoMatrixWaitTime) {
