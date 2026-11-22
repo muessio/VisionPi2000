@@ -1,5 +1,5 @@
 # Datei: game_cricket.py
-# Version: 1.1.7
+# Version: 1.1.8
 # VisionPi2000 - Cricket - Cyber-Circuit-Design, Berry-Rahmenfarben, Vertikale Dynamik & You-Pick-It
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.7"
+VERSION = "1.1.8"
 GAMES = ["Cricket"]
 OPTIONS = [
     "Standard",
@@ -353,6 +353,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         try:
             display.clear_buffer()
             display.set_active_player(active_player - 1)
+            if hasattr(display, 'set_cricket_active_player'):
+                display.set_cricket_active_player(active_player - 1)
                 
             for i in range(8):
                 display.set_score(i, scores[i] if i < total_players else None)
