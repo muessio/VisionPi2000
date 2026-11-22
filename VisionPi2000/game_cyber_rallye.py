@@ -1,5 +1,5 @@
 # Datei: game_cyber_rallye.py
-# Version: 1.0.2
+# Version: 1.0.3
 # VisionPi2000 - Cyber Rallye (Etappen-Rennen mit Checkpoints & Cyber-Slot im Cyber-Circuit-Design)
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 GAMES = ["Cyber Rallye"]
 OPTIONS = [
     "Sprint (500 km)",
@@ -407,16 +407,11 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     def sync_hw_display():
         try:
             display.clear_buffer()
+            display.set_active_player(active_player - 1)
             display.set_bullseye_icon(False)
 
-            # Spieler-Scores und Spieler-LEDs (1..8) für alle teilnehmenden Spieler gleichzeitig
             for i in range(8):
-                if i < total_players:
-                    display.set_score(i, km_scores[i])
-                    display.set_pl_lamp(i + 1, True)
-                else:
-                    display.set_score(i, None)
-                    display.set_pl_lamp(i + 1, False)
+                display.set_score(i, km_scores[i] if i < total_players else None)
 
             hw_keys = [20, 19, 18, 17, 16, 15]
 
