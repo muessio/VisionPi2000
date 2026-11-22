@@ -1,5 +1,5 @@
 # Datei: game_splitscore.py
-# Version: 1.1.11
+# Version: 1.1.12
 # VisionPi2000 - Split Score - Cyber-Circuit-Design & sauberes "tr" auf Feld 15
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.11"
+VERSION = "1.1.12"
 GAMES = ["Split Score"]
 OPTIONS = ["Standard"]
 
@@ -322,6 +322,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     scores = [40] * total_players
     targets = [15, 16, "D", 17, 18, "T", 19, 20, "B"]
     darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
+    piezo_block_until = 0
 
     if ser:
         try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -430,6 +431,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 if sound_switch: sound_switch.play()
                 scores = [40] * total_players
                 darts_thrown, active_player, round_points, switch_delay_timer, current_round = 0, 1, 0, 0, 0
+                piezo_block_until = 0
                 current_state = "GAME"
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -451,6 +453,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
+                piezo_block_until = pygame.time.get_ticks() + 1500
                 active_player = (active_player % total_players) + 1
                 if active_player == 1: current_round += 1
                 
@@ -477,7 +480,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(targets[current_round], mode)}"; bot_timer = 0 
 
         if raw_data and current_state == "GAME":
-            if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if raw_data == "MISS:1" and pygame.time.get_ticks() < piezo_block_until:
+                raw_data = None
+            elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
