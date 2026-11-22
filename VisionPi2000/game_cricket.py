@@ -20,7 +20,7 @@ OPTIONS = [
 ]
 
 PLAYER_COLORS = [
-    (255, 0, 90),     # Spieler 1 / Berry: Raspberry Pink
+    (255, 0, 90),     # Spieler 1: Raspberry Pink
     (255, 45, 45),    # Spieler 2: Strawberry Red
     (0, 180, 255),    # Spieler 3: Blueberry Cyan
     (220, 0, 70),     # Spieler 4: Cherry
@@ -29,6 +29,7 @@ PLAYER_COLORS = [
     (235, 245, 255),  # Spieler 7: Snowberry White-Blue
     (210, 0, 180)     # Spieler 8: Mulberry Magenta
 ]
+BERRY_COLOR = (255, 215, 0)     # Gold für Bullseye-Berry
 
 if not hasattr(pygame, "_vp2000_cache"):
     pygame._vp2000_cache = {}
@@ -598,7 +599,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             pygame.draw.line(screen, NEON_GREEN, (hud_x + 35, line_y), (hud_x + hud_w - 35, line_y), 2)
             pygame.draw.circle(screen, HIGHLIGHT, (sw // 2, line_y), 5)
 
-            act_col = PLAYER_COLORS[0] if is_berrys_turn else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)]
+            act_col = BERRY_COLOR if is_berrys_turn else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)]
             
             if current_state == "PICK_NUMBERS":
                 picked_cnt = sum(1 for x in slot_targets[:6] if x is not None)
@@ -654,7 +655,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             for p_idx in range(total_players):
                 p_y = rows_start_y + p_idx * row_h
                 is_act = (p_idx == (active_player - 1)) and (current_state != "PICK_NUMBERS")
-                p_col = PLAYER_COLORS[0] if (is_berry_game and p_idx == total_players - 1) else PLAYER_COLORS[p_idx % len(PLAYER_COLORS)]
+                p_col = BERRY_COLOR if (is_berry_game and p_idx == total_players - 1) else PLAYER_COLORS[p_idx % len(PLAYER_COLORS)]
                 p_label = "Berry" if (is_berry_game and p_idx == total_players - 1) else f"Spieler {p_idx+1}"
                 
                 draw_cyber_row_bar(screen, start_x - 12, p_y, total_w + 24, box_h, p_col, is_act)
