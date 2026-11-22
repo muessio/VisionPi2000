@@ -1,5 +1,5 @@
 # Datei: game_cyber_rallye.py
-# Version: 1.0.3
+# Version: 1.0.4
 # VisionPi2000 - Cyber Rallye (Etappen-Rennen mit Checkpoints & Cyber-Slot im Cyber-Circuit-Design)
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 GAMES = ["Cyber Rallye"]
 OPTIONS = [
     "Sprint (500 km)",
@@ -408,6 +408,8 @@ def run_game(screen, ser, display, players, game_name, option, mode):
         try:
             display.clear_buffer()
             display.set_active_player(active_player - 1)
+            if hasattr(display, 'set_cricket_active_player'):
+                display.set_cricket_active_player(active_player - 1)
             display.set_bullseye_icon(False)
 
             for i in range(8):
