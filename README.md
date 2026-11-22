@@ -136,7 +136,17 @@ curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.s
 
 ## 📝 Changelog
 
-### Aktuelles Update (Sensorik-, Display- & UI-Feinschliff)
+### Aktuelles Update (Neues Spiel „Cyber Rallye“ & Cricket-Spieler-LEDs)
+
+- **Neues Spielmodul (`game_cyber_rallye.py` v1.0.5):**
+  - Eigenständiges Etappen-Rennen im Cyber-Circuit-Design mit den Modi *Sprint (500 km)*, *Grand Prix (900 km)* und *Battle-Rallye (600 km)* inklusive Neon-Highway-Streckenkarte, Checkpoint-Schranken mit Zufallsaufgaben, Bullseye-Cyber-Slot (Boxenstopp) und *Bullseye-Berry*-Bot-Unterstützung.
+  - **Hardware-Display-Mapping:** Spieler-7-Segment-Anzeigen zeigen dauerhaft die gefahrenen Kilometer aller Teilnehmer; die 6 Cricket-LED-Balken stellen für alle Spieler gleichzeitig den exakten **Drittel-Fortschritt** jeder Etappe dar; sauberer Display-Resync nach der Sieges-Blinkanimation.
+- **Display-Mapper (`display_mapper_Vision_Dart.py` v1.1.4):**
+  - Die 8 Cricket-Spieler-LED-Paare (`PIND1..8` auf U2 Spalte D und U3 Spalte C laut Schaltplan Blatt 3) wurden als eigenes Mapping (`CRICKET_PLAYER_LEDS`) mit separater Methode `set_cricket_active_player()` integriert. Dadurch leuchten die Cricket-Spieler-LEDs gezielt nur in Spielen mit Cricket-Anzeige und bleiben bei X01-Spielen aus.
+- **Cricket (`game_cricket.py` v1.1.8):** Synchronisierte Ansteuerung der Cricket-Spieler-LEDs (`set_cricket_active_player()`) ergänzt.
+- **Hauptmenü & Spieleanleitung (`visionpi.py` v1.1.16-main & `game_spieleanleitung.py` v1.2.7):** *Cyber Rallye* vollständig in Hauptmenü, Zero-Lag-Asset-Preloader, System-Info-Übersicht und das integrierte Regelwerk aufgenommen.
+
+### Vorheriges Update (Sensorik-, Display- & UI-Feinschliff)
 
 * **Arduino-Firmware (`v1.6.1`):** Separate `500 ms`-Piezo-Sperrzeit nach Treffern/Fehlwürfen ergänzt und den Piezo-Spike-Filter (`piezoConfirmCount = 2`) so abgestimmt, dass Störimpulse zuverlässig gefiltert werden, schwächere Einschläge im oberen Board-Bereich aber sauber ansprechen.
 * **Alle 7 Spielmodule (`game_x01.py` v1.1.12, `game_cricket.py` v1.1.7, `game_elimination.py` v1.1.8, `game_splitscore.py` v1.1.12, `game_shanghai.py` v1.1.6, `game_aroundclock.py` v1.1.6, `game_fruit_splasher.py` v1.3.3):**
@@ -161,4 +171,3 @@ Wenn dir dieses Projekt gefällt, dir dabei geholfen hat, deinen alten Dartautom
 *(Rechtlicher Hinweis: Da ich dieses Projekt als Privatperson und nicht gewerblich betreibe, handelt es sich bei allen Unterstützungen um rein freiwillige Zuwendungen/Schenkungen ohne Anspruch auf exklusive Gegenleistungen, kommerziellen Support oder Rechnungsstellung mit ausgewiesener Umsatzsteuer).*
 
 ![Besucher](https://hits.sh/muessio.github.io/VisionPi2000.svg)
-
