@@ -159,3 +159,5 @@ Wenn dir dieses Projekt gefällt, dir dabei geholfen hat, deinen alten Dartautom
 💖 **[Supporte das Projekt via GitHub Sponsors](https://github.com/sponsors/muessio)** 💖
 
 *(Rechtlicher Hinweis: Da ich dieses Projekt als Privatperson und nicht gewerblich betreibe, handelt es sich bei allen Unterstützungen um rein freiwillige Zuwendungen/Schenkungen ohne Anspruch auf exklusive Gegenleistungen, kommerziellen Support oder Rechnungsstellung mit ausgewiesener Umsatzsteuer).*
+
+![Besucher](https://hits.sh/muessio.github.io/VisionPi2000.svg)
