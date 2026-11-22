@@ -1,5 +1,5 @@
 # Datei: game_x01.py
-# Version: 1.1.10
+# Version: 1.1.11
 # VisionPi2000 - X01 (301, 501, 701) - Cyber-Circuit-Design, Berry-Rahmenfarben, Double-In Sound & Checkout-Hilfe
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.10"
+VERSION = "1.1.11"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -339,14 +339,20 @@ def get_bot_hit(score, mode, option, in_checked=True):
         target_double = random.choice([20, 16])
         if random.random() < {1: 0.20, 2: 0.45, 3: 0.80}[diff]: return f"d{target_double}"
         else: return str(target_double) if random.random() < 0.6 else "-"
-    if option != "Open In/Out":
+    has_out_rule = option in ["Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
+    if has_out_rule:
         if score <= 40 and score % 2 == 0:
             target_double = score // 2
             if random.random() < {1: 0.10, 2: 0.35, 3: 0.80}[diff]: return f"d{target_double}"
             else: return str(target_double) if random.random() < 0.5 else "-"
         elif score <= 40 and score % 2 != 0: return "1"
-    if score <= 40 and option == "Open In/Out":
-        if random.random() < {1: 0.30, 2: 0.60, 3: 0.95}[diff]: return str(score)
+    elif score <= 40:
+        if random.random() < {1: 0.30, 2: 0.60, 3: 0.95}[diff]:
+            if score <= 20: return str(score)
+            elif score == 25: return "b"
+            elif score % 2 == 0: return f"d{score // 2}"
+            elif score % 3 == 0: return f"t{score // 3}"
+            else: return "20"
         else: return "-"
     if diff == 1: return str(random.randint(1, 20))
     elif diff == 2:
@@ -477,6 +483,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     darts_thrown, round_num, round_points = 0, 1, 0
     round_start_score, round_start_in_checked = start_score, player_in_checked[0]
     switch_delay_timer = 0
+    piezo_block_until = 0
 
     if ser:
         try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -576,6 +583,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 darts_thrown, round_num, round_points = 0, 1, 0
                 round_start_score, round_start_in_checked = start_score, player_in_checked[0]
                 switch_delay_timer = 0
+                piezo_block_until = 0
                 current_state = "GAME"
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -606,6 +614,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
+                piezo_block_until = pygame.time.get_ticks() + 1500
                 turn_idx = (turn_idx + 1) % len(turn_order)
                 if turn_idx == 0:
                     round_num += 1
@@ -624,7 +633,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option, player_in_checked[active_player-1])}"; bot_timer = 0 
 
         if raw_data and current_state == "GAME":
-            if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if raw_data == "MISS:1" and pygame.time.get_ticks() < piezo_block_until:
+                raw_data = None
+            elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
@@ -656,7 +667,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 new_score = player_scores[p_idx] - points if player_in_checked[p_idx] else player_scores[p_idx]
 
                 if new_score < 0: bust = True
-                elif option != "Open In/Out":
+                elif has_double_out or has_master_out:
                     if new_score == 1: bust = True
                     elif new_score == 0:
                         if has_master_out and not is_master and hit_segment != "WIN_CHEAT": bust = True
