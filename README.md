@@ -134,6 +134,20 @@ curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.s
 
 ---
 
+## 📝 Changelog
+
+### Aktuelles Update (Sensorik-, Display- & UI-Feinschliff)
+
+* **Arduino-Firmware (`v1.6.1`):** Separate `500 ms`-Piezo-Sperrzeit nach Treffern/Fehlwürfen ergänzt und den Piezo-Spike-Filter (`piezoConfirmCount = 2`) so abgestimmt, dass Störimpulse zuverlässig gefiltert werden, schwächere Einschläge im oberen Board-Bereich aber sauber ansprechen.
+* **Alle 7 Spielmodule (`game_x01.py` v1.1.12, `game_cricket.py` v1.1.7, `game_elimination.py` v1.1.8, `game_splitscore.py` v1.1.12, `game_shanghai.py` v1.1.6, `game_aroundclock.py` v1.1.6, `game_fruit_splasher.py` v1.3.3):**
+  * Einheitliche **1,5-Sekunden-Piezo-Sperre** direkt nach jedem Spielerwechsel integriert, um Fehlwurf-Auslösungen beim Pfeileziehen zu vermeiden.
+  * Eigene **Gold-Farbe (`BERRY_COLOR` / `GOLDEN_BERRY`)** für den Bot *Bullseye-Berry* eingeführt, damit er sich optisch klar von Spieler 1 unterscheidet.
+* **Checkout-Rechner (`game_x01.py` v1.1.12 & `game_elimination.py` v1.1.8):** Bullseye (50) wird in der Finish-Route immer ans Ende sortiert; die 7-Segment-Ausgabe auf dem Hardware-Display erfolgt von rechts nach links direkt neben dem Bullseye-Icon, sodass keine optischen Lücken mehr entstehen.
+* **Display-Mapper (`display_mapper_Vision_Dart.py` v1.1.2):** Vertauschte 2. und 3. Cricket-LED bei Spieler 4 auf Segment 19 korrigiert.
+* **Hauptmenü (`visionpi.py` v1.1.16-main/stable):** Die Spieleranzahl-Anzeige ergänzt bei gewähltem Bot-Modus dynamisch **`+ Berry`** (z. B. `Spieleranzahl: 2 + Berry`).
+
+---
+
 ## ☕ Unterstützung & Spenden (Support the Project)
 
 **VisionPi2000** ist ein freies, in der Freizeit entwickeltes Source-Available-Hobbyprojekt und wird niemals hinter einer Paywall versteckt. Die Nutzung ist für Privatpersonen im Rahmen der Lizenzbestimmungen frei.
