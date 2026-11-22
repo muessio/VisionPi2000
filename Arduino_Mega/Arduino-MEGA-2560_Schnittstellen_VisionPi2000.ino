@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.4
+// Version 1.6.1 (Non-blocking Serial, 50us Matrix-Settling, Piezo-Spike-Filter x2, 500ms Piezo-Sperre)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -15,12 +15,12 @@ const int irSensorPin = 2;
 const int lightRelayPin = 3;  
 const int piezoPin    = A0; 
 
-// --- NEU: Pins für die Tasten-Leuchtmelder ---
+// --- Pins für die Tasten-Leuchtmelder ---
 const int lampStartPin  = 11; // Pin für die Lampe der Start-Taste
 const int lampPlayerPin = 12; // Pin für die Lampe der Spielerwechsel-Taste
 int modeLampStart  = 0;        // 0=Aus, 1=An, 2=Blinken
 int modeLampPlayer = 0;        // 0=Aus, 1=An, 2=Blinken
-// ---------------------------------------------
+// ----------------------------------------
 
 const int clkPin   = 4;    
 const int loadPin  = 5;    
@@ -36,20 +36,24 @@ const String dartBoard[4][16] = {
   {"d12", "12", "d9", "9", "d14", "14", "d11", "11", "d8", "8", "-",  "t12", "t9", "t14", "t11", "t8"},
   {"d16", "16", "d7", "7", "d19", "19", "d3", "3", "d17", "17", "db", "t16", "t7", "t19", "t3", "t17"},
   {"d2",  "2",  "d15", "15", "d10", "10", "d6", "6", "d13", "13", "b",  "t2",  "t15", "t10", "t6", "t13"},
-  {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5",  "-",  "t4",  "t18", "t1",  "t20", "t5"}
+  {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5", "-",  "t4",  "t18", "t1",  "t20", "t5"}
 };
 
 unsigned long lastHitTime = 0;        
-const int debounceDelay = 400;       // Matrix-Entprellung
+const int debounceDelay = 400;        // Matrix-Entprellung nach Wertung (ms)
+const int piezoDebounceDelay = 500;   // Piezo-Sperrzeit nach Treffer/Fehlwurf (ms)
 unsigned long piezoHitTime = 0;
+unsigned long piezoFirstSpikeTime = 0;
+int piezoSpikeCounter = 0;
 bool piezoTriggered = false;
 const int piezoThreshold = 15; 
-const int piezoMatrixWaitTime = 100; 
+const int piezoConfirmCount = 2;      // Mind. 2 Messungen >= 15 innerhalb von 15 ms (filtert Einzel-Spikes)
+const int piezoMatrixWaitTime = 120;  // Wartefenster auf Matrixtreffer (ms)
 
-const int btnDebounceDelay = 250;    // Tasten-Entprellung
-unsigned long lastPressRed, lastPressBlue, lastPressGrey, lastPressStart, lastPressPlayer = 0;
-bool stateRed, stateBlue, stateGrey, stateStart, statePlayer = true;
-bool lastRed, lastBlue, lastGrey, lastStart, lastPlayer = true;
+const int btnDebounceDelay = 250;     // Tasten-Entprellung
+unsigned long lastPressRed = 0, lastPressBlue = 0, lastPressGrey = 0, lastPressStart = 0, lastPressPlayer = 0;
+bool stateRed = true, stateBlue = true, stateGrey = true, stateStart = true, statePlayer = true;
+bool lastRed = true, lastBlue = true, lastGrey = true, lastStart = true, lastPlayer = true;
 
 unsigned long lastIrChangeTime = 0;
 const unsigned long irDebounceTime = 300; // Sende-Intervall (300ms), solange IR aktiv ist
@@ -245,7 +249,7 @@ void setup() {
 void loop() {
   unsigned long currentMillis = millis();
 
-  // Gestaffeltes Auffrischen der MAX7219-Steuerregister (1 Register/Sekunde = ~1,4 ms)
+  // Gestaffeltes Auffrischen der MAX7219-Steuerregister (1 Register alle 200 ms)
   if (currentMillis - lastDisplayRefresh >= displayRefreshInterval) {
     switch (refreshStep) {
       case 0: sendCommandToAll(0x0F, 0x00); break; // Display-Test Aus
@@ -268,6 +272,7 @@ void loop() {
   else if (modeLampPlayer == 1) digitalWrite(lampPlayerPin, HIGH);
   else if (modeLampPlayer == 2) digitalWrite(lampPlayerPin, blinkState2Hz);
 
+  // Max. 1 seriellen Befehl pro loop() abarbeiten, damit der Matrix-Scan nicht blockiert wird
   while (Serial.available() > 0) {
     char c = Serial.read();
     if (c == '\n' || c == '\r') {
@@ -275,16 +280,19 @@ void loop() {
         cmdBuffer[cmdIndex] = '\0';
         processSerialCommand(String(cmdBuffer));
         cmdIndex = 0;
+        break;
       }
     } else if (cmdIndex < 62) {
       cmdBuffer[cmdIndex++] = c;
     }
   }
 
+  // 1. Matrix-Scan (hat immer Vorrang)
   if (currentMillis - lastHitTime > debounceDelay) {
-    for (int r = 0; r < 4; r++) {
+    bool hitFound = false;
+    for (int r = 0; r < 4 && !hitFound; r++) {
       digitalWrite(rowPins[r], LOW); 
-      delayMicroseconds(10);         
+      delayMicroseconds(50);         
       for (int c = 0; c < 16; c++) {
         if (digitalRead(colPins[c]) == LOW) { 
           String hitSegment = dartBoard[r][c];
@@ -292,6 +300,9 @@ void loop() {
             Serial.print("HIT:"); Serial.println(hitSegment);
             lastHitTime = currentMillis;  
             piezoTriggered = false;     
+            piezoSpikeCounter = 0;
+            hitFound = true;
+            break;
           }
         }
       }
@@ -299,20 +310,34 @@ void loop() {
     }
   }
 
-  // KORREKTUR: Direkt analogRead auf A0 ohne Wrapper
-  int piezoValue = analogRead(piezoPin); 
-  if (piezoValue >= piezoThreshold && (currentMillis - lastHitTime > debounceDelay)) {
-    if (!piezoTriggered) { 
-      piezoTriggered = true; 
-      piezoHitTime = currentMillis; 
+  // 2. Piezo-Auswertung mit Einschlag-Bestätigung (filtert Einzel-Spikes, 500 ms Sperre nach Wertung)
+  if (currentMillis - lastHitTime > piezoDebounceDelay) {
+    int piezoValue = analogRead(piezoPin);
+    if (!piezoTriggered) {
+      if (piezoValue >= piezoThreshold) {
+        if (piezoSpikeCounter == 0) {
+          piezoFirstSpikeTime = currentMillis;
+        }
+        piezoSpikeCounter++;
+        if (piezoSpikeCounter >= piezoConfirmCount) {
+          piezoTriggered = true;
+          piezoHitTime = piezoFirstSpikeTime;
+          piezoSpikeCounter = 0;
+        }
+      } else if (piezoSpikeCounter > 0 && (currentMillis - piezoFirstSpikeTime > 15)) {
+        piezoSpikeCounter = 0;
+      }
     }
+  } else {
+    piezoTriggered = false;
+    piezoSpikeCounter = 0;
   }
-  
-  if (piezoTriggered && (currentMillis - piezoHitTime > piezoMatrixWaitTime)) {
-    if (currentMillis - lastHitTime > piezoMatrixWaitTime) {
-      Serial.println("MISS:1");
-    }
+
+  // 3. Fehlwurf erst melden, wenn das Wartefenster ohne Matrixtreffer abläuft
+  if (piezoTriggered && (currentMillis - piezoHitTime >= piezoMatrixWaitTime)) {
+    Serial.println("MISS:1");
     piezoTriggered = false; 
+    piezoSpikeCounter = 0;
     lastHitTime = currentMillis; 
   }
 
