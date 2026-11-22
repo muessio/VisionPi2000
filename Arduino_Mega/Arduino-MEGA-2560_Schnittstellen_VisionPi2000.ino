@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.6 (Non-blocking Serial, 50us Matrix-Settling, Piezo-Spike-Filter, 700ms Piezo-Sperre)
+// Version 1.6.1 (Non-blocking Serial, 50us Matrix-Settling, Piezo-Spike-Filter x2, 500ms Piezo-Sperre)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -41,13 +41,13 @@ const String dartBoard[4][16] = {
 
 unsigned long lastHitTime = 0;        
 const int debounceDelay = 400;        // Matrix-Entprellung nach Wertung (ms)
-const int piezoDebounceDelay = 700;   // Piezo-Sperrzeit nach Treffer/Fehlwurf (ms)
+const int piezoDebounceDelay = 500;   // Piezo-Sperrzeit nach Treffer/Fehlwurf (ms)
 unsigned long piezoHitTime = 0;
 unsigned long piezoFirstSpikeTime = 0;
 int piezoSpikeCounter = 0;
 bool piezoTriggered = false;
 const int piezoThreshold = 15; 
-const int piezoConfirmCount = 3;      // Mind. 3 Messungen >= 15 innerhalb von 15 ms
+const int piezoConfirmCount = 2;      // Mind. 2 Messungen >= 15 innerhalb von 15 ms (filtert Einzel-Spikes)
 const int piezoMatrixWaitTime = 120;  // Wartefenster auf Matrixtreffer (ms)
 
 const int btnDebounceDelay = 250;     // Tasten-Entprellung
@@ -310,7 +310,7 @@ void loop() {
     }
   }
 
-  // 2. Piezo-Auswertung mit Einschlag-Bestätigung (filtert Einzel-Spikes, 700 ms Sperre nach Wertung)
+  // 2. Piezo-Auswertung mit Einschlag-Bestätigung (filtert Einzel-Spikes, 500 ms Sperre nach Wertung)
   if (currentMillis - lastHitTime > piezoDebounceDelay) {
     int piezoValue = analogRead(piezoPin);
     if (!piezoTriggered) {
