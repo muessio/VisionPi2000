@@ -1,5 +1,5 @@
 # Datei: game_x01.py
-# Version: 1.1.11
+# Version: 1.1.12
 # VisionPi2000 - X01 (301, 501, 701) - Cyber-Circuit-Design, Berry-Rahmenfarben, Double-In Sound & Checkout-Hilfe
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.11"
+VERSION = "1.1.12"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
@@ -239,6 +239,7 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
     """
     Berechnet den optimalen Checkout-Weg für den aktuellen Restwert, die verbleibenden Pfeile (1..3)
     und den gewählten Modus (Double Out, Master Out, Open/Single Out).
+    Bullseye (50) wird dabei immer ans Ende der Route sortiert.
     Rückgabe: Liste von Tupeln (mod_str, num_str, label_str, is_db)
 - mod_str: "tr", "do" oder "  " (für die Modus-Anzeige 20, 18, 16)
 - num_str: "20".." 1", "25" oder "  " (für die Zahlen-Anzeige 19, 17, 15)
@@ -310,7 +311,8 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
         if rem > 0:
             for s1_pts, s1_mod, s1_num, s1_lbl, s1_db in setup_throws:
                 if s1_pts == rem:
-                    return [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+                    res = [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+                    return [d for d in res if not d[3]] + [d for d in res if d[3]]
 
     if darts_left < 3:
         return []
@@ -323,11 +325,12 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
                 if rem2 > 0:
                     for s2_pts, s2_mod, s2_num, s2_lbl, s2_db in setup_throws:
                         if s2_pts == rem2:
-                            return [
+                            res = [
                                 (s1_mod, s1_num, s1_lbl, s1_db),
                                 (s2_mod, s2_num, s2_lbl, s2_db),
                                 (f_mod, f_num, f_lbl, f_db)
                             ]
+                            return [d for d in res if not d[3]] + [d for d in res if d[3]]
 
     return []
 
@@ -507,13 +510,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             route = get_checkout_route(cur_score, rem_darts, has_double_out, has_master_out)
 
         dart_disp_pairs = [(20, 19), (18, 17), (16, 15)]
-        needs_bull_icon = False
+        non_bull = [item for item in route if not item[3]]
+        needs_bull_icon = any(item[3] for item in route)
+        offset = len(dart_disp_pairs) - len(non_bull)
 
         for idx, (seg_mod, seg_num) in enumerate(dart_disp_pairs):
-            if idx < len(route):
-                mod_str, num_str, _, is_db = route[idx]
-                if is_db:
-                    needs_bull_icon = True
+            nb_idx = idx - offset
+            if 0 <= nb_idx < len(non_bull):
+                mod_str, num_str, _, _ = non_bull[nb_idx]
             else:
                 mod_str, num_str = "  ", "  "
 
