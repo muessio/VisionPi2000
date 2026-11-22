@@ -1,5 +1,5 @@
 # Datei: display_mapper_Vision_Dart.py
-# Version: 1.1.3
+# Version: 1.1.4
 
 import time
 
@@ -114,16 +114,16 @@ class LoewenDisplay:
             (6, "C", 5), (6, "C", 6), (6, "C", 7)
         ]
 
-        # Punkte-Spieler-LEDs (PLYR1..8) + Cricket-Spieler-LEDs (PIND1..8) laut Blatt 3
+        # Punkte-Spieler-LEDs (PLYR1..8)
         self.ALL_PL_LEDS = {
-            1: [(0, "C", 6), (0, "C", 2), (2, "D", 6), (2, "D", 8)],
-            2: [(0, "C", 7), (0, "C", 3), (2, "D", 1), (2, "D", 3)],
-            3: [(0, "C", 5), (0, "C", 1), (2, "D", 7), (2, "D", 4)],
-            4: [(0, "C", 4), (0, "C", 8), (2, "D", 2), (2, "D", 5)],
-            5: [(7, "A", 4), (7, "A", 8), (1, "C", 5), (1, "C", 4)],
-            6: [(7, "A", 1), (7, "A", 5), (1, "C", 2), (1, "C", 3)],
-            7: [(7, "A", 6), (7, "A", 2), (1, "C", 1), (1, "C", 6)],
-            8: [(7, "A", 7), (7, "A", 3), (1, "C", 8), (1, "C", 7)],
+            1: [(0, "C", 6), (0, "C", 2)],
+            2: [(0, "C", 7), (0, "C", 3)],
+            3: [(0, "C", 5), (0, "C", 1)],
+            4: [(0, "C", 4), (0, "C", 8)],
+            5: [(7, "A", 4), (7, "A", 8)],
+            6: [(7, "A", 1), (7, "A", 5)],
+            7: [(7, "A", 6), (7, "A", 2)],
+            8: [(7, "A", 7), (7, "A", 3)],
         }
 
         # 100% überschneidungsfreie & foto-verifizierte Cricket-LED-Matrix (Blatt 3)
@@ -202,15 +202,28 @@ class LoewenDisplay:
             }
         }
 
+        # Punkte-Spieler-LEDs (PLYR1..8) - für alle Spiele
         self.PLAYER_ACTIVE_LEDS = {
-            0: [(0, "C", 6), (0, "C", 2), (2, "D", 6), (2, "D", 8)],
-            1: [(0, "C", 7), (0, "C", 3), (2, "D", 1), (2, "D", 3)],
-            2: [(0, "C", 5), (0, "C", 1), (2, "D", 7), (2, "D", 4)],
-            3: [(0, "C", 4), (0, "C", 8), (2, "D", 2), (2, "D", 5)],
-            4: [(7, "A", 4), (7, "A", 8), (1, "C", 5), (1, "C", 4)],
-            5: [(7, "A", 1), (7, "A", 5), (1, "C", 2), (1, "C", 3)],
-            6: [(7, "A", 6), (7, "A", 2), (1, "C", 1), (1, "C", 6)],
-            7: [(7, "A", 7), (7, "A", 3), (1, "C", 8), (1, "C", 7)],
+            0: [(0, "C", 6), (0, "C", 2)],
+            1: [(0, "C", 7), (0, "C", 3)],
+            2: [(0, "C", 5), (0, "C", 1)],
+            3: [(0, "C", 4), (0, "C", 8)],
+            4: [(7, "A", 4), (7, "A", 8)],
+            5: [(7, "A", 1), (7, "A", 5)],
+            6: [(7, "A", 6), (7, "A", 2)],
+            7: [(7, "A", 7), (7, "A", 3)],
+        }
+
+        # Cricket-Spieler-LEDs (PIND1..8) laut Blatt 3 - separat ansteuerbar
+        self.CRICKET_PLAYER_LEDS = {
+            0: [(2, "D", 6), (2, "D", 8)],
+            1: [(2, "D", 1), (2, "D", 3)],
+            2: [(2, "D", 7), (2, "D", 4)],
+            3: [(2, "D", 2), (2, "D", 5)],
+            4: [(1, "C", 5), (1, "C", 4)],
+            5: [(1, "C", 2), (1, "C", 3)],
+            6: [(1, "C", 1), (1, "C", 6)],
+            7: [(1, "C", 8), (1, "C", 7)],
         }
 
         self.DART_ARROW_LEDS = {
@@ -257,6 +270,13 @@ class LoewenDisplay:
     def set_active_player(self, active_player_idx):
         self.check_light_auto_on()
         for p_idx, leds in self.PLAYER_ACTIVE_LEDS.items():
+            state = (p_idx == active_player_idx)
+            for chip, col, row in leds:
+                self.set_led(chip, col, row, state)
+
+    def set_cricket_active_player(self, active_player_idx):
+        self.check_light_auto_on()
+        for p_idx, leds in self.CRICKET_PLAYER_LEDS.items():
             state = (p_idx == active_player_idx)
             for chip, col, row in leds:
                 self.set_led(chip, col, row, state)
