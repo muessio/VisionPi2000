@@ -1,5 +1,5 @@
 # Datei: game_cricket.py
-# Version: 1.1.6
+# Version: 1.1.7
 # VisionPi2000 - Cricket - Cyber-Circuit-Design, Berry-Rahmenfarben, Vertikale Dynamik & You-Pick-It
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.6"
+VERSION = "1.1.7"
 GAMES = ["Cricket"]
 OPTIONS = [
     "Standard",
@@ -342,6 +342,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     marks = {p: [0] * 7 for p in range(total_players)}
     darts_thrown, active_player = 0, 1
     round_num, round_points, switch_delay_timer = 1, 0, 0
+    piezo_block_until = 0
 
     if ser:
         try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -478,6 +479,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
+                piezo_block_until = pygame.time.get_ticks() + 1500
                 if active_player == total_players:
                     round_num += 1
                 active_player = (active_player % total_players) + 1
@@ -493,7 +495,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(marks, slot_targets, active_player-1, mode)}"
                     bot_timer = 0 
 
-            if raw_data and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if raw_data == "MISS:1" and pygame.time.get_ticks() < piezo_block_until:
+                raw_data = None
+            elif raw_data and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
@@ -564,6 +568,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 scores = [0] * total_players
                 marks = {p: [0] * 7 for p in range(total_players)}
                 darts_thrown, active_player, round_num, round_points, switch_delay_timer = 0, 1, 1, 0, 0
+                piezo_block_until = 0
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
                     except Exception: pass
