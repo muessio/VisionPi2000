@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.6.1 (Non-blocking Serial, 50us Matrix-Settling, Piezo-Spike-Filter x2, 500ms Piezo-Sperre)
+// Version 1.6.2 (70ms Matrix-Vorrang-Fenster, Non-blocking Serial, 50us Settling, Piezo x2)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -48,7 +48,7 @@ int piezoSpikeCounter = 0;
 bool piezoTriggered = false;
 const int piezoThreshold = 15; 
 const int piezoConfirmCount = 2;      // Mind. 2 Messungen >= 15 innerhalb von 15 ms (filtert Einzel-Spikes)
-const int piezoMatrixWaitTime = 120;  // Wartefenster auf Matrixtreffer (ms)
+const unsigned long piezoMatrixWaitTime = 70; // Matrix-Vorrang-Fenster (60–80 ms): wartet auf Segment-Kontakt
 
 const int btnDebounceDelay = 250;     // Tasten-Entprellung
 unsigned long lastPressRed = 0, lastPressBlue = 0, lastPressGrey = 0, lastPressStart = 0, lastPressPlayer = 0;
@@ -287,7 +287,7 @@ void loop() {
     }
   }
 
-  // 1. Matrix-Scan (hat immer Vorrang)
+  // 1. Matrix-Scan (hat immer Vorrang und verwirft ein offenes Piezo-Wartefenster)
   if (currentMillis - lastHitTime > debounceDelay) {
     bool hitFound = false;
     for (int r = 0; r < 4 && !hitFound; r++) {
@@ -301,6 +301,7 @@ void loop() {
             lastHitTime = currentMillis;  
             piezoTriggered = false;     
             piezoSpikeCounter = 0;
+            piezoHitTime = 0;
             hitFound = true;
             break;
           }
@@ -321,7 +322,7 @@ void loop() {
         piezoSpikeCounter++;
         if (piezoSpikeCounter >= piezoConfirmCount) {
           piezoTriggered = true;
-          piezoHitTime = piezoFirstSpikeTime;
+          piezoHitTime = currentMillis;
           piezoSpikeCounter = 0;
         }
       } else if (piezoSpikeCounter > 0 && (currentMillis - piezoFirstSpikeTime > 15)) {
@@ -331,13 +332,15 @@ void loop() {
   } else {
     piezoTriggered = false;
     piezoSpikeCounter = 0;
+    piezoHitTime = 0;
   }
 
-  // 3. Fehlwurf erst melden, wenn das Wartefenster ohne Matrixtreffer abläuft
+  // 3. Fehlwurf erst melden, wenn das 70-ms-Matrix-Vorrang-Fenster ohne Matrixtreffer abläuft
   if (piezoTriggered && (currentMillis - piezoHitTime >= piezoMatrixWaitTime)) {
     Serial.println("MISS:1");
     piezoTriggered = false; 
     piezoSpikeCounter = 0;
+    piezoHitTime = 0;
     lastHitTime = currentMillis; 
   }
 
