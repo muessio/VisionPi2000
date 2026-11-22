@@ -1,5 +1,5 @@
 # Datei: game_shanghai.py
-# Version: 1.1.5
+# Version: 1.1.6
 # VisionPi2000 - Shanghai - Cyber-Circuit-Design, Berry-Rahmenfarben & Fast-Load Cache
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.5"
+VERSION = "1.1.6"
 GAMES = ["Shanghai"]
 OPTIONS = ["Standard"]
 
@@ -299,6 +299,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     scores = [0] * total_players
     darts_thrown, active_player, round_points, switch_delay_timer = 0, 1, 0, 0
+    piezo_block_until = 0
     current_round = 1
 
     if ser:
@@ -368,6 +369,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
+                piezo_block_until = pygame.time.get_ticks() + 1500
                 active_player = (active_player % total_players) + 1
                 if active_player == 1: current_round += 1
                 
@@ -390,7 +392,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(current_round, mode)}"; bot_timer = 0 
 
         if raw_data:
-            if current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if current_state == "GAME" and raw_data == "MISS:1" and pygame.time.get_ticks() < piezo_block_until:
+                raw_data = None
+            elif current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
@@ -429,6 +433,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     if sound_switch: sound_switch.play()
                     scores = [0] * total_players
                     darts_thrown, active_player, round_points, switch_delay_timer = 0, 1, 0, 0
+                    piezo_block_until = 0
                     current_round = 1
                     current_state = "GAME"
                     if ser:
