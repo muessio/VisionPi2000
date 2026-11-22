@@ -1,5 +1,5 @@
 # Datei: game_cyber_rallye.py
-# Version: 1.0.4
+# Version: 1.0.5
 # VisionPi2000 - Cyber Rallye (Etappen-Rennen mit Checkpoints & Cyber-Slot im Cyber-Circuit-Design)
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 GAMES = ["Cyber Rallye"]
 OPTIONS = [
     "Sprint (500 km)",
@@ -656,6 +656,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                         winner_idx = p_idx
                         current_state = "WIN"
                         trigger_victory(ser, display)
+                        display.clear_all()
 
                 darts_thrown += 1
                 if darts_thrown == 3 and current_state == "GAME" and ser:
