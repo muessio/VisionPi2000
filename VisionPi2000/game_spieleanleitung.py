@@ -1,5 +1,5 @@
 # Datei: game_spieleanleitung.py
-# Version: 1.2.6
+# Version: 1.2.7
 # Spieleanleitung im VisionPi2000 Cyber-Circuit-Design (Detaillierte Profi-Edition, 4:3 & 16:9)
 
 import pygame
@@ -7,7 +7,7 @@ import os
 import random
 import json
 
-VERSION = "1.2.6"
+VERSION = "1.2.7"
 GAMES = ["Spieleanleitung"]
 OPTIONS = [
     "301 / 501 / 701 (X01)", 
@@ -17,6 +17,7 @@ OPTIONS = [
     "Shanghai",
     "Elimination",
     "Fruit Splasher",
+    "Cyber Rallye",
     "Bedienung, Modi & Bot"
 ]
 
@@ -97,6 +98,16 @@ EXPLANATIONS = {
         "• Berry Hunt (10 / 15 Runden): 6 Früchte mit Zahlen (1–20) sowie die Golden-Berry (Bullseye) liegen offen",
         "  aus (auch auf den 6 Cricket-Displays sichtbar). Jeder Treffer zerquetscht die Frucht für Direktpunkte",
         "  (Zahl × Multiplikator; Bull = 50 / 100 Pkt.) und spawnt sofort eine neue Frucht auf einer freien Zahl."
+    ],
+    "Cyber Rallye": [
+        "ZIEL: Erreiche als Erster die Zieldistanz (500, 600 oder 900 km) über den Neon-Highway!",
+        "• Kilometer sammeln: Jeder reguläre Treffer zählt seine volle Punktzahl direkt als gefahrene Kilometer.",
+        "• Etappen-Checkpoints: Am Ende jeder Etappe (alle 100 bzw. 150 km) stoppt dich eine Schranke mit einer",
+        "  Zufallsaufgabe (z. B. beliebiges Double, Triple, Zahl 15–20 oder Ungerade). Erst danach geht es weiter!",
+        "• Bullseye = Cyber-Slot (Boxenstopp): Jeder Treffer ins Single- oder Double-Bull startet die 3-Walzen-Slot:",
+        "  NITRO (+60/+100 km & durchbricht Schranken), TURBO (2x Punkte), EMP (Führender -40 km) oder PANNE (0).",
+        "• Battle-Rallye (600 km): Überholst du einen Mitspieler auf der Strecke, bremst der Crash ihn um 30 km aus!",
+        "• Hardware-Display: Die Spieleranzeigen zeigen die gefahrenen km, die 6 Cricket-Balken deine Etappen."
     ],
     "Bedienung, Modi & Bot": [
         "STEUERUNG AM AUTOMATEN, SONDERFUNKTIONEN & SPIELMODI:",

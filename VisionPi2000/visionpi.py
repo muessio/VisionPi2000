@@ -1,5 +1,5 @@
 # Datei: visionpi.py
-# Version: 1.1.15-stable
+# Version: 1.1.16-main
 # VisionPi2000 - Hauptmenü im Cyber-Circuit-Design mit farbigen Spalten-Hintergründen
 
 import pygame
@@ -30,6 +30,8 @@ try: import game_aroundclock
 except ImportError: game_aroundclock = None
 try: import game_fruit_splasher
 except ImportError: game_fruit_splasher = None
+try: import game_cyber_rallye
+except ImportError: game_cyber_rallye = None
 try: import game_spieleanleitung
 except ImportError: game_spieleanleitung = None
 try: import game_service
@@ -41,7 +43,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.15-stable"
+VERSION = "1.1.16-main"
 
 # Globaler RAM-schonender Asset-Cache für 0ms Spielstart auf dem Pi 4B (1GB RAM)
 GLOBAL_FONT_CACHE = {}
@@ -317,7 +319,7 @@ def preload_all_game_assets(sw, sh, is_16_9, raw_bg_surface):
         pygame.font.SysFont("arial", sz, bold=True)
         SHARED_GAME_ASSETS[f"font_{sz}"] = pygame.font.SysFont("arial", sz, bold=True)
 
-    for mod in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_fruit_splasher]:
+    for mod in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_fruit_splasher, game_cyber_rallye]:
         if mod is not None:
             if hasattr(mod, "_ASSET_CACHE") and isinstance(mod._ASSET_CACHE, dict):
                 mod._ASSET_CACHE.update(SHARED_GAME_ASSETS)
@@ -581,7 +583,7 @@ def main():
     info_hint_font = pygame.font.SysFont("arial", int(TARGET_HEIGHT * 0.033), bold=True)
 
     game_registry = []
-    for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_fruit_splasher, game_spieleanleitung, game_service, game_about]:
+    for m in [game_x01, game_cricket, game_elimination, game_splitscore, game_shanghai, game_aroundclock, game_fruit_splasher, game_cyber_rallye, game_spieleanleitung, game_service, game_about]:
         if m and hasattr(m, 'GAMES') and hasattr(m, 'OPTIONS'):
             for g in m.GAMES: 
                 game_registry.append({"name": g, "options": m.OPTIONS, "module": m})
@@ -748,6 +750,7 @@ def main():
                     ("Shanghai", game_shanghai),
                     ("Around the Clock", game_aroundclock),
                     ("Fruit Splasher", game_fruit_splasher),
+                    ("Cyber Rallye", game_cyber_rallye),
                     ("Online-Engine", online_manager),
                     ("Web-Streamer", web_streamer),
                     ("Spieleanleitung", game_spieleanleitung),
@@ -761,7 +764,7 @@ def main():
                     text_str = f"• {mod_name}: v{mod_ver}" if mod_obj else f"• {mod_name}: Modul fehlt"
                     mod_surf = info_font.render(text_str, True, color)
                     screen.blit(mod_surf, (box_x + int(box_w * 0.12), cur_y))
-                    cur_y += int(box_h * 0.048)
+                    cur_y += int(box_h * 0.045)
 
                 hint_surf = info_hint_font.render("Zum Schließen: Spielerwechsel-Taste drücken", True, (255, 205, 45))
                 screen.blit(hint_surf, (box_x + (box_w - hint_surf.get_width()) // 2, box_y + box_h - int(box_h * 0.08)))
