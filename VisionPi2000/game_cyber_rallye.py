@@ -1,5 +1,5 @@
 # Datei: game_cyber_rallye.py
-# Version: 1.0.0
+# Version: 1.0.2
 # VisionPi2000 - Cyber Rallye (Etappen-Rennen mit Checkpoints & Cyber-Slot im Cyber-Circuit-Design)
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.0.0"
+VERSION = "1.0.2"
 GAMES = ["Cyber Rallye"]
 OPTIONS = [
     "Sprint (500 km)",
@@ -36,10 +36,10 @@ CHECKPOINT_TASKS = [
 ]
 
 SLOT_SYMBOLS = [
-    {"id": "NITRO", "label": "NITRO",  "color": (0, 255, 157)},
+    {"id": "NITRO", "label": "NITRO",    "color": (0, 255, 157)},
     {"id": "TURBO", "label": "2x TURBO", "color": (0, 216, 255)},
-    {"id": "EMP",   "label": "EMP",    "color": (255, 56, 76)},
-    {"id": "PANNE", "label": "PANNE",  "color": (255, 165, 0)}
+    {"id": "EMP",   "label": "EMP",      "color": (255, 56, 76)},
+    {"id": "PANNE", "label": "PANNE",    "color": (255, 165, 0)}
 ]
 
 if not hasattr(pygame, "_vp2000_cache"):
@@ -407,25 +407,52 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     def sync_hw_display():
         try:
             display.clear_buffer()
-            display.set_active_player(active_player - 1)
-            display.set_bullseye_icon(True)
+            display.set_bullseye_icon(False)
 
+            # Spieler-Scores und Spieler-LEDs (1..8) für alle teilnehmenden Spieler gleichzeitig
             for i in range(8):
-                display.set_score(i, km_scores[i] if i < total_players else None)
+                if i < total_players:
+                    display.set_score(i, km_scores[i])
+                    display.set_pl_lamp(i + 1, True)
+                else:
+                    display.set_score(i, None)
+                    display.set_pl_lamp(i + 1, False)
 
-            act_idx = active_player - 1
             hw_keys = [20, 19, 18, 17, 16, 15]
+
+            # 1. Etappen-LEDs für ALLE Spieler gleichzeitig (Drittel-Fortschritt)
+            for p_idx in range(total_players):
+                p_km = km_scores[p_idx]
+                p_cleared = stages_cleared[p_idx]
+
+                for s_idx, hw_key in enumerate(hw_keys):
+                    if s_idx < num_stages:
+                        if s_idx < p_cleared or (s_idx == num_stages - 1 and p_km >= target_km):
+                            marks = 3
+                        elif s_idx == p_cleared:
+                            stage_prog = p_km - (s_idx * stage_step)
+                            if stage_prog >= (stage_step * 2) / 3.0:
+                                marks = 2
+                            elif stage_prog >= stage_step / 3.0:
+                                marks = 1
+                            else:
+                                marks = 0
+                        else:
+                            marks = 0
+
+                        display.set_cricket_marks(p_idx, hw_key, marks)
+
+            # 2. Grüne Etappen-Nummern (1..5 bzw. 1..6) NACH set_cricket_marks setzen
             for s_idx, hw_key in enumerate(hw_keys):
-                if s_idx < num_stages:
-                    if s_idx < stages_cleared[act_idx]:
-                        display.set_cricket_marks(act_idx, hw_key, 3)
-                    elif s_idx == stages_cleared[act_idx] and cp_tasks[act_idx] is not None:
-                        display.set_cricket_marks(act_idx, hw_key, 1)
-                    if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
-                        d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
+                if hasattr(display, 'CRICKET_TARGET_DISP') and hw_key in display.CRICKET_TARGET_DISP:
+                    d_ten, d_unit = display.CRICKET_TARGET_DISP[hw_key]
+                    if s_idx < num_stages:
                         st_str = f"{s_idx + 1:2d}"
                         display.set_disp_char(d_ten, st_str[0])
                         display.set_disp_char(d_unit, st_str[1])
+                    else:
+                        display.set_disp_char(d_ten, " ")
+                        display.set_disp_char(d_unit, " ")
 
             display.set_temp_score(round_points)
             display.set_turn(round_num)
