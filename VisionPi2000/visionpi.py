@@ -1,5 +1,5 @@
 # Datei: visionpi.py
-# Version: 1.1.15-main
+# Version: 1.1.15-stable
 # VisionPi2000 - Hauptmenü im Cyber-Circuit-Design mit farbigen Spalten-Hintergründen
 
 import pygame
@@ -41,7 +41,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.15-main"
+VERSION = "1.1.15-stable"
 
 # Globaler RAM-schonender Asset-Cache für 0ms Spielstart auf dem Pi 4B (1GB RAM)
 GLOBAL_FONT_CACHE = {}
