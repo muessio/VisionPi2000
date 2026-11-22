@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.3.2
+# Version: 1.3.3
 # VisionPi2000 - Fruit Splasher (Original-Spiel mit bündigem Cyber-Circuit Header & Karten-Design)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -554,6 +554,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     darts_thrown, active_player = 0, 1
     round_num, round_points, switch_delay_timer = 1, 0, 0
+    piezo_block_until = 0
     winner_idx = 0
 
     if display:
@@ -687,6 +688,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
+                piezo_block_until = pygame.time.get_ticks() + 1500
                 if active_player == total_players:
                     if is_hunt_mode and round_num >= max_rounds:
                         winner_idx = max(range(total_players), key=lambda i: scores[i])
@@ -716,7 +718,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(bot_targets, mode)}"
                     bot_timer = 0
 
-            if raw_data and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if raw_data == "MISS:1" and pygame.time.get_ticks() < piezo_block_until:
+                raw_data = None
+            elif raw_data and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 p_profile = BERRY_PROFILES[0] if is_berrys_turn else BERRY_PROFILES[p_idx % len(BERRY_PROFILES)]
@@ -840,6 +844,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 player_targets = random.sample(range(1, 21), total_players)
                 hunt_targets = random.sample(range(1, 21), 6) + [25]
                 darts_thrown, active_player, round_num, round_points, switch_delay_timer = 0, 1, 1, 0, 0
+                piezo_block_until = 0
                 current_state = "GAME"
                 if display:
                     try:
