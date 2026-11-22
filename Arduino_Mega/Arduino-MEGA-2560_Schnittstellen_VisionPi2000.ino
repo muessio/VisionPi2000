@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.5 (Non-blocking Serial, 50us Matrix-Settling, Piezo-Spike-Filter)
+// Version 1.6 (Non-blocking Serial, 50us Matrix-Settling, Piezo-Spike-Filter, 700ms Piezo-Sperre)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -36,11 +36,12 @@ const String dartBoard[4][16] = {
   {"d12", "12", "d9", "9", "d14", "14", "d11", "11", "d8", "8", "-",  "t12", "t9", "t14", "t11", "t8"},
   {"d16", "16", "d7", "7", "d19", "19", "d3", "3", "d17", "17", "db", "t16", "t7", "t19", "t3", "t17"},
   {"d2",  "2",  "d15", "15", "d10", "10", "d6", "6", "d13", "13", "b",  "t2",  "t15", "t10", "t6", "t13"},
-  {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5",  "-",  "t4",  "t18", "t1",  "t20", "t5"}
+  {"d4",  "4",  "d18", "18", "d1",  "1",  "d20", "20", "d5",  "5", "-",  "t4",  "t18", "t1",  "t20", "t5"}
 };
 
 unsigned long lastHitTime = 0;        
-const int debounceDelay = 400;        // Matrix- & Piezo-Entprellung nach Wertung
+const int debounceDelay = 400;        // Matrix-Entprellung nach Wertung (ms)
+const int piezoDebounceDelay = 700;   // Piezo-Sperrzeit nach Treffer/Fehlwurf (ms)
 unsigned long piezoHitTime = 0;
 unsigned long piezoFirstSpikeTime = 0;
 int piezoSpikeCounter = 0;
@@ -309,8 +310,8 @@ void loop() {
     }
   }
 
-  // 2. Piezo-Auswertung mit Einschlag-Bestätigung (filtert Einzel-Spikes)
-  if (currentMillis - lastHitTime > debounceDelay) {
+  // 2. Piezo-Auswertung mit Einschlag-Bestätigung (filtert Einzel-Spikes, 700 ms Sperre nach Wertung)
+  if (currentMillis - lastHitTime > piezoDebounceDelay) {
     int piezoValue = analogRead(piezoPin);
     if (!piezoTriggered) {
       if (piezoValue >= piezoThreshold) {
@@ -337,67 +338,6 @@ void loop() {
     Serial.println("MISS:1");
     piezoTriggered = false; 
     piezoSpikeCounter = 0;
-    lastHitTime = currentMillis; 
-  }
-
-  stateRed = digitalRead(btnRed);
-  if (stateRed == LOW && lastRed == HIGH) { 
-    if (currentMillis - lastPressRed > btnDebounceDelay) { Serial.println("BTN:RED"); lastPressRed = currentMillis; }
-  }
-  lastRed = stateRed;
-
-  stateBlue = digitalRead(btnBlue);
-  if (stateBlue == LOW && lastBlue == HIGH) { 
-    if (currentMillis - lastPressBlue > btnDebounceDelay) { Serial.println("BTN:BLUE"); lastPressBlue = currentMillis; }
-  }
-  lastBlue = stateBlue;
-
-  stateGrey = digitalRead(btnGrey);
-  if (stateGrey == LOW && lastGrey == HIGH) { 
-    if (currentMillis - lastPressGrey > btnDebounceDelay) { Serial.println("BTN:GREY"); lastPressGrey = currentMillis; }
-  }
-  lastGrey = stateGrey;
-
-  stateStart = digitalRead(btnStart);
-  if (stateStart == LOW && lastStart == HIGH) { 
-    if (currentMillis - lastPressStart > btnDebounceDelay) { Serial.println("BTN:START"); lastPressStart = currentMillis; }
-  }
-  lastStart = stateStart;
-
-  statePlayer = digitalRead(btnPlayer);
-  if (statePlayer == LOW && lastPlayer == HIGH) { 
-    if (currentMillis - lastPressPlayer > btnDebounceDelay) { Serial.println("BTN:PLAYER"); lastPressPlayer = currentMillis; }
-  }
-  lastPlayer = statePlayer;
-
-  bool currentIrState = digitalRead(irSensorPin);
-  if (currentIrState == LOW) {
-    if (currentMillis - lastIrChangeTime >= irDebounceTime) {
-      Serial.println("IR:DETECT");
-      lastIrChangeTime = currentMillis;
-    }
-  }
-
-  static unsigned long comboTimer = 0;
-  static bool comboTriggered = false;
-  if ((digitalRead(btnRed) == LOW) && (digitalRead(btnBlue) == LOW) && (digitalRead(btnGrey) == LOW)) {
-    if (comboTimer == 0) { comboTimer = currentMillis; }
-    else if (currentMillis - comboTimer >= 2000 && !comboTriggered) {
-      Serial.println("BTN:COMBO");
-      comboTriggered = true;
-    }
-  } else {
-    comboTimer = 0;
-    comboTriggered = false;
-  }
-}
-}
-  
-  if (piezoTriggered && (currentMillis - piezoHitTime > piezoMatrixWaitTime)) {
-    if (currentMillis - lastHitTime > piezoMatrixWaitTime) {
-      Serial.println("MISS:1");
-    }
-    piezoTriggered = false; 
     lastHitTime = currentMillis; 
   }
 
