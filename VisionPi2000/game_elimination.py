@@ -1,5 +1,5 @@
 # Datei: game_elimination.py
-# Version: 1.1.7
+# Version: 1.1.8
 # VisionPi2000 - Elimination - Cyber-Circuit-Design, Berry-Rahmenfarben, Fast-Load Cache & 301-Checkout-Hilfe
 
 import pygame
@@ -8,7 +8,7 @@ import os
 import random
 import time
 
-VERSION = "1.1.7"
+VERSION = "1.1.8"
 GAMES = ["Elimination"]
 OPTIONS = ["Standard", "3 Leben"]
 
@@ -227,6 +227,7 @@ def get_checkout_route(points_needed, darts_left):
     """
     Berechnet für Elimination (Aufwärtslogik von 0 auf 301) den kürzesten Weg für die
     noch fehlenden Punkte (points_needed = 301 - aktueller_score) mit den verbleibenden Pfeilen (1..3).
+    Bullseye (50) wird dabei immer ans Ende der Route sortiert.
     """
     if points_needed <= 0 or darts_left <= 0 or points_needed > 180:
         return []
@@ -278,7 +279,8 @@ def get_checkout_route(points_needed, darts_left):
         if rem > 0:
             for s1_pts, s1_mod, s1_num, s1_lbl, s1_db in setup_throws:
                 if s1_pts == rem:
-                    return [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+                    res = [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+                    return [d for d in res if not d[3]] + [d for d in res if d[3]]
 
     if darts_left < 3:
         return []
@@ -291,11 +293,12 @@ def get_checkout_route(points_needed, darts_left):
                 if rem2 > 0:
                     for s2_pts, s2_mod, s2_num, s2_lbl, s2_db in setup_throws:
                         if s2_pts == rem2:
-                            return [
+                            res = [
                                 (s1_mod, s1_num, s1_lbl, s1_db),
                                 (s2_mod, s2_num, s2_lbl, s2_db),
                                 (f_mod, f_num, f_lbl, f_db)
                             ]
+                            return [d for d in res if not d[3]] + [d for d in res if d[3]]
 
     return []
 
@@ -405,13 +408,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             route = get_checkout_route(points_needed, rem_darts)
 
         dart_disp_pairs = [(20, 19), (18, 17), (16, 15)]
-        needs_bull_icon = False
+        non_bull = [item for item in route if not item[3]]
+        needs_bull_icon = any(item[3] for item in route)
+        offset = len(dart_disp_pairs) - len(non_bull)
 
         for idx, (seg_mod, seg_num) in enumerate(dart_disp_pairs):
-            if idx < len(route):
-                mod_str, num_str, _, is_db = route[idx]
-                if is_db:
-                    needs_bull_icon = True
+            nb_idx = idx - offset
+            if 0 <= nb_idx < len(non_bull):
+                mod_str, num_str, _, _ = non_bull[nb_idx]
             else:
                 mod_str, num_str = "  ", "  "
 
