@@ -1,5 +1,5 @@
 # Datei: game_elimination.py
-# Version: 1.1.6
+# Version: 1.1.8
 # VisionPi2000 - Elimination - Cyber-Circuit-Design, Berry-Rahmenfarben, Fast-Load Cache & 301-Checkout-Hilfe
 
 import pygame
@@ -8,12 +8,12 @@ import os
 import random
 import time
 
-VERSION = "1.1.6"
+VERSION = "1.1.8"
 GAMES = ["Elimination"]
 OPTIONS = ["Standard", "3 Leben"]
 
 PLAYER_COLORS = [
-    (255, 0, 90),     # Spieler 1 / Berry: Raspberry Pink
+    (255, 0, 90),     # Spieler 1: Raspberry Pink
     (255, 45, 45),    # Spieler 2: Strawberry Red
     (0, 180, 255),    # Spieler 3: Blueberry Cyan
     (220, 0, 70),     # Spieler 4: Cherry
@@ -22,6 +22,7 @@ PLAYER_COLORS = [
     (235, 245, 255),  # Spieler 7: Snowberry White-Blue
     (210, 0, 180)     # Spieler 8: Mulberry Magenta
 ]
+BERRY_COLOR = (255, 215, 0)     # Gold für Bullseye-Berry
 
 if not hasattr(pygame, "_vp2000_cache"):
     pygame._vp2000_cache = {}
@@ -226,6 +227,7 @@ def get_checkout_route(points_needed, darts_left):
     """
     Berechnet für Elimination (Aufwärtslogik von 0 auf 301) den kürzesten Weg für die
     noch fehlenden Punkte (points_needed = 301 - aktueller_score) mit den verbleibenden Pfeilen (1..3).
+    Bullseye (50) wird dabei immer ans Ende der Route sortiert.
     """
     if points_needed <= 0 or darts_left <= 0 or points_needed > 180:
         return []
@@ -277,7 +279,8 @@ def get_checkout_route(points_needed, darts_left):
         if rem > 0:
             for s1_pts, s1_mod, s1_num, s1_lbl, s1_db in setup_throws:
                 if s1_pts == rem:
-                    return [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+                    res = [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+                    return [d for d in res if not d[3]] + [d for d in res if d[3]]
 
     if darts_left < 3:
         return []
@@ -290,11 +293,12 @@ def get_checkout_route(points_needed, darts_left):
                 if rem2 > 0:
                     for s2_pts, s2_mod, s2_num, s2_lbl, s2_db in setup_throws:
                         if s2_pts == rem2:
-                            return [
+                            res = [
                                 (s1_mod, s1_num, s1_lbl, s1_db),
                                 (s2_mod, s2_num, s2_lbl, s2_db),
                                 (f_mod, f_num, f_lbl, f_db)
                             ]
+                            return [d for d in res if not d[3]] + [d for d in res if d[3]]
 
     return []
 
@@ -382,6 +386,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     scores = [0] * total_players
     lives = [3] * total_players if "Leben" in option else [1] * total_players
     darts_thrown, active_player, round_points, switch_delay_timer = 0, 1, 0, 0
+    piezo_block_until = 0
     round_start_score = 0
 
     if ser:
@@ -403,13 +408,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             route = get_checkout_route(points_needed, rem_darts)
 
         dart_disp_pairs = [(20, 19), (18, 17), (16, 15)]
-        needs_bull_icon = False
+        non_bull = [item for item in route if not item[3]]
+        needs_bull_icon = any(item[3] for item in route)
+        offset = len(dart_disp_pairs) - len(non_bull)
 
         for idx, (seg_mod, seg_num) in enumerate(dart_disp_pairs):
-            if idx < len(route):
-                mod_str, num_str, _, is_db = route[idx]
-                if is_db:
-                    needs_bull_icon = True
+            nb_idx = idx - offset
+            if 0 <= nb_idx < len(non_bull):
+                mod_str, num_str, _, _ = non_bull[nb_idx]
             else:
                 mod_str, num_str = "  ", "  "
 
@@ -487,6 +493,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
+                piezo_block_until = pygame.time.get_ticks() + 1500
                 active_player = (active_player % total_players) + 1
                 while lives[active_player - 1] <= 0: active_player = (active_player % total_players) + 1
                 round_start_score = scores[active_player - 1]
@@ -502,7 +509,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(mode, scores[active_player - 1])}"; bot_timer = 0 
 
         if raw_data:
-            if current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if current_state == "GAME" and raw_data == "MISS:1" and pygame.time.get_ticks() < piezo_block_until:
+                raw_data = None
+            elif current_state == "GAME" and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
@@ -572,6 +581,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     scores = [0] * total_players
                     lives = [3] * total_players if "Leben" in option else [1] * total_players
                     darts_thrown, active_player, round_points, switch_delay_timer = 0, 1, 0, 0
+                    piezo_block_until = 0
                     round_start_score = 0
                     current_state = "GAME"
                     if ser:
@@ -603,7 +613,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             pygame.draw.line(screen, NEON_GREEN, (hud_x + 35, line_y), (hud_x + hud_w - 35, line_y), 2)
             pygame.draw.circle(screen, HIGHLIGHT, (sw // 2, line_y), 5)
 
-            act_col = PLAYER_COLORS[0] if is_berrys_turn else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)]
+            act_col = BERRY_COLOR if is_berrys_turn else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)]
             active_label = mode if is_berrys_turn else f"Spieler {active_player}"
             
             name_surf = big_font.render(f"▶  {active_label}  ◀", True, act_col)
@@ -664,7 +674,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 px = sb_x + i * (p_box_w + 10)
                 is_act = (i == (active_player - 1))
                 p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i+1}"
-                p_col = PLAYER_COLORS[0] if (is_berry_game and i == total_players - 1) else PLAYER_COLORS[i % len(PLAYER_COLORS)]
+                p_col = BERRY_COLOR if (is_berry_game and i == total_players - 1) else PLAYER_COLORS[i % len(PLAYER_COLORS)]
                 
                 draw_cyber_player_card(screen, px, sb_y, p_box_w, box_h, p_col, is_act, cut=12)
 

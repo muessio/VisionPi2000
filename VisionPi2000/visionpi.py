@@ -1,5 +1,5 @@
 # Datei: visionpi.py
-# Version: 1.1.15-stable
+# Version: 1.1.15-main
 # VisionPi2000 - Hauptmenü im Cyber-Circuit-Design mit farbigen Spalten-Hintergründen
 
 import pygame
@@ -41,7 +41,7 @@ except ImportError: online_manager = None
 try: import web_streamer
 except ImportError: web_streamer = None
 
-VERSION = "1.1.15-stable"
+VERSION = "1.1.15-main"
 
 # Globaler RAM-schonender Asset-Cache für 0ms Spielstart auf dem Pi 4B (1GB RAM)
 GLOBAL_FONT_CACHE = {}
@@ -861,7 +861,8 @@ def main():
             screen.blit(big_font.render("System-Funktion", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
             screen.blit(font.render("Wähle eine Option mit Rot/Blau und starte mit START", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
         else:
-            screen.blit(big_font.render(f"Spieleranzahl: {players}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
+            berry_suffix = " + Berry" if "Bullseye-Berry" in modes[sel_mode] else ""
+            screen.blit(big_font.render(f"Spieleranzahl: {players}{berry_suffix}", True, (255,255,255)), (sx, sy + ch + int(TARGET_HEIGHT * 0.015)))
             screen.blit(font.render("Tasten Rot, Blau, Grau zur Auswahl - START zum Beginnen", True, (150, 150, 150)), (sx, sy + ch + int(TARGET_HEIGHT * 0.055)))
 
         pygame.display.flip()

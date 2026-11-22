@@ -1,5 +1,5 @@
 # Datei: game_fruit_splasher.py
-# Version: 1.3.2
+# Version: 1.3.3
 # VisionPi2000 - Fruit Splasher (Original-Spiel mit bündigem Cyber-Circuit Header & Karten-Design)
 
 import pygame
@@ -9,7 +9,7 @@ import random
 import time
 import json
 
-VERSION = "1.3.2"
+VERSION = "1.3.3"
 GAMES = ["Fruit Splasher"]
 OPTIONS = [
     "Juice Press (Standard - 3 Beeren)",
@@ -554,6 +554,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
     darts_thrown, active_player = 0, 1
     round_num, round_points, switch_delay_timer = 1, 0, 0
+    piezo_block_until = 0
     winner_idx = 0
 
     if display:
@@ -687,6 +688,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
+                piezo_block_until = pygame.time.get_ticks() + 1500
                 if active_player == total_players:
                     if is_hunt_mode and round_num >= max_rounds:
                         winner_idx = max(range(total_players), key=lambda i: scores[i])
@@ -716,10 +718,12 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(bot_targets, mode)}"
                     bot_timer = 0
 
-            if raw_data and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if raw_data == "MISS:1" and pygame.time.get_ticks() < piezo_block_until:
+                raw_data = None
+            elif raw_data and (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
-                p_profile = BERRY_PROFILES[0] if is_berrys_turn else BERRY_PROFILES[p_idx % len(BERRY_PROFILES)]
+                p_profile = GOLDEN_BERRY if is_berrys_turn else BERRY_PROFILES[p_idx % len(BERRY_PROFILES)]
 
                 if hit_segment == "MISS":
                     if sound_miss:
@@ -840,6 +844,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 player_targets = random.sample(range(1, 21), total_players)
                 hunt_targets = random.sample(range(1, 21), 6) + [25]
                 darts_thrown, active_player, round_num, round_points, switch_delay_timer = 0, 1, 1, 0, 0
+                piezo_block_until = 0
                 current_state = "GAME"
                 if display:
                     try:
@@ -889,7 +894,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             pygame.draw.line(screen, NEON_GREEN, (top_x + 30, line_y), (top_x + top_w - 30, line_y), 2)
             pygame.draw.circle(screen, HIGHLIGHT, (sw // 2, line_y), 4)
 
-            active_prof = BERRY_PROFILES[0] if is_berrys_turn else BERRY_PROFILES[(active_player - 1) % len(BERRY_PROFILES)]
+            active_prof = GOLDEN_BERRY if is_berrys_turn else BERRY_PROFILES[(active_player - 1) % len(BERRY_PROFILES)]
             p_title = "Bullseye-Berry" if is_berrys_turn else f"Spieler {active_player}"
             name_surf = big_font.render(f"▶  {p_title}  ◀", True, active_prof["color"])
             screen.blit(name_surf, ((sw - name_surf.get_width()) // 2, top_y + int(sh * 0.062)))
@@ -916,7 +921,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     cx = grid_x + c_idx * (card_w + gap_jp)
                     cur_cw = (top_x + top_w - cx) if (c_idx == cols - 1) else card_w
                     cy = grid_y + r_idx * (card_h + 14)
-                    prof = BERRY_PROFILES[0] if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
+                    prof = GOLDEN_BERRY if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
                     is_act = (i == active_player - 1)
 
                     # Trennlinie auf 0.135 direkt unter dem Spielernamen
@@ -983,7 +988,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 for i in range(total_players):
                     px = sb_x + i * (p_box_w + sb_gap)
                     cur_pw = (top_x + top_w - px) if i == total_players - 1 else p_box_w
-                    prof = BERRY_PROFILES[0] if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
+                    prof = GOLDEN_BERRY if (is_berry_game and i == total_players - 1) else BERRY_PROFILES[i % len(BERRY_PROFILES)]
                     is_act = (i == active_player - 1)
                     
                     draw_cyber_player_card(screen, px, sb_y, cur_pw, box_h, prof["color"], is_act, cut=12, div_ratio=0.30)
@@ -1065,7 +1070,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 txt_head = win_font.render("BERRY SPLASH!", True, NEON_GREEN)
                 screen.blit(txt_head, ((sw - txt_head.get_width()) // 2, pop_y + int(pop_h * 0.08)))
 
-                win_prof = BERRY_PROFILES[0] if (is_berry_game and winner_idx == total_players - 1) else BERRY_PROFILES[winner_idx % len(BERRY_PROFILES)]
+                win_prof = GOLDEN_BERRY if (is_berry_game and winner_idx == total_players - 1) else BERRY_PROFILES[winner_idx % len(BERRY_PROFILES)]
                 winner_name = "Bullseye-Berry" if (is_berry_game and winner_idx == total_players - 1) else f"Spieler {winner_idx + 1}"
                 txt_winner = big_font.render(f"{winner_name} gewinnt!", True, win_prof["color"])
                 screen.blit(txt_winner, ((sw - txt_winner.get_width()) // 2, pop_y + int(pop_h * 0.42)))

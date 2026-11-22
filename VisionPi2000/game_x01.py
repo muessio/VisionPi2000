@@ -1,5 +1,5 @@
 # Datei: game_x01.py
-# Version: 1.1.10
+# Version: 1.1.12
 # VisionPi2000 - X01 (301, 501, 701) - Cyber-Circuit-Design, Berry-Rahmenfarben, Double-In Sound & Checkout-Hilfe
 
 import pygame
@@ -8,12 +8,12 @@ import os
 import random
 import time
 
-VERSION = "1.1.10"
+VERSION = "1.1.12"
 GAMES = ["301", "501", "701"]
 OPTIONS = ["Open In/Out", "Double In", "Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
 
 PLAYER_COLORS = [
-    (255, 0, 90),     # Spieler 1 / Berry: Raspberry Pink
+    (255, 0, 90),     # Spieler 1: Raspberry Pink
     (255, 45, 45),    # Spieler 2: Strawberry Red
     (0, 180, 255),    # Spieler 3: Blueberry Cyan
     (220, 0, 70),     # Spieler 4: Cherry
@@ -22,6 +22,7 @@ PLAYER_COLORS = [
     (235, 245, 255),  # Spieler 7: Snowberry White-Blue
     (210, 0, 180)     # Spieler 8: Mulberry Magenta
 ]
+BERRY_COLOR = (255, 215, 0)     # Gold für Bullseye-Berry
 
 if not hasattr(pygame, "_vp2000_cache"):
     pygame._vp2000_cache = {}
@@ -238,6 +239,7 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
     """
     Berechnet den optimalen Checkout-Weg für den aktuellen Restwert, die verbleibenden Pfeile (1..3)
     und den gewählten Modus (Double Out, Master Out, Open/Single Out).
+    Bullseye (50) wird dabei immer ans Ende der Route sortiert.
     Rückgabe: Liste von Tupeln (mod_str, num_str, label_str, is_db)
 - mod_str: "tr", "do" oder "  " (für die Modus-Anzeige 20, 18, 16)
 - num_str: "20".." 1", "25" oder "  " (für die Zahlen-Anzeige 19, 17, 15)
@@ -309,7 +311,8 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
         if rem > 0:
             for s1_pts, s1_mod, s1_num, s1_lbl, s1_db in setup_throws:
                 if s1_pts == rem:
-                    return [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+                    res = [(s1_mod, s1_num, s1_lbl, s1_db), (f_mod, f_num, f_lbl, f_db)]
+                    return [d for d in res if not d[3]] + [d for d in res if d[3]]
 
     if darts_left < 3:
         return []
@@ -322,11 +325,12 @@ def get_checkout_route(score, darts_left, has_double_out, has_master_out):
                 if rem2 > 0:
                     for s2_pts, s2_mod, s2_num, s2_lbl, s2_db in setup_throws:
                         if s2_pts == rem2:
-                            return [
+                            res = [
                                 (s1_mod, s1_num, s1_lbl, s1_db),
                                 (s2_mod, s2_num, s2_lbl, s2_db),
                                 (f_mod, f_num, f_lbl, f_db)
                             ]
+                            return [d for d in res if not d[3]] + [d for d in res if d[3]]
 
     return []
 
@@ -339,14 +343,20 @@ def get_bot_hit(score, mode, option, in_checked=True):
         target_double = random.choice([20, 16])
         if random.random() < {1: 0.20, 2: 0.45, 3: 0.80}[diff]: return f"d{target_double}"
         else: return str(target_double) if random.random() < 0.6 else "-"
-    if option != "Open In/Out":
+    has_out_rule = option in ["Double Out", "Master Out", "Double In/Out", "Double In / Master Out"]
+    if has_out_rule:
         if score <= 40 and score % 2 == 0:
             target_double = score // 2
             if random.random() < {1: 0.10, 2: 0.35, 3: 0.80}[diff]: return f"d{target_double}"
             else: return str(target_double) if random.random() < 0.5 else "-"
         elif score <= 40 and score % 2 != 0: return "1"
-    if score <= 40 and option == "Open In/Out":
-        if random.random() < {1: 0.30, 2: 0.60, 3: 0.95}[diff]: return str(score)
+    elif score <= 40:
+        if random.random() < {1: 0.30, 2: 0.60, 3: 0.95}[diff]:
+            if score <= 20: return str(score)
+            elif score == 25: return "b"
+            elif score % 2 == 0: return f"d{score // 2}"
+            elif score % 3 == 0: return f"t{score // 3}"
+            else: return "20"
         else: return "-"
     if diff == 1: return str(random.randint(1, 20))
     elif diff == 2:
@@ -477,6 +487,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
     darts_thrown, round_num, round_points = 0, 1, 0
     round_start_score, round_start_in_checked = start_score, player_in_checked[0]
     switch_delay_timer = 0
+    piezo_block_until = 0
 
     if ser:
         try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -499,13 +510,14 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             route = get_checkout_route(cur_score, rem_darts, has_double_out, has_master_out)
 
         dart_disp_pairs = [(20, 19), (18, 17), (16, 15)]
-        needs_bull_icon = False
+        non_bull = [item for item in route if not item[3]]
+        needs_bull_icon = any(item[3] for item in route)
+        offset = len(dart_disp_pairs) - len(non_bull)
 
         for idx, (seg_mod, seg_num) in enumerate(dart_disp_pairs):
-            if idx < len(route):
-                mod_str, num_str, _, is_db = route[idx]
-                if is_db:
-                    needs_bull_icon = True
+            nb_idx = idx - offset
+            if 0 <= nb_idx < len(non_bull):
+                mod_str, num_str, _, _ = non_bull[nb_idx]
             else:
                 mod_str, num_str = "  ", "  "
 
@@ -576,6 +588,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 darts_thrown, round_num, round_points = 0, 1, 0
                 round_start_score, round_start_in_checked = start_score, player_in_checked[0]
                 switch_delay_timer = 0
+                piezo_block_until = 0
                 current_state = "GAME"
                 if ser:
                     try: ser.write(b"LAMP:PLAYER:1\n"); ser.write(b"LAMP:START:0\n"); ser.flush()
@@ -606,6 +619,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
 
             if switch_delay_timer > 0 and pygame.time.get_ticks() >= switch_delay_timer:
                 switch_delay_timer, darts_thrown, round_points = 0, 0, 0
+                piezo_block_until = pygame.time.get_ticks() + 1500
                 turn_idx = (turn_idx + 1) % len(turn_order)
                 if turn_idx == 0:
                     round_num += 1
@@ -624,7 +638,9 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     raw_data = f"HIT:{get_bot_hit(player_scores[active_player-1], mode, option, player_in_checked[active_player-1])}"; bot_timer = 0 
 
         if raw_data and current_state == "GAME":
-            if (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
+            if raw_data == "MISS:1" and pygame.time.get_ticks() < piezo_block_until:
+                raw_data = None
+            elif (raw_data.startswith("HIT:") or raw_data == "MISS:1") and darts_thrown < 3:
                 hit_segment = raw_data.split(":")[1] if raw_data.startswith("HIT:") else "MISS"
                 p_idx = active_player - 1
                 
@@ -656,7 +672,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                 new_score = player_scores[p_idx] - points if player_in_checked[p_idx] else player_scores[p_idx]
 
                 if new_score < 0: bust = True
-                elif option != "Open In/Out":
+                elif has_double_out or has_master_out:
                     if new_score == 1: bust = True
                     elif new_score == 0:
                         if has_master_out and not is_master and hit_segment != "WIN_CHEAT": bust = True
@@ -732,7 +748,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
             pygame.draw.line(screen, NEON_GREEN, (hud_x + 35, line_y), (hud_x + hud_w - 35, line_y), 2)
             pygame.draw.circle(screen, HIGHLIGHT, (sw // 2, line_y), 5)
 
-            act_col = PLAYER_COLORS[0] if is_berrys_turn else (PLAYER_COLORS[get_team_idx(active_player - 1) % len(PLAYER_COLORS)] if is_team_mode else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)])
+            act_col = BERRY_COLOR if is_berrys_turn else (PLAYER_COLORS[get_team_idx(active_player - 1) % len(PLAYER_COLORS)] if is_team_mode else PLAYER_COLORS[(active_player - 1) % len(PLAYER_COLORS)])
             if is_berrys_turn:
                 active_label = mode
             elif is_team_mode:
@@ -830,7 +846,7 @@ def run_game(screen, ser, display, players, game_name, option, mode):
                     px = sb_x + i * (p_box_w + 10)
                     is_act = (i == (active_player - 1))
                     p_n = "Berry" if (is_berry_game and i == total_players - 1) else f"Spieler {i+1}"
-                    p_col = PLAYER_COLORS[0] if (is_berry_game and i == total_players - 1) else PLAYER_COLORS[i % len(PLAYER_COLORS)]
+                    p_col = BERRY_COLOR if (is_berry_game and i == total_players - 1) else PLAYER_COLORS[i % len(PLAYER_COLORS)]
                     
                     draw_cyber_player_card(screen, px, sb_y, p_box_w, box_h, p_col, is_act, cut=12)
 
