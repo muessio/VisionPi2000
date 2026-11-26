@@ -114,7 +114,7 @@ Flashe zunächst den bereitgestellten Arduino-Sketch (`Arduino-MEGA-2560_Schnitt
 
 ---
 
-### 2. Option A: Fertiges SD-Karten-Image flashen (Empfohlen)
+### 2. Option A: Fertiges SD-Karten-Image flashen (empfohlen)
 
 Der einfachste und schnellste Weg ist das einsatzbereite **VisionPi2000-Image (`.img.xz`)** aus dem Bereich **Releases** dieses Repositories. Alle System-Optimierungen, Kiosk-Einstellungen und der Schreibschutz sind bereits vorkonfiguriert.
 
@@ -130,7 +130,7 @@ Der einfachste und schnellste Weg ist das einsatzbereite **VisionPi2000-Image (`
 
 ---
 
-### 3. Option B: Manuelle Installation (Alternative für erfahrene Nutzer)
+### 2. Option B: Manuelle Installation (Alternative für erfahrene Nutzer)
 
 Wer das System lieber selbst auf einem frischen **Raspberry Pi OS Lite** (Bookworm / Trixie) aufsetzen oder bewusst eigenen SSH-Zugang behalten möchte, kann das automatische Setup-Skript nutzen.
 
@@ -147,7 +147,7 @@ curl -sSL [https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Softwar
 
 ---
 
-### 4. System-Aktualisierung (Update)
+### 3. System-Aktualisierung (Update)
 
 Um einen Automaten auf den neuesten Stand des `stable`-Zweigs zu bringen, öffne direkt am Gerät das **Service-Menü** und starte dort die **Online-Update-Funktion** – der Automat entsperrt den Schreibschutz für den Update-Vorgang selbstständig, installiert die aktuelle Version und verriegelt das System danach sofort wieder.
 
