@@ -48,11 +48,12 @@ Klassische Dartautomaten aus den späten 90er- und 2000er-Jahren (wie der **Turn
 ## 🛠️ System-Eigenschaften & Betriebssystem-Hinweise (ab Version 1.1.13 / Stable)
 
 * **Ausfallsicheres Betriebssystem (Read-Only OverlayFS):** Das System läuft im geschützten Read-Only-Modus (`OverlayFS`). Dadurch sind Dateisystem-Schäden an der SD-Karte ausgeschlossen, wenn der Automat nach dem Spielen direkt über den Hauptschalter stromlos geschaltet wird.
+* **Abgehärtetes Sicherheitskonzept (Fertig-Image / Appliance-Modus):** Im bereitgestellten SD-Karten-Image ist **SSH standardmäßig gesperrt** und es ist **kein Benutzerpasswort hinterlegt**. Es existieren weder Standard-Passwörter noch offene Fernzugriffsports im Heimnetzwerk – Bedienung, Konfiguration und System-Updates erfolgen ausschließlich direkt über den Automaten selbst.
 * **Intelligente Konfiguration auf der Boot-Partition:** Obwohl das Hauptsystem schreibgeschützt ist, liegt die zentrale Konfigurationsdatei `settings.json` (für Bildformat, Display-Mapper, MQTT-Broker und WLAN-Daten) per Symlink verknüpft direkt auf der ungeschützten FAT32-Boot-Partition (`/boot/firmware/settings.json`):
-  1. **Über das Automaten-Service-Menü (WPS):** Im Service-Menü unter „WLAN & WPS" auf Knopfdruck mit dem Router koppeln.
+  1. **Über das Automaten-Service-Menü (WPS):** Im Service-Menü unter „WLAN & WPS“ auf Knopfdruck mit dem Router koppeln.
   2. **Manuell am PC (Offline):** SD-Karte in einen beliebigen PC stecken und die Datei `settings.json` direkt auf dem Laufwerk `bootfs` mit einem Texteditor anpassen (`"wifi_ssid"`, `"wifi_password"`, `"format": "16:9"` oder `"4:3"`).
 * **Integriertes Service-Menü, Spieleanleitung & Projekt-Info:** Direkt über das Hauptmenü aufrufbare Module im Cyber-Circuit-Design für Hardware-Diagnose (Matrix-, Sensor-, Lampen- und MAX7219-Tests), detailliertes Regelwerk aller Spiele (mit Blätterfunktion) und System-Informationen.
-* **Online-Update (OTA) über den `stable`-Branch:** Über das Service-Menü oder per `Update.sh` entsperrt das System kurzzeitig die Partition (`/media/root-ro`), lädt den aktuellen Stand aus dem **`stable`**-Zweig von GitHub in den RAM, bettet benötigte Python-Module (`paho-mqtt`, `qrcode`) direkt Trixie-sicher ein, rüstet die RAM-/System-Optimierungen nach und verriegelt die SD-Karte anschließend sofort wieder.
+* **Online-Update (OTA) über den `stable`-Branch:** Über das Service-Menü entsperrt das System kurzzeitig die Partition (`/media/root-ro`), lädt den aktuellen Stand aus dem **`stable`**-Zweig von GitHub in den RAM, bettet benötigte Python-Module (`paho-mqtt`, `qrcode`) direkt Trixie-sicher ein, rüstet die RAM-/System-Optimierungen nach und verriegelt die SD-Karte anschließend sofort wieder.
 
 ---
 
@@ -107,29 +108,53 @@ Eine detaillierte, komplette Schnittstellenbeschreibung inklusive Pin-Belegungen
 
 ## 🚀 Installation & Update
 
-> **⚠️ Wichtiger Hinweis zum Systembenutzer (Raspberry Pi OS Lite / Trixie / Bookworm):**  
-> Bei der Einrichtung des Raspberry Pi OS Lite muss der Hauptbenutzer zwingend den Namen **`visionpi2000`** tragen, da alle Systempfade (`/home/visionpi2000/VisionPi2000/`), Autostart-Skripte und Berechtigungen fest darauf ausgelegt sind!
+### 1. Vorbereitung der Hardware (immer erforderlich)
 
-### 1. Vorbereitung der Hardware
+Flashe zunächst den bereitgestellten Arduino-Sketch (`Arduino-MEGA-2560_Schnittstellen_VisionPi2000.ino`) über die Arduino IDE auf den Arduino Mega 2560.
 
-Flashe den bereitgestellten Arduino-Sketch (`Arduino-MEGA-2560_Schnittstellen_VisionPi2000.ino`) über die Arduino IDE auf den Arduino Mega 2560.
+---
 
-### 2. Vollständige Installation (Einrichtung)
+### 2. Option A: Fertiges SD-Karten-Image flashen (empfohlen)
+
+Der einfachste und schnellste Weg ist das einsatzbereite **VisionPi2000-Image (`.img.xz`)** aus dem Bereich **Releases** dieses Repositories. Alle System-Optimierungen, Kiosk-Einstellungen und der Schreibschutz sind bereits vorkonfiguriert.
+
+1. **Image herunterladen:** Lade die aktuelle `.img.xz`-Datei aus den **GitHub Releases** herunter (ein vorheriges Entpacken ist nicht notwendig).
+2. **Auf SD-Karte schreiben (mind. 8 GB):**
+   * **Mit balenaEtcher:** *Flash from file* → `.img.xz` auswählen → SD-Karte wählen → *Flash!*
+   * **Mit Raspberry Pi Imager:** *Raspberry Pi 4* wählen → *Betriebssystem wählen → Eigenes Image verwenden* → `.img.xz` auswählen → SD-Karte wählen. **Wichtig:** Bei der Abfrage zu den *OS-Anpassungen* auf **„Nein“** klicken (keine eigenen Benutzer-, Passwort- oder WLAN-Daten injizieren), damit das Image im sicheren Werkszustand bleibt.
+3. **Erster Start im Automaten:** Stecke die SD-Karte in den Raspberry Pi 4B und schalte den Automaten ein. Beim allerersten Start erweitert das System automatisch die Partition auf die volle Kapazität deiner SD-Karte, erzeugt eindeutige System-IDs, aktiviert den **OverlayFS-Schreibschutz** und führt **einmalig einen automatischen Neustart** durch. *(Den Automaten während dieser ersten ca. 1–2 Minuten bitte nicht ausschalten.)*
+4. **WLAN verbinden:** Nach dem Neustart kannst du den Automaten direkt im **Service-Menü per WPS-Knopfdruck** mit deinem Router koppeln – alternativ hinterlegst du SSID und Passwort offline am PC in der Datei `settings.json` auf der Partition `bootfs`.
+
+> **🔒 Sicherheitskonzept des fertigen Images (Appliance-Modus):**  
+> Aus Sicherheitsgründen ist **SSH im fertigen Image dauerhaft gesperrt** und für den Systembenutzer **`visionpi2000` ist kein Login-Passwort hinterlegt**. Es gibt somit keine bekannten Standard-Passwörter und keine offenen Fernzugriffsports im Heimnetzwerk. Der Zugriff auf Einstellungen, WLAN-Kopplung, Hardware-Tests und **System-Updates erfolgt ausschließlich direkt am Automaten über das integrierte Service-Menü**.
+
+---
+
+### 2. Option B: Manuelle Installation (Alternative für erfahrene Nutzer)
+
+Wer das System lieber selbst auf einem frischen **Raspberry Pi OS Lite** (Bookworm / Trixie) aufsetzen oder bewusst eigenen SSH-Zugang behalten möchte, kann das automatische Setup-Skript nutzen.
+
+> **⚠️ Wichtiger Hinweis zum Systembenutzer:**  
+> Bei der manuellen Einrichtung muss der Hauptbenutzer zwingend den Namen **`visionpi2000`** tragen, da alle Systempfade (`/home/visionpi2000/VisionPi2000/`), Autostart-Skripte und Berechtigungen fest darauf ausgelegt sind!
 
 Das Master-Skript `Software_u_Setup.sh` erledigt die komplette Einrichtung vollautomatisch: Es setzt das USB-Stromlimit hoch, deaktiviert den USB- & WLAN-Energiesparmodus, schaltet unnötige Hintergrunddienste für den 1-GB-RAM-Betrieb ab, installiert die minimale X11/Openbox-Kiosk-Umgebung, lädt den aktuellen **`stable`**-Branch von GitHub, bettet `paho-mqtt` sowie `qrcode` direkt ein, generiert die Sounddateien, verlinkt die `settings.json` auf die Boot-Partition und aktiviert abschließend den schützenden **OverlayFS-Schreibschutz**.
 
-Führe dazu auf einem frisch installierten Raspberry Pi OS Lite (eingeloggt als Benutzer `visionpi2000`) diesen Befehl aus:
+Führe dazu (eingeloggt als Benutzer `visionpi2000`) diesen Befehl aus:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Software_u_Setup.sh | bash
+curl -sSL [https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Software_u_Setup.sh](https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Software_u_Setup.sh) | bash
 ```
+
+---
 
 ### 3. System-Aktualisierung (Update)
 
-Um einen bereits installierten Automaten auf den neuesten Stand des `stable`-Zweigs zu bringen, nutze entweder die Update-Funktion direkt im **Service-Menü** des Automaten oder führe per SSH folgenden Befehl aus:
+Um einen Automaten auf den neuesten Stand des `stable`-Zweigs zu bringen, öffne direkt am Gerät das **Service-Menü** und starte dort die **Online-Update-Funktion** – der Automat entsperrt den Schreibschutz für den Update-Vorgang selbstständig, installiert die aktuelle Version und verriegelt das System danach sofort wieder.
+
+*(Nur für manuell installierte Systeme mit aktiviertem SSH-Zugang alternativ per Terminal:)*
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.sh | bash
+curl -sSL [https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.sh](https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.sh) | bash
 ```
 
 ---
