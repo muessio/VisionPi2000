@@ -1,7 +1,7 @@
 // =================================================================================
 // VisionPi2000 - ARDUINO MEGA KONTROLL-SOFTWARE (100% SYNCHRONES MAX7219 SPI - FIX)
 // INKLUSIVE AUTONOMER LEUCHTMELDER-STEUERUNG (START & SPIELERWECHSEL)
-// Version 1.6.3 (130ms Matrix-Vorrang-Fenster, saubere Trennung Hit/Miss-Sperre)
+// Version 1.6.4 (100us Matrix-Einschwingzeit, leicht angepasste Piezo-Schwelle)
 // =================================================================================
 
 const int rowPins[4]  = {22, 24, 26, 28}; 
@@ -47,8 +47,8 @@ unsigned long piezoHitTime = 0;
 unsigned long piezoFirstSpikeTime = 0;
 int piezoSpikeCounter = 0;
 bool piezoTriggered = false;
-const int piezoThreshold = 15; 
-const int piezoConfirmCount = 2;        // Mind. 2 Messungen >= 15 (filtert Einzel-Spikes)
+const int piezoThreshold = 18;          // Vorsichtig angepasst für passive Piezo-Schaltung (vorher 15)
+const int piezoConfirmCount = 2;        // Mind. 2 Messungen >= piezoThreshold (filtert Einzel-Spikes)
 const unsigned long piezoMatrixWaitTime = 130; // Ausreichendes Matrix-Vorrang-Fenster (ms)
 
 const int btnDebounceDelay = 250;     // Tasten-Entprellung
@@ -293,7 +293,7 @@ void loop() {
     bool hitFound = false;
     for (int r = 0; r < 4 && !hitFound; r++) {
       digitalWrite(rowPins[r], LOW); 
-      delayMicroseconds(50);         
+      delayMicroseconds(100);        // Erhöhte Einschwingzeit für hochohmige Folienkontakte
       for (int c = 0; c < 16; c++) {
         if (digitalRead(colPins[c]) == LOW) { 
           String hitSegment = dartBoard[r][c];
