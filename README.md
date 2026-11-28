@@ -173,7 +173,7 @@ curl -sSL [https://raw.githubusercontent.com/muessio/VisionPi2000/stable/Update.
 
 ### Vorheriges Update (Sensorik-, Display- & UI-Feinschliff)
 
-* **Arduino-Firmware (`v1.6.1`):** Separate `500 ms`-Piezo-Sperrzeit nach Treffern/Fehlwürfen ergänzt und den Piezo-Spike-Filter (`piezoConfirmCount = 2`) so abgestimmt, dass Störimpulse zuverlässig gefiltert werden, schwächere Einschläge im oberen Board-Bereich aber sauber ansprechen.
+* **Arduino-Firmware (`v1.6.4`):** Separate 500 ms-Piezo-Sperrzeit nach Treffern/Fehlwürfen ergänzt sowie Matrix-Einschwingzeit (100 µs) und Piezo-Erkennungsschwelle (18) optimiert. Der abgestimmte Spike-Filter (piezoConfirmCount = 2) blockt Störimpulse zuverlässig, erkennt aber auch schwächere Einschläge im oberen Board-Bereich sauber.
 * **Alle 7 Spielmodule (`game_x01.py` v1.1.12, `game_cricket.py` v1.1.7, `game_elimination.py` v1.1.8, `game_splitscore.py` v1.1.12, `game_shanghai.py` v1.1.6, `game_aroundclock.py` v1.1.6, `game_fruit_splasher.py` v1.3.3):**
   * Einheitliche **1,5-Sekunden-Piezo-Sperre** direkt nach jedem Spielerwechsel integriert, um Fehlwurf-Auslösungen beim Pfeileziehen zu vermeiden.
   * Eigene **Gold-Farbe (`BERRY_COLOR` / `GOLDEN_BERRY`)** für den Bot *Bullseye-Berry* eingeführt, damit er sich optisch klar von Spieler 1 unterscheidet.
